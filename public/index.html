@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>spmt.live — Sign In</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #050505; color: #fff; font-family: system-ui, -apple-system, sans-serif; }
+    .card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 2.5rem; width: 100%; max-width: 380px; backdrop-filter: blur(20px); }
+    h1 { font-size: 1.5rem; font-weight: 800; text-align: center; margin-bottom: 0.25rem; }
+    h1 span { color: #f97316; }
+    .subtitle { text-align: center; font-size: 0.7rem; color: #71717a; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 2rem; }
+    .tabs { display: flex; gap: 0; margin-bottom: 1.5rem; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
+    .tabs button { flex: 1; padding: 0.6rem; background: transparent; border: none; color: #a1a1aa; font-weight: 700; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; }
+    .tabs button.active { background: rgba(249,115,22,0.15); color: #f97316; }
+    input { width: 100%; padding: 0.75rem 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #fff; font-size: 0.8rem; margin-bottom: 0.75rem; outline: none; transition: border-color 0.2s; }
+    input:focus { border-color: rgba(249,115,22,0.5); }
+    input::placeholder { color: #52525b; }
+    .btn { width: 100%; padding: 0.75rem; background: #f97316; border: none; border-radius: 12px; color: #000; font-weight: 800; font-size: 0.8rem; cursor: pointer; transition: transform 0.1s; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .msg { text-align: center; font-size: 0.7rem; margin-top: 1rem; min-height: 1.2rem; }
+    .msg.error { color: #ef4444; }
+    .msg.success { color: #10b981; }
+    .footer { text-align: center; margin-top: 1.5rem; font-size: 0.6rem; color: #3f3f46; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1><span>spmt</span>.live</h1>
+    <p class="subtitle">universal account system</p>
+
+    <div class="tabs">
+      <button id="tab-login" class="active" onclick="showTab('login')">Sign In</button>
+      <button id="tab-register" onclick="showTab('register')">Create Account</button>
+    </div>
+
+    <form id="form-login" onsubmit="handleLogin(event)">
+      <input name="username" placeholder="username or user@spmt.live" required>
+      <input name="password" type="password" placeholder="password" required>
+      <button type="submit" class="btn">Sign In</button>
+    </form>
+
+    <form id="form-register" style="display:none" onsubmit="handleRegister(event)">
+      <input name="username" placeholder="choose a username" required>
+      <input name="displayName" placeholder="display name (optional)">
+      <input name="password" type="password" placeholder="password (min 6 chars)" required minlength="6">
+      <button type="submit" class="btn">Create Account</button>
+    </form>
+
+    <p class="msg" id="msg"></p>
+    <p class="footer">Your handle will be username@spmt.live</p>
+  </div>
+
+  <script>
+    function showTab(tab) {
+      document.getElementById('form-login').style.display = tab === 'login' ? 'block' : 'none';
+      document.getElementById('form-register').style.display = tab === 'register' ? 'block' : 'none';
+      document.getElementById('tab-login').className = tab === 'login' ? 'active' : '';
+      document.getElementById('tab-register').className = tab === 'register' ? 'active' : '';
+      document.getElementById('msg').textContent = '';
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const form = new FormData(e.target);
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: form.get('username'), password: form.get('password') })
+      });
+      const data = await res.json();
+      const msg = document.getElementById('msg');
+      if (res.ok) {
+        msg.className = 'msg success';
+        msg.textContent = `Welcome back, ${data.user.displayName}! (${data.user.email})`;
+      } else {
+        msg.className = 'msg error';
+        msg.textContent = data.error;
+      }
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const form = new FormData(e.target);
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: form.get('username'), displayName: form.get('displayName'), password: form.get('password') })
+      });
+      const data = await res.json();
+      const msg = document.getElementById('msg');
+      if (res.ok) {
+        msg.className = 'msg success';
+        msg.textContent = `Account created! You are ${data.user.email}`;
+      } else {
+        msg.className = 'msg error';
+        msg.textContent = data.error;
+      }
+    }
+  </script>
+</body>
+</html>

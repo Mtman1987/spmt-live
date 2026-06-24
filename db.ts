@@ -1,0 +1,107 @@
+import Database from 'better-sqlite3';
+import path from 'path';
+import fs from 'fs';
+
+const DB_PATH = process.env.DATABASE_PATH || '/data/spmt.db';
+
+// Ensure directory exists
+const dir = path.dirname(DB_PATH);
+if (!fs.existsSync(dir)) {
+  try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+}
+
+let dbPath = DB_PATH;
+try {
+  const test = new Database(dbPath);
+  test.close();
+} catch {
+  dbPath = path.join(process.cwd(), 'spmt.db');
+}
+
+export const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
+
+export function initDb() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS oauth_clients (
+      client_id TEXT PRIMARY KEY,
+      client_secret TEXT NOT NULL,
+      name TEXT NOT NULL,
+      redirect_uris TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS oauth_codes (
+      code TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      redirect_uri TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      FOREIGN KEY(user_id) REFERENCES users(id),
+      FOREIGN KEY(client_id) REFERENCES oauth_clients(client_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      from_id TEXT NOT NULL,
+      to_id TEXT NOT NULL,
+      subject TEXT DEFAULT '',
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(from_id) REFERENCES users(id),
+      FOREIGN KEY(to_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS forum_threads (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      category TEXT DEFAULT 'General',
+      author_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(author_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS forum_posts (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL,
+      author_id TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(thread_id) REFERENCES forum_threads(id),
+      FOREIGN KEY(author_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS user_settings (
+      user_id TEXT PRIMARY KEY,
+      theme TEXT DEFAULT 'solar-flare',
+      notifications INTEGER DEFAULT 1,
+      bio TEXT DEFAULT '',
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+  `);
+
+  // Seed OAuth client for spacemountain.live
+  const existing = db.prepare('SELECT client_id FROM oauth_clients WHERE client_id = ?').get('spacemountain-live');
+  if (!existing) {
+    db.prepare('INSERT INTO oauth_clients (client_id, client_secret, name, redirect_uris, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(
+        'spacemountain-live',
+        'spmt_secret_' + Math.random().toString(36).slice(2, 18),
+        'SpaceMountain.live',
+        'https://spacemountain.live/auth/callback,https://spacemountain-live.fly.dev/auth/callback',
+        new Date().toISOString()
+      );
+    console.log('Seeded OAuth client for spacemountain.live');
+  }
+
+  console.log('spmt.live database initialized');
+}

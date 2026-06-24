@@ -87,6 +87,19 @@ export function initDb() {
       bio TEXT DEFAULT '',
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS arena_players (
+      user_id TEXT PRIMARY KEY,
+      username TEXT NOT NULL,
+      x REAL DEFAULT 400,
+      y REAL DEFAULT 300,
+      angle REAL DEFAULT 0,
+      hp INTEGER DEFAULT 100,
+      kills INTEGER DEFAULT 0,
+      deaths INTEGER DEFAULT 0,
+      last_seen TEXT NOT NULL,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
   `);
 
   // Seed OAuth client for spacemountain.live

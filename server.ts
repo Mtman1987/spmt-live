@@ -319,6 +319,72 @@ app.post('/api/system/broadcast', (req, res) => {
   res.json({ sent, ok: true });
 });
 
+// ─── Arena: Shared PvP Rocket Battlefield ───
+app.get('/api/arena/state', authenticate, (req: any, res) => {
+  // Get all active players in the arena (active in last 10 seconds)
+  const cutoff = new Date(Date.now() - 10000).toISOString();
+  const players = db.prepare('SELECT * FROM arena_players WHERE last_seen > ?').all(cutoff);
+  res.json({ players });
+});
+
+app.post('/api/arena/join', authenticate, (req: any, res) => {
+  const existing = db.prepare('SELECT user_id FROM arena_players WHERE user_id = ?').get(req.user.id);
+  if (!existing) {
+    db.prepare('INSERT INTO arena_players (user_id, username, x, y, angle, hp, kills, deaths, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(req.user.id, req.user.username, Math.random() * 800, Math.random() * 600, 0, 100, 0, 0, new Date().toISOString());
+  } else {
+    db.prepare('UPDATE arena_players SET hp = 100, last_seen = ? WHERE user_id = ?')
+      .run(new Date().toISOString(), req.user.id);
+  }
+  res.json({ joined: true });
+});
+
+app.post('/api/arena/update', authenticate, (req: any, res) => {
+  const { x, y, angle } = req.body;
+  db.prepare('UPDATE arena_players SET x = ?, y = ?, angle = ?, last_seen = ? WHERE user_id = ?')
+    .run(x, y, angle, new Date().toISOString(), req.user.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/arena/shoot', authenticate, (req: any, res) => {
+  const { targetId } = req.body;
+  if (!targetId) return res.status(400).json({ error: 'targetId required' });
+
+  const target = db.prepare('SELECT * FROM arena_players WHERE user_id = ?').get(targetId) as any;
+  if (!target || target.hp <= 0) return res.status(400).json({ error: 'Invalid target' });
+
+  const damage = 25;
+  const newHp = Math.max(0, target.hp - damage);
+  db.prepare('UPDATE arena_players SET hp = ? WHERE user_id = ?').run(newHp, targetId);
+
+  let killed = false;
+  if (newHp <= 0) {
+    // Award kill to shooter
+    db.prepare('UPDATE arena_players SET kills = kills + 1 WHERE user_id = ?').run(req.user.id);
+    db.prepare('UPDATE arena_players SET deaths = deaths + 1, hp = 100, x = ?, y = ? WHERE user_id = ?')
+      .run(Math.random() * 800, Math.random() * 600, targetId);
+    // Award XP points via user table if exists
+    db.prepare('UPDATE users SET display_name = display_name WHERE id = ?').run(req.user.id); // placeholder for points
+    killed = true;
+  }
+
+  res.json({ hit: true, damage, killed, targetHp: newHp });
+});
+
+app.get('/api/arena/shop', authenticate, (req: any, res) => {
+  res.json([
+    { id: 'bullets-10', name: '10 Bullets', cost: 50, description: 'Standard ammo pack' },
+    { id: 'missiles-3', name: '3 Missiles', cost: 150, description: 'High damage, slow fire' },
+    { id: 'shield', name: 'Shield (30s)', cost: 200, description: 'Temporary invulnerability' },
+    { id: 'speed-boost', name: 'Speed Boost', cost: 100, description: '2x speed for 20s' },
+  ]);
+});
+
+app.get('/api/arena/leaderboard', (req, res) => {
+  const leaders = db.prepare('SELECT username, kills, deaths FROM arena_players ORDER BY kills DESC LIMIT 20').all();
+  res.json(leaders);
+});
+
 // ─── Static fallback (for minimal frontend later) ───
 app.use(express.static('public'));
 app.get('*', (req, res) => {

@@ -120,5 +120,22 @@ export function initDb() {
       .run('https://spacemountain.live/auth/callback,https://spacemountain-live.fly.dev/auth/callback,http://spacemountain-live.fly.dev/auth/callback', 'spacemountain-live');
   }
 
+  // Seed OAuth client for Discord Stream Hub
+  const dshExists = db.prepare('SELECT client_id FROM oauth_clients WHERE client_id = ?').get('discord-stream-hub');
+  if (!dshExists) {
+    db.prepare('INSERT INTO oauth_clients (client_id, client_secret, name, redirect_uris, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(
+        'discord-stream-hub',
+        'dsh_spmt_secret_2026',
+        'Discord Stream Hub',
+        'https://discord-stream-hub-new.fly.dev/auth/callback,https://spacemountain.live/discordstreamhub/auth/callback',
+        new Date().toISOString()
+      );
+    console.log('Seeded OAuth client for Discord Stream Hub');
+  } else {
+    db.prepare('UPDATE oauth_clients SET redirect_uris = ? WHERE client_id = ?')
+      .run('https://discord-stream-hub-new.fly.dev/auth/callback,https://spacemountain.live/discordstreamhub/auth/callback', 'discord-stream-hub');
+  }
+
   console.log('spmt.live database initialized');
 }

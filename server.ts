@@ -371,13 +371,27 @@ app.post('/api/arena/shoot', authenticate, (req: any, res) => {
   res.json({ hit: true, damage, killed, targetHp: newHp });
 });
 
-app.get('/api/arena/shop', authenticate, (req: any, res) => {
-  res.json([
-    { id: 'bullets-10', name: '10 Bullets', cost: 50, description: 'Standard ammo pack' },
-    { id: 'missiles-3', name: '3 Missiles', cost: 150, description: 'High damage, slow fire' },
-    { id: 'shield', name: 'Shield (30s)', cost: 200, description: 'Temporary invulnerability' },
-    { id: 'speed-boost', name: 'Speed Boost', cost: 100, description: '2x speed for 20s' },
-  ]);
+app.get('/api/arena/shop', authenticate, async (req: any, res) => {
+  // Fetch user's points from Discord Stream Hub
+  let dshPoints = 0;
+  try {
+    const dshRes = await fetch('https://discord-stream-hub-new.fly.dev/api/points/balance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.DSH_BOT_KEY}` },
+      body: JSON.stringify({ userId: req.user.id, username: req.user.username }),
+    });
+    if (dshRes.ok) { const d = await dshRes.json(); dshPoints = d.points || 0; }
+  } catch {}
+
+  res.json({
+    balance: dshPoints,
+    items: [
+      { id: 'bullets-10', name: '10 Bullets', cost: 50, description: 'Standard ammo pack' },
+      { id: 'missiles-3', name: '3 Missiles', cost: 150, description: 'High damage, slow fire' },
+      { id: 'shield', name: 'Shield (30s)', cost: 200, description: 'Temporary invulnerability' },
+      { id: 'speed-boost', name: 'Speed Boost', cost: 100, description: '2x speed for 20s' },
+    ]
+  });
 });
 
 app.get('/api/arena/leaderboard', (req, res) => {

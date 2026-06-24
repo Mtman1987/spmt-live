@@ -97,10 +97,14 @@ export function initDb() {
         'spacemountain-live',
         'spmt_secret_' + Math.random().toString(36).slice(2, 18),
         'SpaceMountain.live',
-        'https://spacemountain.live/auth/callback,https://spacemountain-live.fly.dev/auth/callback',
+        'https://spacemountain.live/auth/callback,https://spacemountain-live.fly.dev/auth/callback,http://spacemountain-live.fly.dev/auth/callback',
         new Date().toISOString()
       );
     console.log('Seeded OAuth client for spacemountain.live');
+  } else {
+    // Update redirect_uris in case they changed
+    db.prepare('UPDATE oauth_clients SET redirect_uris = ? WHERE client_id = ?')
+      .run('https://spacemountain.live/auth/callback,https://spacemountain-live.fly.dev/auth/callback,http://spacemountain-live.fly.dev/auth/callback', 'spacemountain-live');
   }
 
   console.log('spmt.live database initialized');

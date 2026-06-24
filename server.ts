@@ -261,6 +261,64 @@ app.post('/api/settings', authenticate, (req: any, res) => {
   res.json({ ok: true });
 });
 
+// ─── System Messaging: App-to-user messages (used by ecosystem apps) ───
+app.post('/api/system/message', (req, res) => {
+  const apiKey = req.headers['x-spmt-key'];
+  if (apiKey !== process.env.SYSTEM_API_KEY) return res.status(401).json({ error: 'Invalid API key' });
+
+  const { from_app, to, subject, body } = req.body;
+  if (!to || !body) return res.status(400).json({ error: 'to and body required' });
+
+  const recipient = db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(to, to) as any;
+  if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
+
+  // Create a system user for the app if it doesn't exist
+  const appUsername = (from_app || 'system').toLowerCase().replace(/[^a-z0-9-]/g, '');
+  let appUser = db.prepare('SELECT id FROM users WHERE username = ?').get(appUsername) as any;
+  if (!appUser) {
+    const appId = `app_${appUsername}`;
+    db.prepare('INSERT OR IGNORE INTO users (id, username, email, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(appId, appUsername, `${appUsername}@spmt.live`, from_app || 'System', 'SYSTEM_NO_LOGIN', new Date().toISOString());
+    appUser = { id: appId };
+  }
+
+  const id = uuidv4();
+  db.prepare('INSERT INTO messages (id, from_id, to_id, subject, body, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, appUser.id, recipient.id, subject || `Message from ${from_app || 'System'}`, body, new Date().toISOString());
+
+  res.status(201).json({ id, sent: true });
+});
+
+// ─── System Messaging: Broadcast to all users ───
+app.post('/api/system/broadcast', (req, res) => {
+  const apiKey = req.headers['x-spmt-key'];
+  if (apiKey !== process.env.SYSTEM_API_KEY) return res.status(401).json({ error: 'Invalid API key' });
+
+  const { from_app, subject, body } = req.body;
+  if (!body) return res.status(400).json({ error: 'body required' });
+
+  const allUsers = db.prepare('SELECT id FROM users WHERE password_hash != ?').all('SYSTEM_NO_LOGIN') as any[];
+  const appUsername = (from_app || 'system').toLowerCase().replace(/[^a-z0-9-]/g, '');
+  let appUser = db.prepare('SELECT id FROM users WHERE username = ?').get(appUsername) as any;
+  if (!appUser) {
+    const appId = `app_${appUsername}`;
+    db.prepare('INSERT OR IGNORE INTO users (id, username, email, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(appId, appUsername, `${appUsername}@spmt.live`, from_app || 'System', 'SYSTEM_NO_LOGIN', new Date().toISOString());
+    appUser = { id: appId };
+  }
+
+  const now = new Date().toISOString();
+  let sent = 0;
+  for (const user of allUsers) {
+    const id = uuidv4();
+    db.prepare('INSERT INTO messages (id, from_id, to_id, subject, body, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(id, appUser.id, user.id, subject || `Broadcast from ${from_app}`, body, now);
+    sent++;
+  }
+
+  res.json({ sent, ok: true });
+});
+
 // ─── Static fallback (for minimal frontend later) ───
 app.use(express.static('public'));
 app.get('*', (req, res) => {

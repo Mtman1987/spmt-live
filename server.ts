@@ -183,17 +183,6 @@ app.get('/api/messages/sent', authenticate, (req: any, res) => {
   res.json(messages);
 });
 
-// ─── Forum: List threads ───
-app.get('/api/forum/threads', (req, res) => {
-  const threads = db.prepare(`
-    SELECT t.id, t.title, t.category, t.created_at, u.username as author,
-      (SELECT COUNT(*) FROM forum_posts WHERE thread_id = t.id) as post_count
-    FROM forum_threads t JOIN users u ON t.author_id = u.id
-    ORDER BY t.created_at DESC LIMIT 50
-  `).all();
-  res.json(threads);
-});
-
 // ─── Forum: Create thread ───
 app.post('/api/forum/threads', authenticate, (req: any, res) => {
   const { title, category, body } = req.body;
@@ -317,6 +306,85 @@ app.post('/api/system/broadcast', (req, res) => {
   }
 
   res.json({ sent, ok: true });
+});
+
+// ─── Discord Forwarding: Mirror Discord messages into spmt.live forum threads ───
+// DSH calls this to forward messages. Each Discord channel maps to one forum thread.
+app.post('/api/forum/forward', (req, res) => {
+  const apiKey = req.headers['x-spmt-key'];
+  if (apiKey !== process.env.SYSTEM_API_KEY) return res.status(401).json({ error: 'Invalid API key' });
+
+  const { channelId, channelName, guildName, userName, userAvatar, message, attachments } = req.body;
+  if (!channelId || (!message && !(attachments?.length))) return res.status(400).json({ error: 'channelId and message required' });
+
+  // Find or create the thread for this channel
+  let thread = db.prepare('SELECT id, title FROM forum_threads WHERE category = ?').get(`discord:${channelId}`) as any;
+
+  if (!thread) {
+    // Create thread mapped to this Discord channel
+    const threadId = uuidv4();
+    const title = channelName ? `#${channelName}` : `Discord Channel`;
+    const now = new Date().toISOString();
+
+    // Get or create a system user for the guild
+    const botUsername = (guildName || 'discord').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 20) || 'discord';
+    let botUser = db.prepare('SELECT id FROM users WHERE username = ?').get(botUsername) as any;
+    if (!botUser) {
+      const botId = `app_${botUsername}`;
+      db.prepare('INSERT OR IGNORE INTO users (id, username, email, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(botId, botUsername, `${botUsername}@spmt.live`, guildName || 'Discord', 'SYSTEM_NO_LOGIN', now);
+      botUser = { id: botId };
+    }
+
+    db.prepare('INSERT INTO forum_threads (id, title, category, author_id, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(threadId, title, `discord:${channelId}`, botUser.id, now);
+
+    thread = { id: threadId, title };
+  }
+
+  // Get or create user for the message author
+  const authorUsername = (userName || 'unknown').toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 30) || 'unknown';
+  let author = db.prepare('SELECT id FROM users WHERE username = ?').get(authorUsername) as any;
+  if (!author) {
+    const authorId = `discord_${authorUsername}_${Date.now().toString(36)}`;
+    db.prepare('INSERT OR IGNORE INTO users (id, username, email, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(authorId, authorUsername, `${authorUsername}@discord`, userName || authorUsername, 'SYSTEM_NO_LOGIN', new Date().toISOString());
+    author = { id: authorId };
+  }
+
+  // Post the message as a reply in the thread
+  const postId = uuidv4();
+  let body = message || '';
+  if (attachments?.length) {
+    const urls = attachments.map((a: any) => a.url || a.proxy_url).filter(Boolean);
+    if (urls.length) body += (body ? '\n' : '') + urls.join('\n');
+  }
+
+  db.prepare('INSERT INTO forum_posts (id, thread_id, author_id, body, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(postId, thread.id, author.id, body, new Date().toISOString());
+
+  res.status(201).json({ success: true, threadId: thread.id, postId });
+});
+
+// ─── Forum: List threads (updated to hide internal discord: categories from public view) ───
+app.get('/api/forum/threads', (req, res) => {
+  const showDiscord = req.query.discord === 'true';
+  const query = showDiscord
+    ? 'SELECT t.id, t.title, t.category, t.created_at, u.username as author, (SELECT COUNT(*) FROM forum_posts WHERE thread_id = t.id) as post_count FROM forum_threads t JOIN users u ON t.author_id = u.id ORDER BY t.created_at DESC LIMIT 50'
+    : `SELECT t.id, t.title, t.category, t.created_at, u.username as author, (SELECT COUNT(*) FROM forum_posts WHERE thread_id = t.id) as post_count FROM forum_threads t JOIN users u ON t.author_id = u.id WHERE t.category NOT LIKE 'discord:%' ORDER BY t.created_at DESC LIMIT 50`;
+  const threads = db.prepare(query).all();
+  res.json(threads);
+});
+
+// ─── Forum: List Discord-mirrored channels ───
+app.get('/api/forum/discord-channels', (req, res) => {
+  const threads = db.prepare(`
+    SELECT t.id, t.title, t.category, t.created_at,
+      (SELECT COUNT(*) FROM forum_posts WHERE thread_id = t.id) as post_count,
+      (SELECT body FROM forum_posts WHERE thread_id = t.id ORDER BY created_at DESC LIMIT 1) as last_message
+    FROM forum_threads t WHERE t.category LIKE 'discord:%' ORDER BY t.created_at DESC
+  `).all();
+  res.json(threads);
 });
 
 // ─── Arena: Shared PvP Rocket Battlefield ───

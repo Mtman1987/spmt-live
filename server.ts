@@ -49,7 +49,7 @@ app.get('/api/health', (req, res) => {
 
 // ─── Auth: Register ───
 app.post('/api/auth/register', async (req, res) => {
-  const { username, password, displayName } = req.body;
+  const { username, password, displayName, discordUsername, twitchUsername } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
   const clean = username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
@@ -58,16 +58,56 @@ app.post('/api/auth/register', async (req, res) => {
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(clean);
   if (existing) return res.status(409).json({ error: 'Username already taken' });
 
+  // Resolve Discord ID from username if provided
+  let discordId: string | null = null;
+  const cleanDiscord = (discordUsername || '').trim().replace(/^@/, '');
+  if (cleanDiscord && process.env.DISCORD_BOT_TOKEN) {
+    try {
+      const guildId = process.env.DISCORD_GUILD_ID || '';
+      if (guildId) {
+        const searchRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/search?query=${encodeURIComponent(cleanDiscord)}&limit=1`, {
+          headers: { 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+        });
+        if (searchRes.ok) {
+          const members = await searchRes.json();
+          if (members.length > 0 && members[0].user) {
+            discordId = members[0].user.id;
+          }
+        }
+      }
+    } catch (e) { console.warn('Discord lookup failed:', e); }
+  }
+
+  // Resolve Twitch ID from username if provided
+  let twitchId: string | null = null;
+  const cleanTwitch = (twitchUsername || '').trim().toLowerCase();
+  if (cleanTwitch && process.env.TWITCH_CLIENT_ID && process.env.TWITCH_ACCESS_TOKEN) {
+    try {
+      const twitchRes = await fetch(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(cleanTwitch)}`, {
+        headers: {
+          'Client-ID': process.env.TWITCH_CLIENT_ID,
+          'Authorization': `Bearer ${process.env.TWITCH_ACCESS_TOKEN}`,
+        },
+      });
+      if (twitchRes.ok) {
+        const data = await twitchRes.json();
+        if (data.data?.length > 0) {
+          twitchId = data.data[0].id;
+        }
+      }
+    } catch (e) { console.warn('Twitch lookup failed:', e); }
+  }
+
   const id = uuidv4();
   const hash = await bcrypt.hash(password, 12);
   const email = `${clean}@spmt.live`;
 
-  db.prepare(`INSERT INTO users (id, username, email, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
-    .run(id, clean, email, displayName || clean, hash, new Date().toISOString());
+  db.prepare(`INSERT INTO users (id, username, email, display_name, password_hash, discord_username, discord_id, twitch_username, twitch_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, clean, email, displayName || clean, hash, cleanDiscord || null, discordId, cleanTwitch || null, twitchId, new Date().toISOString());
 
   const token = jwt.sign({ id, username: clean, email }, JWT_SECRET, { expiresIn: '30d' });
   res.cookie('spmt_token', token, { httpOnly: true, secure: true, sameSite: 'none', maxAge: 30 * 24 * 60 * 60 * 1000 });
-  res.status(201).json({ user: { id, username: clean, email, displayName: displayName || clean }, token });
+  res.status(201).json({ user: { id, username: clean, email, displayName: displayName || clean, discordId, twitchId }, token });
 });
 
 // ─── Auth: Login ───
@@ -95,9 +135,75 @@ app.post('/api/auth/logout', (req, res) => {
 
 // ─── Auth: Current user ───
 app.get('/api/auth/me', authenticate, (req: any, res) => {
-  const user = db.prepare('SELECT id, username, email, display_name, created_at FROM users WHERE id = ?').get(req.user.id) as any;
+  const user = db.prepare('SELECT id, username, email, display_name, discord_username, discord_id, twitch_username, twitch_id, created_at FROM users WHERE id = ?').get(req.user.id) as any;
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({ user });
+});
+
+// ─── User: Link Discord/Twitch ───
+app.post('/api/user/link', authenticate, async (req: any, res) => {
+  const { discordUsername, twitchUsername } = req.body;
+
+  let discordId: string | null = null;
+  const cleanDiscord = (discordUsername || '').trim().replace(/^@/, '');
+  if (cleanDiscord && process.env.DISCORD_BOT_TOKEN) {
+    try {
+      const guildId = process.env.DISCORD_GUILD_ID || '';
+      if (guildId) {
+        const searchRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/search?query=${encodeURIComponent(cleanDiscord)}&limit=1`, {
+          headers: { 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+        });
+        if (searchRes.ok) {
+          const members = await searchRes.json();
+          if (members.length > 0 && members[0].user) {
+            discordId = members[0].user.id;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  let twitchId: string | null = null;
+  const cleanTwitch = (twitchUsername || '').trim().toLowerCase();
+  if (cleanTwitch && process.env.TWITCH_CLIENT_ID && process.env.TWITCH_ACCESS_TOKEN) {
+    try {
+      const twitchRes = await fetch(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(cleanTwitch)}`, {
+        headers: {
+          'Client-ID': process.env.TWITCH_CLIENT_ID,
+          'Authorization': `Bearer ${process.env.TWITCH_ACCESS_TOKEN}`,
+        },
+      });
+      if (twitchRes.ok) {
+        const data = await twitchRes.json();
+        if (data.data?.length > 0) twitchId = data.data[0].id;
+      }
+    } catch {}
+  }
+
+  const updates: string[] = [];
+  const params: any[] = [];
+  if (cleanDiscord) { updates.push('discord_username = ?'); params.push(cleanDiscord); }
+  if (discordId) { updates.push('discord_id = ?'); params.push(discordId); }
+  if (cleanTwitch) { updates.push('twitch_username = ?'); params.push(cleanTwitch); }
+  if (twitchId) { updates.push('twitch_id = ?'); params.push(twitchId); }
+
+  if (updates.length > 0) {
+    params.push(req.user.id);
+    db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  }
+
+  res.json({ ok: true, discordId, twitchId, discordUsername: cleanDiscord, twitchUsername: cleanTwitch });
+});
+
+// ─── User: Lookup by username, discord_id, or twitch_id ───
+app.get('/api/user/lookup', (req, res) => {
+  const { username, discord_id, twitch_id } = req.query;
+  let user: any = null;
+  if (username) user = db.prepare('SELECT id, username, display_name, discord_id, twitch_id, twitch_username, discord_username FROM users WHERE username = ?').get(username);
+  else if (discord_id) user = db.prepare('SELECT id, username, display_name, discord_id, twitch_id, twitch_username, discord_username FROM users WHERE discord_id = ?').get(discord_id);
+  else if (twitch_id) user = db.prepare('SELECT id, username, display_name, discord_id, twitch_id, twitch_username, discord_username FROM users WHERE twitch_id = ?').get(twitch_id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json(user);
 });
 
 // ─── OAuth2: Authorize (simplified) ───

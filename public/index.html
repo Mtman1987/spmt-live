@@ -45,6 +45,8 @@
     <form id="form-register" style="display:none" onsubmit="handleRegister(event)">
       <input name="username" placeholder="choose a username" required>
       <input name="displayName" placeholder="display name (optional)">
+      <input name="discordUsername" placeholder="Discord username (optional)">
+      <input name="twitchUsername" placeholder="Twitch username (optional)">
       <input name="password" type="password" placeholder="password (min 6 chars)" required minlength="6">
       <button type="submit" class="btn">Create Account</button>
     </form>
@@ -87,7 +89,7 @@
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: form.get('username'), displayName: form.get('displayName'), password: form.get('password') })
+        body: JSON.stringify({ username: form.get('username'), displayName: form.get('displayName'), discordUsername: form.get('discordUsername'), twitchUsername: form.get('twitchUsername'), password: form.get('password') })
       });
       const data = await res.json();
       const msg = document.getElementById('msg');

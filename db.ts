@@ -29,6 +29,10 @@ export function initDb() {
       email TEXT NOT NULL UNIQUE,
       display_name TEXT NOT NULL,
       password_hash TEXT NOT NULL,
+      discord_username TEXT,
+      discord_id TEXT,
+      twitch_username TEXT,
+      twitch_id TEXT,
       created_at TEXT NOT NULL
     );
 

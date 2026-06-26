@@ -121,25 +121,31 @@
       const discord = document.getElementById('link-discord').value.trim();
       const twitch = document.getElementById('link-twitch').value.trim();
       const msg = document.getElementById('link-msg');
+      msg.className = 'msg'; msg.textContent = 'Linking...';
       if (!discord) { msg.className = 'msg error'; msg.textContent = 'Discord username is required'; return; }
       if (!authToken) { msg.className = 'msg error'; msg.textContent = 'Please log in first'; return; }
-      const res = await fetch('/api/user/link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-        body: JSON.stringify({ discordUsername: discord, twitchUsername: twitch })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        msg.className = 'msg success';
-        const parts = [];
-        if (data.discordId) parts.push('Discord: ' + data.discordUsername + ' (' + data.discordId + ')');
-        else if (data.discordUsername) parts.push('Discord: ' + data.discordUsername + ' (ID pending - bot may need access)');
-        if (data.twitchId) parts.push('Twitch: ' + data.twitchUsername + ' (' + data.twitchId + ')');
-        else if (data.twitchUsername) parts.push('Twitch: ' + data.twitchUsername + ' (ID pending)');
-        msg.textContent = parts.length ? 'Linked! ' + parts.join(' | ') : 'Saved!';
-      } else {
+      try {
+        const res = await fetch('/api/user/link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+          body: JSON.stringify({ discordUsername: discord, twitchUsername: twitch })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          msg.className = 'msg success';
+          const parts = [];
+          if (data.discordId) parts.push('Discord: ' + data.discordUsername + ' (' + data.discordId + ')');
+          else if (data.discordUsername) parts.push('Discord: ' + data.discordUsername + ' (ID pending - bot may need access)');
+          if (data.twitchId) parts.push('Twitch: ' + data.twitchUsername + ' (' + data.twitchId + ')');
+          else if (data.twitchUsername) parts.push('Twitch: ' + data.twitchUsername + ' (ID pending)');
+          msg.textContent = parts.length ? 'Linked! ' + parts.join(' | ') : 'Saved!';
+        } else {
+          msg.className = 'msg error';
+          msg.textContent = data.error || 'Link failed: ' + res.status;
+        }
+      } catch (err) {
         msg.className = 'msg error';
-        msg.textContent = data.error || 'Link failed';
+        msg.textContent = 'Network error: ' + err.message;
       }
     }
   </script>

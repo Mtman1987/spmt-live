@@ -214,9 +214,24 @@ app.get('/api/user/lookup', (req, res) => {
 
 // ─── OAuth2: Authorize (simplified) ───
 // Other apps redirect here: GET /api/oauth/authorize?client_id=X&redirect_uri=Y&state=Z
-app.get('/api/oauth/authorize', authenticate, (req: any, res) => {
+app.get('/api/oauth/authorize', (req: any, res) => {
   const { client_id, redirect_uri, state } = req.query;
   if (!client_id || !redirect_uri) return res.status(400).json({ error: 'client_id and redirect_uri required' });
+
+  // Check if user is authenticated
+  const token = req.cookies?.spmt_token || req.headers.authorization?.replace('Bearer ', '');
+  let user: any = null;
+  if (token) {
+    try {
+      user = jwt.verify(token, JWT_SECRET) as any;
+    } catch {}
+  }
+
+  // If not logged in, redirect to login page with return params
+  if (!user) {
+    const returnUrl = `/api/oauth/authorize?client_id=${encodeURIComponent(client_id as string)}&redirect_uri=${encodeURIComponent(redirect_uri as string)}${state ? `&state=${encodeURIComponent(state as string)}` : ''}`;
+    return res.redirect(`/?return=${encodeURIComponent(returnUrl)}`);
+  }
 
   // Verify client
   const client = db.prepare('SELECT * FROM oauth_clients WHERE client_id = ?').get(client_id) as any;
@@ -226,7 +241,7 @@ app.get('/api/oauth/authorize', authenticate, (req: any, res) => {
   // Generate authorization code
   const code = uuidv4();
   db.prepare('INSERT INTO oauth_codes (code, user_id, client_id, redirect_uri, expires_at) VALUES (?, ?, ?, ?, ?)')
-    .run(code, req.user.id, client_id, redirect_uri, new Date(Date.now() + 5 * 60 * 1000).toISOString());
+    .run(code, user.id, client_id, redirect_uri, new Date(Date.now() + 5 * 60 * 1000).toISOString());
 
   const url = `${redirect_uri}?code=${code}${state ? `&state=${state}` : ''}`;
   res.redirect(url);

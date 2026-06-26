@@ -66,6 +66,8 @@
 
   <script>
     let authToken = null;
+    const urlParams = new URLSearchParams(window.location.search);
+    const returnUrl = urlParams.get('return');
 
     function showTab(tab) {
       document.getElementById('form-login').style.display = tab === 'login' ? 'block' : 'none';
@@ -89,6 +91,7 @@
         authToken = data.token;
         msg.className = 'msg success';
         msg.textContent = `Welcome back, ${data.user.displayName}! (${data.user.email})`;
+        if (returnUrl) { window.location.href = returnUrl; return; }
         document.getElementById('link-section').style.display = 'block';
       } else {
         msg.className = 'msg error';
@@ -110,6 +113,7 @@
         authToken = data.token;
         msg.className = 'msg success';
         msg.textContent = `Account created! You are ${data.user.email}`;
+        if (returnUrl) { window.location.href = returnUrl; return; }
         document.getElementById('link-section').style.display = 'block';
       } else {
         msg.className = 'msg error';

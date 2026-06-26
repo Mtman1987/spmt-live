@@ -44,6 +44,7 @@ export function initDb() {
   try { db.exec('ALTER TABLE users ADD COLUMN twitch_id TEXT'); } catch {}
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS oauth_clients (
       client_id TEXT PRIMARY KEY,
       client_secret TEXT NOT NULL,
       name TEXT NOT NULL,

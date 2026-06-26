@@ -35,8 +35,15 @@ export function initDb() {
       twitch_id TEXT,
       created_at TEXT NOT NULL
     );
+  `);
 
-    CREATE TABLE IF NOT EXISTS oauth_clients (
+  // Migrate: add columns if they don't exist (for existing databases)
+  try { db.exec('ALTER TABLE users ADD COLUMN discord_username TEXT'); } catch {}
+  try { db.exec('ALTER TABLE users ADD COLUMN discord_id TEXT'); } catch {}
+  try { db.exec('ALTER TABLE users ADD COLUMN twitch_username TEXT'); } catch {}
+  try { db.exec('ALTER TABLE users ADD COLUMN twitch_id TEXT'); } catch {}
+
+  db.exec(`
       client_id TEXT PRIMARY KEY,
       client_secret TEXT NOT NULL,
       name TEXT NOT NULL,

@@ -143,7 +143,8 @@ app.get('/api/auth/me', authenticate, (req: any, res) => {
 
 // ─── User: Link Discord/Twitch ───
 app.post('/api/user/link', authenticate, async (req: any, res) => {
-  const { discordUsername, twitchUsername } = req.body;
+  try {
+    const { discordUsername, twitchUsername } = req.body;
 
   let discordId: string | null = null;
   const cleanDiscord = (discordUsername || '').trim().replace(/^@/, '');
@@ -194,6 +195,10 @@ app.post('/api/user/link', authenticate, async (req: any, res) => {
   }
 
   res.json({ ok: true, discordId, twitchId, discordUsername: cleanDiscord, twitchUsername: cleanTwitch });
+  } catch (err: any) {
+    console.error('Link failed:', err);
+    res.status(500).json({ error: 'Link failed: ' + (err.message || 'unknown error') });
+  }
 });
 
 // ─── User: Lookup by username, discord_id, or twitch_id ───

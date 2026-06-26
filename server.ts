@@ -44,7 +44,8 @@ function authenticate(req: any, res: any, next: any) {
 
 // ─── Health ───
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', app: 'spmt-live', uptime: process.uptime() });
+  const userCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE password_hash != ?').get('SYSTEM_NO_LOGIN') as any;
+  res.json({ status: 'ok', app: 'spmt-live', uptime: process.uptime(), users: userCount?.count || 0 });
 });
 
 // ─── Auth: Register ───

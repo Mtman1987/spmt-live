@@ -53,6 +53,15 @@
 
     <p class="msg" id="msg"></p>
     <p class="footer">Your handle will be username@spmt.live</p>
+
+    <!-- Link accounts section (shown after login) -->
+    <div id="link-section" style="display:none; margin-top:1.5rem; padding-top:1.5rem; border-top:1px solid rgba(255,255,255,0.1)">
+      <p style="font-size:0.7rem; color:#71717a; text-align:center; margin-bottom:1rem; letter-spacing:0.1em; text-transform:uppercase;">Link Your Accounts</p>
+      <input id="link-discord" placeholder="Discord username" style="width:100%; padding:0.75rem 1rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; color:#fff; font-size:0.8rem; margin-bottom:0.75rem; outline:none;">
+      <input id="link-twitch" placeholder="Twitch username" style="width:100%; padding:0.75rem 1rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; color:#fff; font-size:0.8rem; margin-bottom:0.75rem; outline:none;">
+      <button onclick="handleLink()" class="btn">Link Accounts</button>
+      <p class="msg" id="link-msg"></p>
+    </div>
   </div>
 
   <script>
@@ -77,6 +86,7 @@
       if (res.ok) {
         msg.className = 'msg success';
         msg.textContent = `Welcome back, ${data.user.displayName}! (${data.user.email})`;
+        document.getElementById('link-section').style.display = 'block';
       } else {
         msg.className = 'msg error';
         msg.textContent = data.error;
@@ -96,9 +106,34 @@
       if (res.ok) {
         msg.className = 'msg success';
         msg.textContent = `Account created! You are ${data.user.email}`;
+        document.getElementById('link-section').style.display = 'block';
       } else {
         msg.className = 'msg error';
         msg.textContent = data.error;
+      }
+    }
+
+    async function handleLink() {
+      const discord = document.getElementById('link-discord').value.trim();
+      const twitch = document.getElementById('link-twitch').value.trim();
+      const msg = document.getElementById('link-msg');
+      if (!discord && !twitch) { msg.className = 'msg error'; msg.textContent = 'Enter at least one username'; return; }
+      const res = await fetch('/api/user/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ discordUsername: discord, twitchUsername: twitch })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        msg.className = 'msg success';
+        const parts = [];
+        if (data.discordId) parts.push(`Discord ID: ${data.discordId}`);
+        if (data.twitchId) parts.push(`Twitch ID: ${data.twitchId}`);
+        msg.textContent = parts.length ? `Linked! ${parts.join(', ')}` : 'Saved usernames (IDs will resolve when available)';
+      } else {
+        msg.className = 'msg error';
+        msg.textContent = data.error || 'Link failed';
       }
     }
   </script>

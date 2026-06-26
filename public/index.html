@@ -45,7 +45,7 @@
     <form id="form-register" style="display:none" onsubmit="handleRegister(event)">
       <input name="username" placeholder="choose a username" required>
       <input name="displayName" placeholder="display name (optional)">
-      <input name="discordUsername" placeholder="Discord username (optional)">
+      <input name="discordUsername" placeholder="Discord username" required>
       <input name="twitchUsername" placeholder="Twitch username (optional)">
       <input name="password" type="password" placeholder="password (min 6 chars)" required minlength="6">
       <button type="submit" class="btn">Create Account</button>
@@ -65,6 +65,8 @@
   </div>
 
   <script>
+    let authToken = null;
+
     function showTab(tab) {
       document.getElementById('form-login').style.display = tab === 'login' ? 'block' : 'none';
       document.getElementById('form-register').style.display = tab === 'register' ? 'block' : 'none';
@@ -84,6 +86,7 @@
       const data = await res.json();
       const msg = document.getElementById('msg');
       if (res.ok) {
+        authToken = data.token;
         msg.className = 'msg success';
         msg.textContent = `Welcome back, ${data.user.displayName}! (${data.user.email})`;
         document.getElementById('link-section').style.display = 'block';
@@ -104,6 +107,7 @@
       const data = await res.json();
       const msg = document.getElementById('msg');
       if (res.ok) {
+        authToken = data.token;
         msg.className = 'msg success';
         msg.textContent = `Account created! You are ${data.user.email}`;
         document.getElementById('link-section').style.display = 'block';
@@ -117,20 +121,22 @@
       const discord = document.getElementById('link-discord').value.trim();
       const twitch = document.getElementById('link-twitch').value.trim();
       const msg = document.getElementById('link-msg');
-      if (!discord && !twitch) { msg.className = 'msg error'; msg.textContent = 'Enter at least one username'; return; }
+      if (!discord) { msg.className = 'msg error'; msg.textContent = 'Discord username is required'; return; }
+      if (!authToken) { msg.className = 'msg error'; msg.textContent = 'Please log in first'; return; }
       const res = await fetch('/api/user/link', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
         body: JSON.stringify({ discordUsername: discord, twitchUsername: twitch })
       });
       const data = await res.json();
       if (res.ok) {
         msg.className = 'msg success';
         const parts = [];
-        if (data.discordId) parts.push(`Discord ID: ${data.discordId}`);
-        if (data.twitchId) parts.push(`Twitch ID: ${data.twitchId}`);
-        msg.textContent = parts.length ? `Linked! ${parts.join(', ')}` : 'Saved usernames (IDs will resolve when available)';
+        if (data.discordId) parts.push('Discord: ' + data.discordUsername + ' (' + data.discordId + ')');
+        else if (data.discordUsername) parts.push('Discord: ' + data.discordUsername + ' (ID pending - bot may need access)');
+        if (data.twitchId) parts.push('Twitch: ' + data.twitchUsername + ' (' + data.twitchId + ')');
+        else if (data.twitchUsername) parts.push('Twitch: ' + data.twitchUsername + ' (ID pending)');
+        msg.textContent = parts.length ? 'Linked! ' + parts.join(' | ') : 'Saved!';
       } else {
         msg.className = 'msg error';
         msg.textContent = data.error || 'Link failed';

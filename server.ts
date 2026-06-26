@@ -219,7 +219,7 @@ app.get('/api/oauth/authorize', (req: any, res) => {
   if (!client_id || !redirect_uri) return res.status(400).json({ error: 'client_id and redirect_uri required' });
 
   // Check if user is authenticated
-  const token = req.cookies?.spmt_token || req.headers.authorization?.replace('Bearer ', '');
+  const token = req.cookies?.spmt_token || req.headers.authorization?.replace('Bearer ', '') || req.query.token;
   let user: any = null;
   if (token) {
     try {

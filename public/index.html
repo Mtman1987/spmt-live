@@ -69,6 +69,13 @@
     const urlParams = new URLSearchParams(window.location.search);
     const returnUrl = urlParams.get('return');
 
+    function redirectWithToken(token) {
+      if (!returnUrl) return false;
+      const sep = returnUrl.includes('?') ? '&' : '?';
+      window.location.href = returnUrl + sep + 'token=' + encodeURIComponent(token);
+      return true;
+    }
+
     function showTab(tab) {
       document.getElementById('form-login').style.display = tab === 'login' ? 'block' : 'none';
       document.getElementById('form-register').style.display = tab === 'register' ? 'block' : 'none';
@@ -91,7 +98,7 @@
         authToken = data.token;
         msg.className = 'msg success';
         msg.textContent = `Welcome back, ${data.user.displayName}! (${data.user.email})`;
-        if (returnUrl) { window.location.href = returnUrl; return; }
+        if (returnUrl) { redirectWithToken(data.token); return; }
         document.getElementById('link-section').style.display = 'block';
       } else {
         msg.className = 'msg error';
@@ -113,7 +120,7 @@
         authToken = data.token;
         msg.className = 'msg success';
         msg.textContent = `Account created! You are ${data.user.email}`;
-        if (returnUrl) { window.location.href = returnUrl; return; }
+        if (returnUrl) { redirectWithToken(data.token); return; }
         document.getElementById('link-section').style.display = 'block';
       } else {
         msg.className = 'msg error';

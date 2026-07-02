@@ -1,0 +1,58 @@
+{
+  "apps": [
+    {
+      "id": "spacemountain-live",
+      "name": "SpaceMountain.live",
+      "category": "hub",
+      "status": "available",
+      "url": "https://spacemountain.live",
+      "description": "Main SpaceMountain website, command bridge, dashboard, app launcher, and public community front end.",
+      "scopes": ["identity.read", "messages.read", "messages.write", "apps.read", "apps.write"]
+    },
+    {
+      "id": "streamweaver",
+      "name": "StreamWeaver",
+      "category": "streaming",
+      "status": "available",
+      "url": "https://streamweaver-new.fly.dev",
+      "description": "Bots, commands, overlays, AI, TTS, Streamer.bot flows, and stream automation.",
+      "scopes": ["identity.read", "messages.write", "overlays.write", "bots.write"]
+    },
+    {
+      "id": "hearmeout",
+      "name": "HearMeOut",
+      "category": "voice",
+      "status": "available",
+      "url": "https://hearmeout-main.fly.dev",
+      "description": "Voice rooms, music queues, watch parties, room controls, and stream-together tools.",
+      "scopes": ["identity.read", "messages.write", "rooms.write", "voice.write"]
+    },
+    {
+      "id": "chat-tag",
+      "name": "ChatTag",
+      "category": "game",
+      "status": "available",
+      "url": "https://chat-tag-new.fly.dev",
+      "description": "Cross-stream tag game, points, leaderboards, overlays, and community play systems.",
+      "scopes": ["identity.read", "messages.write", "games.write", "points.read"]
+    },
+    {
+      "id": "discord-stream-hub",
+      "name": "Discord Stream Hub",
+      "category": "community",
+      "status": "available",
+      "url": "https://discord-stream-hub-new.fly.dev/dashboard",
+      "description": "Discord routing, shoutouts, calendar, leaderboard, community messages, and crew tools.",
+      "scopes": ["identity.read", "messages.write", "discord.read", "points.write"]
+    },
+    {
+      "id": "mountainview",
+      "name": "MountainView",
+      "category": "device",
+      "status": "planned",
+      "url": "https://spacemountain.live/mtnview",
+      "description": "AI glasses layer for QR scanning, voice commands, camera capture, and app routing.",
+      "scopes": ["identity.read", "messages.write", "devices.write"]
+    }
+  ]
+}

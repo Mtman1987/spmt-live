@@ -66,8 +66,8 @@ Goal: one communication system.
 - [x] Compose sends through SPMT Commlink
 - [x] Notification UI in inbox
 - [x] Notification bell unread count
-- [ ] Full thread view
-- [ ] Group chat creation UI
+- [x] Full thread view
+- [x] Group chat creation UI
 - [ ] Forum thread detail/reply UI
 - [x] Search UI
 - [x] Filters UI

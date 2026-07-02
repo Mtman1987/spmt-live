@@ -11,7 +11,122 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'spmt-dev-secret-change-in-production';
-const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'https://spacemountain.live,https://spacemountain-live.fly.dev').split(',');
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || [
+  'https://spacemountain.live',
+  'https://spacemountain-live.fly.dev',
+  'https://discord-stream-hub-new.fly.dev',
+  'https://streamweaver-new.fly.dev',
+  'https://chat-tag-new.fly.dev',
+  'https://hearmeout-main.fly.dev',
+].join(',')).split(',');
+
+const SUITE_APPS = [
+  {
+    id: 'spacemountain-live',
+    name: 'SpaceMountain',
+    url: 'https://spacemountain.live',
+    authUrl: 'https://spmt.live/api/oauth/authorize?client_id=spacemountain-live&redirect_uri=https%3A%2F%2Fspacemountain.live%2Fauth%2Fcallback',
+    description: 'Main app suite shell, embeds, crew dashboard, and persistent app slots.',
+    status: 'connected',
+  },
+  {
+    id: 'discord-stream-hub',
+    name: 'Discord Stream Hub',
+    url: 'https://discord-stream-hub-new.fly.dev/dashboard',
+    authUrl: 'https://spmt.live/api/oauth/authorize?client_id=discord-stream-hub&redirect_uri=https%3A%2F%2Fdiscord-stream-hub-new.fly.dev%2Fauth%2Fcallback',
+    description: 'Discord community dashboard, shoutouts, leaderboard, calendar, and bridges.',
+    status: 'bridge-ready',
+  },
+  {
+    id: 'streamweaver',
+    name: 'StreamWeaver',
+    url: 'https://streamweaver-new.fly.dev/login?next=%2Fcommands',
+    authUrl: 'https://streamweaver-new.fly.dev/login?next=%2Fcommands',
+    description: 'Automation, commands, image generation, overlays, TTS, and AI workflows.',
+    status: 'adapter-needed',
+  },
+  {
+    id: 'chat-tag',
+    name: 'ChatTag + Quackverse',
+    url: 'https://chat-tag-new.fly.dev',
+    authUrl: 'https://chat-tag-new.fly.dev',
+    description: 'ChatTag game, Quackverse, card packs, collectibles, overlays, and Twitch/Discord play.',
+    status: 'adapter-needed',
+  },
+  {
+    id: 'hearmeout',
+    name: 'HearMeOut',
+    url: 'https://hearmeout-main.fly.dev',
+    authUrl: 'https://hearmeout-main.fly.dev',
+    description: 'Rooms, watch parties, music, voice surfaces, and media overlays.',
+    status: 'adapter-needed',
+  },
+];
+
+const USER_COLUMNS = 'id, username, email, display_name, discord_username, discord_id, twitch_username, twitch_id, created_at';
+
+function serializeUser(user: any) {
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    handle: `${user.username}@spmt.live`,
+    displayName: user.display_name,
+    display_name: user.display_name,
+    discordUsername: user.discord_username,
+    discord_username: user.discord_username,
+    discordId: user.discord_id,
+    discord_id: user.discord_id,
+    twitchUsername: user.twitch_username,
+    twitch_username: user.twitch_username,
+    twitchId: user.twitch_id,
+    twitch_id: user.twitch_id,
+    createdAt: user.created_at,
+    created_at: user.created_at,
+  };
+}
+
+function getUserById(id: string) {
+  return db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(id) as any;
+}
+
+function signSession(user: any, expiresIn: jwt.SignOptions['expiresIn'] = '30d') {
+  return jwt.sign({ id: user.id, username: user.username, email: user.email }, JWT_SECRET, { expiresIn });
+}
+
+function setSessionCookie(res: any, token: string) {
+  res.cookie('spmt_token', token, { httpOnly: true, secure: true, sameSite: 'none', maxAge: 30 * 24 * 60 * 60 * 1000 });
+}
+
+function appPermissionsFor(appId: string) {
+  const base: Record<string, string[]> = {
+    'spacemountain-live': ['identity:read', 'apps:launch', 'messages:read', 'messages:write'],
+    'discord-stream-hub': ['identity:read', 'linked_accounts:read', 'messages:write'],
+    streamweaver: ['identity:read', 'linked_accounts:read', 'messages:write'],
+    'chat-tag': ['identity:read', 'apps:launch'],
+    hearmeout: ['identity:read', 'apps:launch'],
+  };
+  return base[appId] || ['identity:read'];
+}
+
+function buildAppsForUser(userId?: string) {
+  const installs = userId
+    ? db.prepare('SELECT app_id, enabled, installed_at FROM app_installs WHERE user_id = ?').all(userId) as any[]
+    : [];
+  const installMap = new Map(installs.map((row) => [row.app_id, row]));
+
+  return SUITE_APPS.map((app) => {
+    const installed = app.id === 'spacemountain-live' ? true : Boolean(installMap.get(app.id));
+    const install = installMap.get(app.id);
+    return {
+      ...app,
+      installed,
+      enabled: app.id === 'spacemountain-live' ? true : Boolean(install?.enabled),
+      installedAt: install?.installed_at || (app.id === 'spacemountain-live' ? 'first-party' : null),
+      permissions: appPermissionsFor(app.id),
+    };
+  });
+}
 
 app.use(express.json());
 app.use(cookieParser());
@@ -23,7 +138,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-spmt-key');
   }
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
@@ -46,6 +161,57 @@ function authenticate(req: any, res: any, next: any) {
 app.get('/api/health', (req, res) => {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE password_hash != ?').get('SYSTEM_NO_LOGIN') as any;
   res.json({ status: 'ok', app: 'spmt-live', uptime: process.uptime(), users: userCount?.count || 0 });
+});
+
+app.get('/api/apps', (req, res) => {
+  const token = req.cookies?.spmt_token || req.headers.authorization?.replace('Bearer ', '');
+  let userId: string | undefined;
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET) as any;
+      userId = payload.id;
+    } catch {}
+  }
+  res.json({ apps: buildAppsForUser(userId) });
+});
+
+app.post('/api/apps/:appId/install', authenticate, (req: any, res) => {
+  const appId = String(req.params.appId || '');
+  const app = SUITE_APPS.find((item) => item.id === appId);
+  if (!app) return res.status(404).json({ error: 'Unknown app' });
+
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO app_installs (user_id, app_id, enabled, installed_at, updated_at)
+    VALUES (?, ?, 1, ?, ?)
+    ON CONFLICT(user_id, app_id) DO UPDATE SET enabled = 1, updated_at = excluded.updated_at
+  `).run(req.user.id, appId, now, now);
+
+  for (const permission of appPermissionsFor(appId)) {
+    db.prepare(`
+      INSERT INTO app_permissions (user_id, app_id, permission, granted, updated_at)
+      VALUES (?, ?, ?, 1, ?)
+      ON CONFLICT(user_id, app_id, permission) DO UPDATE SET granted = 1, updated_at = excluded.updated_at
+    `).run(req.user.id, appId, permission, now);
+  }
+
+  res.json({ ok: true, app, apps: buildAppsForUser(req.user.id) });
+});
+
+app.post('/api/apps/:appId/disable', authenticate, (req: any, res) => {
+  const appId = String(req.params.appId || '');
+  const app = SUITE_APPS.find((item) => item.id === appId);
+  if (!app) return res.status(404).json({ error: 'Unknown app' });
+  if (appId === 'spacemountain-live') return res.status(400).json({ error: 'SpaceMountain is a first-party app and cannot be disabled' });
+
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO app_installs (user_id, app_id, enabled, installed_at, updated_at)
+    VALUES (?, ?, 0, ?, ?)
+    ON CONFLICT(user_id, app_id) DO UPDATE SET enabled = 0, updated_at = excluded.updated_at
+  `).run(req.user.id, appId, now, now);
+
+  res.json({ ok: true, app, apps: buildAppsForUser(req.user.id) });
 });
 
 // ─── Auth: Register ───
@@ -106,9 +272,10 @@ app.post('/api/auth/register', async (req, res) => {
   db.prepare(`INSERT INTO users (id, username, email, display_name, password_hash, discord_username, discord_id, twitch_username, twitch_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(id, clean, email, displayName || clean, hash, cleanDiscord || null, discordId, cleanTwitch || null, twitchId, new Date().toISOString());
 
-  const token = jwt.sign({ id, username: clean, email }, JWT_SECRET, { expiresIn: '30d' });
-  res.cookie('spmt_token', token, { httpOnly: true, secure: true, sameSite: 'none', maxAge: 30 * 24 * 60 * 60 * 1000 });
-  res.status(201).json({ user: { id, username: clean, email, displayName: displayName || clean, discordId, twitchId }, token });
+  const user = getUserById(id);
+  const token = signSession(user);
+  setSessionCookie(res, token);
+  res.status(201).json({ user: serializeUser(user), token });
 });
 
 // ─── Auth: Login ───
@@ -123,22 +290,48 @@ app.post('/api/auth/login', async (req, res) => {
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
-  const token = jwt.sign({ id: user.id, username: user.username, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
-  res.cookie('spmt_token', token, { httpOnly: true, secure: true, sameSite: 'none', maxAge: 30 * 24 * 60 * 60 * 1000 });
-  res.json({ user: { id: user.id, username: user.username, email: user.email, displayName: user.display_name }, token });
+  const token = signSession(user);
+  setSessionCookie(res, token);
+  res.json({ user: serializeUser(user), token });
 });
 
 // ─── Auth: Logout ───
 app.post('/api/auth/logout', (req, res) => {
-  res.clearCookie('spmt_token');
+  res.clearCookie('spmt_token', { secure: true, sameSite: 'none' });
   res.json({ ok: true });
 });
 
 // ─── Auth: Current user ───
 app.get('/api/auth/me', authenticate, (req: any, res) => {
-  const user = db.prepare('SELECT id, username, email, display_name, discord_username, discord_id, twitch_username, twitch_id, created_at FROM users WHERE id = ?').get(req.user.id) as any;
+  const user = getUserById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ user });
+  res.json({ user: serializeUser(user), apps: buildAppsForUser(user.id) });
+});
+
+app.get('/api/me', authenticate, (req: any, res) => {
+  const user = getUserById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ user: serializeUser(user), apps: buildAppsForUser(user.id) });
+});
+
+app.post('/api/auth/refresh', authenticate, (req: any, res) => {
+  const user = getUserById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const token = signSession(user);
+  setSessionCookie(res, token);
+  res.json({ token, user: serializeUser(user), apps: buildAppsForUser(user.id) });
+});
+
+app.get('/api/session/bridge', authenticate, (req: any, res) => {
+  const user = getUserById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const token = jwt.sign({ id: user.id, username: user.username, email: user.email, bridge: true }, JWT_SECRET, { expiresIn: '7d' });
+  res.json({
+    token,
+    user: serializeUser(user),
+    apps: buildAppsForUser(user.id),
+  });
 });
 
 // ─── User: Link Discord/Twitch ───
@@ -243,7 +436,8 @@ app.get('/api/oauth/authorize', (req: any, res) => {
   db.prepare('INSERT INTO oauth_codes (code, user_id, client_id, redirect_uri, expires_at) VALUES (?, ?, ?, ?, ?)')
     .run(code, user.id, client_id, redirect_uri, new Date(Date.now() + 5 * 60 * 1000).toISOString());
 
-  const url = `${redirect_uri}?code=${code}${state ? `&state=${state}` : ''}`;
+  const bridgeToken = jwt.sign({ id: user.id, username: user.username, email: user.email, client_id, bridge: true }, JWT_SECRET, { expiresIn: '7d' });
+  const url = `${redirect_uri}?code=${code}&token=${encodeURIComponent(bridgeToken)}${state ? `&state=${encodeURIComponent(state as string)}` : ''}`;
   res.redirect(url);
 });
 
@@ -280,7 +474,8 @@ app.post('/api/messages', authenticate, (req: any, res) => {
   const { to, subject, body } = req.body;
   if (!to || !body) return res.status(400).json({ error: 'Recipient and body required' });
 
-  const recipient = db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(to, to) as any;
+  const cleanTo = String(to).trim().toLowerCase().replace(/^@/, '').replace(/@spmt\.live$/, '');
+  const recipient = db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(cleanTo, `${cleanTo}@spmt.live`) as any;
   if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
 
   const id = uuidv4();
@@ -293,7 +488,7 @@ app.post('/api/messages', authenticate, (req: any, res) => {
 // ─── Messaging: Inbox ───
 app.get('/api/messages/inbox', authenticate, (req: any, res) => {
   const messages = db.prepare(`
-    SELECT m.id, m.subject, m.body, m.created_at, u.username as from_user, u.display_name as from_name
+    SELECT m.id, m.subject, m.body, m.created_at, m.read_at, m.channel, u.username as from_user, u.display_name as from_name
     FROM messages m JOIN users u ON m.from_id = u.id
     WHERE m.to_id = ? ORDER BY m.created_at DESC LIMIT 50
   `).all(req.user.id);
@@ -303,11 +498,18 @@ app.get('/api/messages/inbox', authenticate, (req: any, res) => {
 // ─── Messaging: Sent ───
 app.get('/api/messages/sent', authenticate, (req: any, res) => {
   const messages = db.prepare(`
-    SELECT m.id, m.subject, m.body, m.created_at, u.username as to_user, u.display_name as to_name
+    SELECT m.id, m.subject, m.body, m.created_at, m.read_at, m.channel, u.username as to_user, u.display_name as to_name
     FROM messages m JOIN users u ON m.to_id = u.id
     WHERE m.from_id = ? ORDER BY m.created_at DESC LIMIT 50
   `).all(req.user.id);
   res.json(messages);
+});
+
+app.post('/api/messages/:id/read', authenticate, (req: any, res) => {
+  const result = db.prepare('UPDATE messages SET read_at = ? WHERE id = ? AND to_id = ?')
+    .run(new Date().toISOString(), req.params.id, req.user.id);
+  if (!result.changes) return res.status(404).json({ error: 'Message not found' });
+  res.json({ ok: true });
 });
 
 // ─── Forum: Create thread ───

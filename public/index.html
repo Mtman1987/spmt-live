@@ -1,103 +1,536 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>spmt.live - Creator Commlink</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>spmt.live - Suite Account Center</title>
   <style>
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:#050505;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}body:before{content:"";position:fixed;inset:0;background:radial-gradient(circle at 15% 10%,rgba(249,115,22,.20),transparent 30%),radial-gradient(circle at 80% 20%,rgba(59,130,246,.16),transparent 32%),radial-gradient(circle at 50% 90%,rgba(168,85,247,.16),transparent 40%),#050505;z-index:-1}.wrap{max-width:1180px;margin:0 auto;padding:18px}.panel,.card{border:1px solid rgba(255,255,255,.11);background:rgba(8,10,24,.76);backdrop-filter:blur(18px);border-radius:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}.auth{max-width:430px;margin:7vh auto;padding:28px}.brand{font-weight:1000;letter-spacing:.08em;text-transform:uppercase}.brand span{color:#f97316}.tag{font-size:11px;color:#a1a1aa;letter-spacing:.14em;text-transform:uppercase;margin-top:4px}.muted{color:#a1a1aa;line-height:1.5}.tabs{display:flex;border:1px solid rgba(255,255,255,.1);border-radius:15px;overflow:hidden;margin:20px 0}.tabs button{flex:1;background:transparent;border:0;color:#a1a1aa;padding:12px;font-weight:900}.tabs button.active{background:rgba(249,115,22,.16);color:#fdba74}input,textarea{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;color:#fff;padding:13px 14px;margin:7px 0;font:inherit;outline:none}textarea{min-height:110px;resize:vertical}input:focus,textarea:focus{border-color:rgba(249,115,22,.65)}button,a.btn{border:0;border-radius:14px;padding:12px 14px;font-weight:900;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px}.primary{background:#f97316;color:#0a0a0a}.ghost{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.12)}.danger{background:rgba(239,68,68,.16);color:#fecaca;border:1px solid rgba(239,68,68,.25)}.msg{min-height:22px;font-size:13px}.ok{color:#34d399}.err{color:#f87171}.hide{display:none!important}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:14px 0}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}.card{padding:18px}.span4{grid-column:span 4}.span6{grid-column:span 6}.span8{grid-column:span 8}.span12{grid-column:span 12}.nav{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}.nav button{background:rgba(255,255,255,.05);color:#cbd5e1;border:1px solid rgba(255,255,255,.1)}.nav button.active{background:rgba(249,115,22,.18);color:#fed7aa}.hero{padding:24px;margin-bottom:14px}.hero h1{font-size:clamp(32px,6vw,64px);line-height:.92;margin:8px 0}.pill{display:inline-flex;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.055);border-radius:999px;padding:7px 10px;font-size:12px;font-weight:850;margin:4px}.item{border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.035);border-radius:16px;padding:12px;margin:9px 0}.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.small{font-size:12px;color:#71717a}.title{font-size:22px;font-weight:1000;margin:0 0 8px}.app{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.app p{margin:4px 0;color:#a1a1aa;font-size:13px}@media(max-width:850px){.grid{display:block}.card{margin:12px 0}.top{display:block}.row a,.row button{width:100%}.app{display:block}.app .row{margin-top:10px}.hero h1{font-size:36px}}
+    * { box-sizing: border-box; }
+    :root {
+      color-scheme: dark;
+      --bg: #07090d;
+      --panel: #10141c;
+      --panel-2: #151b26;
+      --line: rgba(255,255,255,0.1);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --orange: #f97316;
+      --blue: #38bdf8;
+      --green: #22c55e;
+      --red: #ef4444;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    .shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 100vh; }
+    .sidebar { border-right: 1px solid var(--line); background: #080b11; padding: 18px; position: sticky; top: 0; height: 100vh; }
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+    .mark { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--orange); color: #111; font-weight: 900; }
+    h1 { font-size: 20px; margin: 0; letter-spacing: 0; }
+    .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .nav { display: grid; gap: 6px; margin: 18px 0; }
+    .nav button { width: 100%; text-align: left; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); padding: 10px 12px; }
+    .nav button.active, .nav button:hover { background: var(--panel); color: var(--text); border-color: var(--line); }
+    .account { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 12px; margin-top: 18px; }
+    .main { padding: 22px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+    .title h2 { margin: 0; font-size: 24px; letter-spacing: 0; }
+    .title p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .grid { display: grid; gap: 14px; }
+    .cols { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    .span-4 { grid-column: span 4; }
+    .span-5 { grid-column: span 5; }
+    .span-7 { grid-column: span 7; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+    .row { display: flex; align-items: center; gap: 10px; }
+    .between { justify-content: space-between; }
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+    .badge { border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; font-size: 11px; color: var(--muted); }
+    .badge.good { border-color: rgba(34,197,94,.35); color: #86efac; }
+    .badge.warn { border-color: rgba(249,115,22,.35); color: #fdba74; }
+    .btn { border: 1px solid var(--line); background: var(--panel-2); color: var(--text); border-radius: 8px; padding: 9px 12px; font-weight: 700; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn.primary { background: var(--orange); color: #111; border-color: var(--orange); }
+    .btn.blue { background: #0c4a6e; border-color: #075985; color: #e0f2fe; }
+    .btn.danger { background: rgba(239,68,68,.12); color: #fecaca; border-color: rgba(239,68,68,.3); }
+    input, textarea {
+      width: 100%;
+      background: #0a0e15;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 10px 12px;
+      outline: none;
+      margin-bottom: 10px;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    input:focus, textarea:focus { border-color: rgba(249,115,22,.55); }
+    .auth-wrap { max-width: 980px; margin: 0 auto; padding-top: 8vh; }
+    .auth-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+    .tabs button { border: 0; background: transparent; color: var(--muted); padding: 10px; font-weight: 800; }
+    .tabs button.active { background: rgba(249,115,22,.16); color: #fdba74; }
+    .list { display: grid; gap: 8px; }
+    .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #0b1018; }
+    .item:hover { border-color: rgba(56,189,248,.35); }
+    .message { display: grid; gap: 6px; }
+    .hidden { display: none !important; }
+    .notice { color: #fdba74; font-size: 13px; min-height: 20px; margin-top: 10px; }
+    .ok { color: #86efac; }
+    .err { color: #fca5a5; }
+    .app-card h3, .card h3 { margin: 0 0 6px; font-size: 16px; }
+    .app-card p, .card p { margin: 0; }
+    .split { display: grid; grid-template-columns: 220px 1fr; gap: 14px; }
+    .folder button { width: 100%; justify-content: flex-start; margin-bottom: 8px; }
+    .thread-body { white-space: pre-wrap; line-height: 1.45; }
+    @media (max-width: 900px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { position: static; height: auto; }
+      .cols, .auth-grid, .split { grid-template-columns: 1fr; }
+      .span-4, .span-5, .span-7, .span-8, .span-12 { grid-column: span 1; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <section id="authView" class="auth panel">
-      <div class="brand"><span>spmt</span>.live</div>
-      <div class="tag">creator identity system</div>
-      <p class="muted">One account for SpaceMountain, StreamWeaver, HearMeOut, ChatTag, Discord Stream Hub, bots, overlays, forums, and future apps.</p>
-      <div class="tabs"><button id="loginTab" class="active" onclick="showAuth('login')">Sign In</button><button id="registerTab" onclick="showAuth('register')">Create Account</button></div>
-      <form id="loginForm" onsubmit="login(event)">
-        <input name="username" placeholder="username or user@spmt.live" autocomplete="username" required />
-        <input name="password" type="password" placeholder="password" autocomplete="current-password" required />
-        <button class="primary" type="submit">Sign In</button>
-      </form>
-      <form id="registerForm" class="hide" onsubmit="register(event)">
-        <input name="username" placeholder="choose username" autocomplete="username" required />
-        <input name="displayName" placeholder="display name" />
-        <input name="discordUsername" placeholder="Discord username" />
-        <input name="twitchUsername" placeholder="Twitch username" />
-        <input name="password" type="password" placeholder="password" autocomplete="new-password" required minlength="6" />
-        <button class="primary" type="submit">Create SPMT Account</button>
-      </form>
-      <p id="authMsg" class="msg"></p>
-    </section>
+  <div id="auth" class="auth-wrap">
+    <div class="brand">
+      <div class="mark">S</div>
+      <div>
+        <h1>spmt.live</h1>
+        <div class="sub">One account for SpaceMountain apps, messages, forums, and app sessions.</div>
+      </div>
+    </div>
+    <div class="auth-grid">
+      <div class="card">
+        <div class="tabs">
+          <button id="tab-login" class="active" onclick="showAuthTab('login')">Sign In</button>
+          <button id="tab-register" onclick="showAuthTab('register')">Create Account</button>
+        </div>
+        <form id="form-login" onsubmit="handleLogin(event)">
+          <input name="username" placeholder="mtman1987 or mtman1987@spmt.live" required>
+          <input name="password" type="password" placeholder="password" required>
+          <button type="submit" class="btn primary">Sign In</button>
+        </form>
+        <form id="form-register" class="hidden" onsubmit="handleRegister(event)">
+          <input name="username" placeholder="choose your spmt handle" required>
+          <input name="displayName" placeholder="display name">
+          <input name="discordUsername" placeholder="Discord username">
+          <input name="twitchUsername" placeholder="Twitch username">
+          <input name="password" type="password" placeholder="password, minimum 6 characters" required minlength="6">
+          <button type="submit" class="btn primary">Create Account</button>
+        </form>
+        <div id="auth-msg" class="notice"></div>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:0">What this controls</h2>
+        <div class="list">
+          <div class="item">Your permanent handle, like <strong>mtman1987@spmt.live</strong>.</div>
+          <div class="item">App launcher and SSO bridge for SpaceMountain, DSH, StreamWeaver, ChatTag, Quackverse, and HearMeOut.</div>
+          <div class="item">DMs, app notifications, forums, mirrored Discord channels, and future AI bot threads.</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-    <section id="dashView" class="hide">
-      <div class="top">
-        <div><div class="brand"><span>spmt</span>.live</div><div id="who" class="tag">loading session</div></div>
-        <div class="row"><a class="btn ghost" href="https://spacemountain.live" target="_blank">Open SpaceMountain</a><button class="ghost" onclick="refreshSession()">Refresh</button><button class="danger" onclick="logout()">Logout</button></div>
+  <div id="app" class="shell hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">S</div>
+        <div>
+          <h1>spmt.live</h1>
+          <div class="sub" id="handle-label">suite identity</div>
+        </div>
       </div>
-      <div class="nav">
-        <button class="active" data-tab="bridge" onclick="tab('bridge')">Bridge</button>
-        <button data-tab="commlink" onclick="tab('commlink');loadInbox()">Commlink</button>
-        <button data-tab="forums" onclick="tab('forums');loadForums()">Forums</button>
-        <button data-tab="apps" onclick="tab('apps')">Apps</button>
-        <button data-tab="account" onclick="tab('account')">Account</button>
+      <nav class="nav">
+        <button data-view="dashboard" class="active" onclick="showView('dashboard')">Dashboard</button>
+        <button data-view="messages" onclick="showView('messages')">Messages</button>
+        <button data-view="apps" onclick="showView('apps')">Apps + SSO</button>
+        <button data-view="forums" onclick="showView('forums')">Forums</button>
+        <button data-view="settings" onclick="showView('settings')">Account</button>
+      </nav>
+      <div class="account">
+        <div class="small muted">Signed in as</div>
+        <strong id="signed-in-as">-</strong>
+        <div class="row" style="margin-top:10px">
+          <button class="btn danger" onclick="logout()">Sign Out</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="title">
+          <h2 id="view-title">Dashboard</h2>
+          <p id="view-subtitle">Your SPMT account is the control point for the full suite.</p>
+        </div>
+        <div class="row">
+          <button class="btn" onclick="refreshAll()">Refresh</button>
+          <a class="btn primary" href="https://spacemountain.live">Open SpaceMountain</a>
+        </div>
       </div>
 
-      <div id="tab-bridge" class="tabPage">
-        <div class="hero panel"><div class="tag">phase one</div><h1>One identity. Many apps.</h1><p class="muted">SPMT is the auth, account, messaging, forum, and app registry core. SpaceMountain.live is the front-end bridge and streamer command center that consumes this identity.</p><span class="pill">@spmt.live passport</span><span class="pill">Commlink</span><span class="pill">OAuth core</span><span class="pill">App registry ready</span></div>
-        <div class="grid"><div class="card span4"><div class="title">Identity</div><p class="muted">Apps ask SPMT who the user is instead of inventing another login.</p></div><div class="card span4"><div class="title">Messages</div><p class="muted">DMs, app notices, bot messages, Discord forwards, and forum replies become one communications layer.</p></div><div class="card span4"><div class="title">Install apps</div><p class="muted">New apps can be registered once, then users with SPMT accounts can enable them quickly.</p></div></div>
-      </div>
+      <section id="view-dashboard" class="grid cols">
+        <div class="card span-4">
+          <h3>Account</h3>
+          <p class="muted small" id="account-summary">Loading...</p>
+        </div>
+        <div class="card span-4">
+          <h3>Bridge Status</h3>
+          <p class="muted small">SPMT can issue a suite token that embedded apps can consume.</p>
+          <div class="row" style="margin-top:12px"><span class="badge good">session bridge live</span></div>
+        </div>
+        <div class="card span-4">
+          <h3>Unread</h3>
+          <p class="muted small"><strong id="unread-count" style="font-size:28px;color:var(--text)">0</strong> unread messages</p>
+        </div>
+        <div class="card span-12">
+          <h3>Suite Apps</h3>
+          <div id="dashboard-apps" class="grid cols"></div>
+        </div>
+      </section>
 
-      <div id="tab-commlink" class="tabPage hide">
-        <div class="grid"><div class="card span6"><div class="row" style="justify-content:space-between"><h2>Inbox</h2><button class="ghost" onclick="loadInbox()">Refresh</button></div><div id="inboxList" class="muted">Loading...</div></div><div class="card span6"><h2>Send message</h2><input id="msgTo" placeholder="recipient username or user@spmt.live" /><input id="msgSubject" placeholder="subject" /><textarea id="msgBody" placeholder="message"></textarea><button class="primary" onclick="sendMessage()">Send</button><p id="sendMsg" class="msg"></p></div></div>
-      </div>
+      <section id="view-messages" class="hidden split">
+        <div class="folder">
+          <button class="btn primary" onclick="composeTo('')">Compose</button>
+          <button class="btn" onclick="loadInbox()">Inbox</button>
+          <button class="btn" onclick="loadSent()">Sent</button>
+          <button class="btn" onclick="composeTo('spmtmessaging')">@spmtmessaging</button>
+          <button class="btn" onclick="composeTo('streamweaver')">StreamWeaver</button>
+          <button class="btn" onclick="composeTo('chat-tag')">ChatTag</button>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <h3>Compose</h3>
+            <form onsubmit="sendMessage(event)">
+              <input id="msg-to" placeholder="recipient handle, app, or user@spmt.live" required>
+              <input id="msg-subject" placeholder="subject">
+              <textarea id="msg-body" placeholder="Message body" required></textarea>
+              <button class="btn primary" type="submit">Send Message</button>
+            </form>
+            <div id="message-msg" class="notice"></div>
+          </div>
+          <div class="card">
+            <div class="row between">
+              <h3 id="message-list-title">Inbox</h3>
+              <span class="badge" id="message-count">0 messages</span>
+            </div>
+            <div id="messages-list" class="list"></div>
+          </div>
+        </div>
+      </section>
 
-      <div id="tab-forums" class="tabPage hide">
-        <div class="grid"><div class="card span8"><div class="row" style="justify-content:space-between"><h2>Forums</h2><button class="ghost" onclick="loadForums()">Refresh</button></div><div id="forumList" class="muted">Loading...</div></div><div class="card span4"><h2>Create thread</h2><input id="threadTitle" placeholder="title" /><input id="threadCategory" placeholder="category" value="General" /><textarea id="threadBody" placeholder="first post"></textarea><button class="primary" onclick="createThread()">Post Thread</button><p id="forumMsg" class="msg"></p></div></div>
-      </div>
+      <section id="view-apps" class="hidden grid cols">
+        <div class="card span-12">
+          <h3>Single Sign-On Launches</h3>
+          <p class="muted small">Connected apps should use SPMT as the session source. Apps marked adapter-needed still need their local callback wired to consume this token.</p>
+        </div>
+        <div id="apps-list" class="grid cols span-12"></div>
+      </section>
 
-      <div id="tab-apps" class="tabPage hide">
-        <div class="grid" id="appsGrid"></div>
-      </div>
+      <section id="view-forums" class="hidden grid cols">
+        <div class="card span-5">
+          <h3>New Forum Thread</h3>
+          <form onsubmit="createThread(event)">
+            <input id="thread-title" placeholder="thread title" required>
+            <input id="thread-category" placeholder="category" value="General">
+            <textarea id="thread-body" placeholder="Start the thread" required></textarea>
+            <button class="btn primary" type="submit">Post Thread</button>
+          </form>
+          <div id="forum-msg" class="notice"></div>
+        </div>
+        <div class="card span-7">
+          <div class="row between">
+            <h3>Forums</h3>
+            <button class="btn" onclick="loadForums()">Refresh</button>
+          </div>
+          <div id="forum-list" class="list"></div>
+        </div>
+        <div class="card span-12">
+          <h3>Discord Mirrored Channels</h3>
+          <div id="discord-forums" class="list"></div>
+        </div>
+      </section>
 
-      <div id="tab-account" class="tabPage hide">
-        <div class="grid"><div class="card span6"><h2>Account</h2><div id="accountBox" class="muted"></div></div><div class="card span6"><h2>Linked platforms</h2><input id="linkDiscord" placeholder="Discord username" /><input id="linkTwitch" placeholder="Twitch username" /><button class="primary" onclick="linkAccounts()">Save Links</button><p id="linkMsg" class="msg"></p></div></div>
-      </div>
-    </section>
+      <section id="view-settings" class="hidden grid cols">
+        <div class="card span-5">
+          <h3>Linked Accounts</h3>
+          <input id="link-discord" placeholder="Discord username">
+          <input id="link-twitch" placeholder="Twitch username">
+          <button class="btn primary" onclick="handleLink()">Save Links</button>
+          <div id="link-msg" class="notice"></div>
+        </div>
+        <div class="card span-7">
+          <h3>Session Bridge Payload</h3>
+          <p class="muted small">This is the shape apps receive when they ask SPMT for the current signed-in account.</p>
+          <pre id="bridge-json" class="small" style="white-space:pre-wrap;overflow:auto;background:#080b11;border:1px solid var(--line);border-radius:8px;padding:12px"></pre>
+        </div>
+      </section>
+    </main>
   </div>
 
   <script>
-    let token = localStorage.getItem('spmtToken') || null;
+    let authToken = localStorage.getItem('spmt_token') || null;
     let currentUser = null;
-    const params = new URLSearchParams(location.search);
-    const returnUrl = params.get('return');
-    const apps = [
-      ['SpaceMountain.live','Main command bridge and front-end GUI','https://spacemountain.live'],
-      ['StreamWeaver','Bots, commands, overlays, AI, TTS, and stream automation','https://streamweaver-new.fly.dev'],
-      ['HearMeOut','Voice rooms, music queues, watch parties, and room overlays','https://hearmeout-main.fly.dev'],
-      ['ChatTag','Community game layer, points, overlays, and tag state','https://chat-tag-new.fly.dev'],
-      ['Discord Stream Hub','Shoutouts, calendar, leaderboard, and Discord routing','https://discord-stream-hub-new.fly.dev/dashboard']
-    ];
-    function headers(){return token?{'Content-Type':'application/json','Authorization':'Bearer '+token}:{'Content-Type':'application/json'}}
-    function setMsg(id,text,ok){const el=document.getElementById(id);el.className='msg '+(ok?'ok':'err');el.textContent=text||''}
-    function showAuth(which){document.getElementById('loginForm').classList.toggle('hide',which!=='login');document.getElementById('registerForm').classList.toggle('hide',which!=='register');document.getElementById('loginTab').classList.toggle('active',which==='login');document.getElementById('registerTab').classList.toggle('active',which==='register');setMsg('authMsg','',true)}
-    function redirectIfNeeded(t){if(!returnUrl)return false;location.href=returnUrl+(returnUrl.includes('?')?'&':'?')+'token='+encodeURIComponent(t);return true}
-    async function login(e){e.preventDefault();const f=new FormData(e.target);const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:f.get('username'),password:f.get('password')})});const d=await r.json();if(!r.ok)return setMsg('authMsg',d.error||'Login failed',false);token=d.token;localStorage.setItem('spmtToken',token);if(redirectIfNeeded(token))return;await refreshSession()}
-    async function register(e){e.preventDefault();const f=new FormData(e.target);const r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:f.get('username'),displayName:f.get('displayName'),discordUsername:f.get('discordUsername'),twitchUsername:f.get('twitchUsername'),password:f.get('password')})});const d=await r.json();if(!r.ok)return setMsg('authMsg',d.error||'Register failed',false);token=d.token;localStorage.setItem('spmtToken',token);if(redirectIfNeeded(token))return;await refreshSession()}
-    async function refreshSession(){if(!token)return showLoggedOut();const r=await fetch('/api/auth/me',{headers:headers(),credentials:'include'});if(!r.ok){localStorage.removeItem('spmtToken');token=null;return showLoggedOut()}const d=await r.json();currentUser=d.user;showLoggedIn()}
-    function showLoggedOut(){document.getElementById('authView').classList.remove('hide');document.getElementById('dashView').classList.add('hide')}
-    function showLoggedIn(){document.getElementById('authView').classList.add('hide');document.getElementById('dashView').classList.remove('hide');const name=currentUser.display_name||currentUser.username;document.getElementById('who').textContent=name+' • '+currentUser.email;document.getElementById('accountBox').innerHTML='<div class="item"><b>'+name+'</b><br>'+currentUser.email+'<br><span class="small">User ID: '+currentUser.id+'</span></div>';document.getElementById('linkDiscord').value=currentUser.discord_username||'';document.getElementById('linkTwitch').value=currentUser.twitch_username||'';renderApps()}
-    async function logout(){try{await fetch('/api/auth/logout',{method:'POST',headers:headers(),credentials:'include'})}catch{}localStorage.removeItem('spmtToken');token=null;currentUser=null;showLoggedOut()}
-    function tab(name){document.querySelectorAll('.tabPage').forEach(x=>x.classList.add('hide'));document.getElementById('tab-'+name).classList.remove('hide');document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name))}
-    function renderApps(){document.getElementById('appsGrid').innerHTML=apps.map(a=>'<div class="card span6 app"><div><b>'+a[0]+'</b><p>'+a[1]+'</p></div><div class="row"><a class="btn ghost" target="_blank" href="'+a[2]+'">Open</a><button class="primary" onclick="alert(\'Install tracking comes next. For Phase 1 this app is registered as available.\')">Enable</button></div></div>').join('')}
-    async function loadInbox(){const el=document.getElementById('inboxList');el.textContent='Loading...';const r=await fetch('/api/messages/inbox',{headers:headers()});if(!r.ok){el.textContent='Sign in required or inbox unavailable.';return}const rows=await r.json();el.innerHTML=rows.length?rows.map(m=>'<div class="item"><b>'+escapeHtml(m.subject||'Message')+'</b><br><span class="small">From '+escapeHtml(m.from_name||m.from_user)+' • '+new Date(m.created_at).toLocaleString()+'</span><p>'+escapeHtml(m.body)+'</p></div>').join(''):'No messages yet.'}
-    async function sendMessage(){const body={to:val('msgTo'),subject:val('msgSubject'),body:val('msgBody')};const r=await fetch('/api/messages',{method:'POST',headers:headers(),body:JSON.stringify(body)});const d=await r.json().catch(()=>({}));setMsg('sendMsg',r.ok?'Message sent.':d.error||'Send failed',r.ok);if(r.ok){msgTo.value='';msgSubject.value='';msgBody.value='';loadInbox()}}
-    async function loadForums(){const el=document.getElementById('forumList');el.textContent='Loading...';const r=await fetch('/api/forum/threads');if(!r.ok){el.textContent='Forums unavailable.';return}const rows=await r.json();el.innerHTML=rows.length?rows.map(t=>'<div class="item"><b>'+escapeHtml(t.title)+'</b><br><span class="small">'+escapeHtml(t.category||'General')+' • by '+escapeHtml(t.author||'unknown')+' • '+(t.post_count||0)+' posts</span></div>').join(''):'No forum threads yet.'}
-    async function createThread(){const body={title:val('threadTitle'),category:val('threadCategory')||'General',body:val('threadBody')};const r=await fetch('/api/forum/threads',{method:'POST',headers:headers(),body:JSON.stringify(body)});const d=await r.json().catch(()=>({}));setMsg('forumMsg',r.ok?'Thread posted.':d.error||'Post failed',r.ok);if(r.ok){threadTitle.value='';threadBody.value='';loadForums()}}
-    async function linkAccounts(){const r=await fetch('/api/user/link',{method:'POST',headers:headers(),body:JSON.stringify({discordUsername:val('linkDiscord'),twitchUsername:val('linkTwitch')})});const d=await r.json().catch(()=>({}));setMsg('linkMsg',r.ok?'Linked account info saved.':d.error||'Link failed',r.ok);if(r.ok)refreshSession()}
-    function val(id){return document.getElementById(id).value.trim()}function escapeHtml(s){return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-    refreshSession();
+    let apps = [];
+    let currentView = 'dashboard';
+    const returnUrl = new URLSearchParams(window.location.search).get('return');
+
+    function api(path, options = {}) {
+      const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+      if (authToken) headers.Authorization = 'Bearer ' + authToken;
+      return fetch(path, Object.assign({}, options, { headers, credentials: 'include' }));
+    }
+
+    function setNotice(id, text, kind) {
+      const el = document.getElementById(id);
+      el.className = 'notice ' + (kind || '');
+      el.textContent = text || '';
+    }
+
+    function showAuthTab(tab) {
+      document.getElementById('form-login').classList.toggle('hidden', tab !== 'login');
+      document.getElementById('form-register').classList.toggle('hidden', tab !== 'register');
+      document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+      document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+      setNotice('auth-msg', '');
+    }
+
+    function finishAuth(data) {
+      authToken = data.token;
+      localStorage.setItem('spmt_token', authToken);
+      if (returnUrl) {
+        const sep = returnUrl.includes('?') ? '&' : '?';
+        window.location.href = returnUrl + sep + 'token=' + encodeURIComponent(authToken);
+        return;
+      }
+      boot();
+    }
+
+    async function handleLogin(event) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username: form.get('username'), password: form.get('password') })
+      });
+      const data = await res.json();
+      if (!res.ok) return setNotice('auth-msg', data.error || 'Login failed', 'err');
+      finishAuth(data);
+    }
+
+    async function handleRegister(event) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          username: form.get('username'),
+          displayName: form.get('displayName'),
+          discordUsername: form.get('discordUsername'),
+          twitchUsername: form.get('twitchUsername'),
+          password: form.get('password')
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) return setNotice('auth-msg', data.error || 'Registration failed', 'err');
+      finishAuth(data);
+    }
+
+    async function logout() {
+      await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
+      localStorage.removeItem('spmt_token');
+      authToken = null;
+      currentUser = null;
+      document.getElementById('auth').classList.remove('hidden');
+      document.getElementById('app').classList.add('hidden');
+    }
+
+    function showView(view) {
+      currentView = view;
+      for (const section of document.querySelectorAll('[id^="view-"]')) section.classList.add('hidden');
+      document.getElementById('view-' + view).classList.remove('hidden');
+      for (const btn of document.querySelectorAll('.nav button')) btn.classList.toggle('active', btn.dataset.view === view);
+      const titles = {
+        dashboard: ['Dashboard', 'Your SPMT account is the control point for the full suite.'],
+        messages: ['Messages', 'DMs, app messages, bot messages, and account notifications.'],
+        apps: ['Apps + SSO', 'Launch suite apps through SPMT and see which adapters are complete.'],
+        forums: ['Forums', 'Public threads and mirrored Discord channels under one identity.'],
+        settings: ['Account', 'Linked accounts and bridge payload for connected apps.']
+      };
+      document.getElementById('view-title').textContent = titles[view][0];
+      document.getElementById('view-subtitle').textContent = titles[view][1];
+    }
+
+    function renderAppCards() {
+      const render = (app) => `
+        <div class="card app-card span-4">
+          <div class="row between">
+            <h3>${app.name}</h3>
+            <span class="badge ${app.status === 'connected' || app.status === 'bridge-ready' ? 'good' : 'warn'}">${app.status}</span>
+          </div>
+          <p class="muted small">${app.description}</p>
+          <div class="row" style="margin-top:12px;flex-wrap:wrap">
+            <a class="btn primary" href="${app.authUrl || app.url}">Sign In / Launch</a>
+            <a class="btn" href="${app.url}">Open</a>
+          </div>
+        </div>`;
+      document.getElementById('dashboard-apps').innerHTML = apps.map(render).join('');
+      document.getElementById('apps-list').innerHTML = apps.map(render).join('');
+    }
+
+    async function loadBridge() {
+      const res = await api('/api/session/bridge');
+      if (!res.ok) throw new Error('bridge failed');
+      const bridge = await res.json();
+      currentUser = bridge.user;
+      apps = bridge.apps || [];
+      document.getElementById('bridge-json').textContent = JSON.stringify({ user: bridge.user, apps: bridge.apps }, null, 2);
+      document.getElementById('handle-label').textContent = bridge.user.handle;
+      document.getElementById('signed-in-as').textContent = bridge.user.handle;
+      document.getElementById('account-summary').textContent = `${bridge.user.displayName || bridge.user.username} signs in as ${bridge.user.handle}. Discord: ${bridge.user.discord_username || 'not linked'}; Twitch: ${bridge.user.twitch_username || 'not linked'}.`;
+      document.getElementById('link-discord').value = bridge.user.discord_username || '';
+      document.getElementById('link-twitch').value = bridge.user.twitch_username || '';
+      renderAppCards();
+    }
+
+    async function loadInbox() {
+      const res = await api('/api/messages/inbox');
+      const messages = res.ok ? await res.json() : [];
+      document.getElementById('message-list-title').textContent = 'Inbox';
+      renderMessages(messages, 'from');
+      document.getElementById('unread-count').textContent = messages.filter(m => !m.read_at).length;
+    }
+
+    async function loadSent() {
+      const res = await api('/api/messages/sent');
+      const messages = res.ok ? await res.json() : [];
+      document.getElementById('message-list-title').textContent = 'Sent';
+      renderMessages(messages, 'to');
+    }
+
+    function renderMessages(messages, mode) {
+      document.getElementById('message-count').textContent = `${messages.length} messages`;
+      document.getElementById('messages-list').innerHTML = messages.length ? messages.map(m => `
+        <article class="item message" onclick="markRead('${m.id}')">
+          <div class="row between">
+            <strong>${mode === 'to' ? (m.to_name || m.to_user) : (m.from_name || m.from_user)}</strong>
+            <span class="badge">${new Date(m.created_at).toLocaleString()}</span>
+          </div>
+          <div>${m.subject || 'No subject'}</div>
+          <div class="muted small thread-body">${m.body}</div>
+        </article>`).join('') : '<div class="item muted">No messages yet.</div>';
+    }
+
+    function composeTo(to) {
+      showView('messages');
+      document.getElementById('msg-to').value = to || '';
+      document.getElementById('msg-subject').focus();
+    }
+
+    async function sendMessage(event) {
+      event.preventDefault();
+      const res = await api('/api/messages', {
+        method: 'POST',
+        body: JSON.stringify({
+          to: document.getElementById('msg-to').value,
+          subject: document.getElementById('msg-subject').value,
+          body: document.getElementById('msg-body').value
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setNotice('message-msg', data.error || 'Send failed', 'err');
+      setNotice('message-msg', 'Message sent.', 'ok');
+      document.getElementById('msg-subject').value = '';
+      document.getElementById('msg-body').value = '';
+      loadInbox();
+    }
+
+    async function markRead(id) {
+      await api('/api/messages/' + id + '/read', { method: 'POST' }).catch(() => {});
+    }
+
+    async function loadForums() {
+      const [threadsRes, discordRes] = await Promise.all([
+        fetch('/api/forum/threads'),
+        fetch('/api/forum/discord-channels')
+      ]);
+      const threads = threadsRes.ok ? await threadsRes.json() : [];
+      const discord = discordRes.ok ? await discordRes.json() : [];
+      document.getElementById('forum-list').innerHTML = threads.length ? threads.map(t => `
+        <div class="item">
+          <div class="row between"><strong>${t.title}</strong><span class="badge">${t.category}</span></div>
+          <div class="muted small">${t.post_count} posts by ${t.author}</div>
+        </div>`).join('') : '<div class="item muted">No public forum threads yet.</div>';
+      document.getElementById('discord-forums').innerHTML = discord.length ? discord.map(t => `
+        <div class="item">
+          <div class="row between"><strong>${t.title}</strong><span class="badge">${t.post_count} posts</span></div>
+          <div class="muted small">${t.last_message || 'No messages yet'}</div>
+        </div>`).join('') : '<div class="item muted">No mirrored Discord channels yet.</div>';
+    }
+
+    async function createThread(event) {
+      event.preventDefault();
+      const res = await api('/api/forum/threads', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: document.getElementById('thread-title').value,
+          category: document.getElementById('thread-category').value,
+          body: document.getElementById('thread-body').value
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setNotice('forum-msg', data.error || 'Post failed', 'err');
+      setNotice('forum-msg', 'Thread posted.', 'ok');
+      event.target.reset();
+      loadForums();
+    }
+
+    async function handleLink() {
+      const res = await api('/api/user/link', {
+        method: 'POST',
+        body: JSON.stringify({
+          discordUsername: document.getElementById('link-discord').value,
+          twitchUsername: document.getElementById('link-twitch').value
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setNotice('link-msg', data.error || 'Link failed', 'err');
+      setNotice('link-msg', 'Linked account settings saved.', 'ok');
+      loadBridge();
+    }
+
+    async function refreshAll() {
+      await loadBridge();
+      await Promise.all([loadInbox(), loadForums()]);
+    }
+
+    async function boot() {
+      if (!authToken) return;
+      try {
+        await refreshAll();
+        document.getElementById('auth').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+        showView(currentView);
+      } catch {
+        localStorage.removeItem('spmt_token');
+        authToken = null;
+      }
+    }
+
+    boot();
   </script>
 </body>
 </html>

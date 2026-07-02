@@ -21,6 +21,18 @@ try {
 export const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 
+function seedOauthClient(clientId: string, clientSecret: string, name: string, redirectUris: string) {
+  const existing = db.prepare('SELECT client_id FROM oauth_clients WHERE client_id = ?').get(clientId);
+  if (!existing) {
+    db.prepare('INSERT INTO oauth_clients (client_id, client_secret, name, redirect_uris, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(clientId, clientSecret, name, redirectUris, new Date().toISOString());
+    console.log(`Seeded OAuth client for ${name}`);
+  } else {
+    db.prepare('UPDATE oauth_clients SET name = ?, redirect_uris = ? WHERE client_id = ?')
+      .run(name, redirectUris, clientId);
+  }
+}
+
 export function initDb() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -42,6 +54,8 @@ export function initDb() {
   try { db.exec('ALTER TABLE users ADD COLUMN discord_id TEXT'); } catch {}
   try { db.exec('ALTER TABLE users ADD COLUMN twitch_username TEXT'); } catch {}
   try { db.exec('ALTER TABLE users ADD COLUMN twitch_id TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN read_at TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN channel TEXT DEFAULT "direct"'); } catch {}
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS oauth_clients (
@@ -112,42 +126,61 @@ export function initDb() {
       last_seen TEXT NOT NULL,
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS app_installs (
+      user_id TEXT NOT NULL,
+      app_id TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      installed_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id, app_id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS app_permissions (
+      user_id TEXT NOT NULL,
+      app_id TEXT NOT NULL,
+      permission TEXT NOT NULL,
+      granted INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id, app_id, permission),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
   `);
 
-  // Seed OAuth client for spacemountain.live
-  const existing = db.prepare('SELECT client_id FROM oauth_clients WHERE client_id = ?').get('spacemountain-live');
-  if (!existing) {
-    db.prepare('INSERT INTO oauth_clients (client_id, client_secret, name, redirect_uris, created_at) VALUES (?, ?, ?, ?, ?)')
-      .run(
-        'spacemountain-live',
-        'spmt_secret_' + Math.random().toString(36).slice(2, 18),
-        'SpaceMountain.live',
-        'https://spacemountain.live/auth/callback,https://spacemountain-live.fly.dev/auth/callback,http://spacemountain-live.fly.dev/auth/callback',
-        new Date().toISOString()
-      );
-    console.log('Seeded OAuth client for spacemountain.live');
-  } else {
-    // Update redirect_uris in case they changed
-    db.prepare('UPDATE oauth_clients SET redirect_uris = ? WHERE client_id = ?')
-      .run('https://spacemountain.live/auth/callback,https://spacemountain-live.fly.dev/auth/callback,http://spacemountain-live.fly.dev/auth/callback', 'spacemountain-live');
-  }
+  try { db.exec('ALTER TABLE messages ADD COLUMN read_at TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN channel TEXT DEFAULT "direct"'); } catch {}
 
-  // Seed OAuth client for Discord Stream Hub
-  const dshExists = db.prepare('SELECT client_id FROM oauth_clients WHERE client_id = ?').get('discord-stream-hub');
-  if (!dshExists) {
-    db.prepare('INSERT INTO oauth_clients (client_id, client_secret, name, redirect_uris, created_at) VALUES (?, ?, ?, ?, ?)')
-      .run(
-        'discord-stream-hub',
-        'dsh_spmt_secret_2026',
-        'Discord Stream Hub',
-        'https://discord-stream-hub-new.fly.dev/auth/callback,https://spacemountain.live/discordstreamhub/auth/callback',
-        new Date().toISOString()
-      );
-    console.log('Seeded OAuth client for Discord Stream Hub');
-  } else {
-    db.prepare('UPDATE oauth_clients SET redirect_uris = ? WHERE client_id = ?')
-      .run('https://discord-stream-hub-new.fly.dev/auth/callback,https://spacemountain.live/discordstreamhub/auth/callback', 'discord-stream-hub');
-  }
+  seedOauthClient(
+    'spacemountain-live',
+    process.env.SPACEMOUNTAIN_CLIENT_SECRET || 'spmt_secret_spacemountain_first_party',
+    'SpaceMountain.live',
+    'https://spacemountain.live/auth/callback,https://spacemountain-live.fly.dev/auth/callback,http://spacemountain-live.fly.dev/auth/callback'
+  );
+  seedOauthClient(
+    'discord-stream-hub',
+    process.env.DSH_CLIENT_SECRET || 'dsh_spmt_secret_2026',
+    'Discord Stream Hub',
+    'https://discord-stream-hub-new.fly.dev/auth/callback,https://spacemountain.live/discordstreamhub/auth/callback'
+  );
+  seedOauthClient(
+    'streamweaver',
+    process.env.STREAMWEAVER_CLIENT_SECRET || 'streamweaver_spmt_secret_2026',
+    'StreamWeaver',
+    'https://streamweaver-new.fly.dev/auth/spmt/callback,https://streamweaver-new.fly.dev/login'
+  );
+  seedOauthClient(
+    'chat-tag',
+    process.env.CHAT_TAG_CLIENT_SECRET || 'chat_tag_spmt_secret_2026',
+    'ChatTag + Quackverse',
+    'https://chat-tag-new.fly.dev/auth/spmt/callback,https://chat-tag-new.fly.dev/auth/callback'
+  );
+  seedOauthClient(
+    'hearmeout',
+    process.env.HEARMEOUT_CLIENT_SECRET || 'hearmeout_spmt_secret_2026',
+    'HearMeOut',
+    'https://hearmeout-main.fly.dev/auth/spmt/callback,https://hearmeout-main.fly.dev'
+  );
 
   console.log('spmt.live database initialized');
 }

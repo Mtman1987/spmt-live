@@ -177,6 +177,41 @@ function createNotification(userId: string, title: string, body: string, options
   return id;
 }
 
+function normalizeAttachments(value: unknown) {
+  if (!Array.isArray(value)) return null;
+  const attachments = value
+    .map((item: any) => ({
+      url: String(item?.url || '').trim(),
+      name: String(item?.name || item?.filename || '').trim() || null,
+      type: String(item?.type || item?.contentType || '').trim() || null,
+    }))
+    .filter((item) => item.url && /^https?:\/\//i.test(item.url))
+    .slice(0, 10);
+  return attachments.length ? JSON.stringify(attachments) : null;
+}
+
+function extractMentionedUsers(body: unknown, explicitMentions: unknown) {
+  const handles = new Set<string>();
+  if (Array.isArray(explicitMentions)) {
+    for (const mention of explicitMentions) {
+      const handle = cleanHandle(typeof mention === 'string' ? mention : mention?.username || mention?.handle);
+      if (handle) handles.add(handle);
+    }
+  }
+
+  for (const match of String(body || '').matchAll(/@([a-z0-9._-]{3,32})(?:@spmt\.live)?/gi)) {
+    const handle = cleanHandle(match[1]);
+    if (handle) handles.add(handle);
+  }
+
+  const users = Array.from(handles)
+    .map((handle) => findUserByHandle(handle))
+    .filter(Boolean)
+    .map((user: any) => ({ id: user.id, username: user.username, displayName: user.display_name }));
+
+  return users.length ? JSON.stringify(users) : null;
+}
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -238,6 +273,8 @@ app.get('/api/system/health', (req, res) => {
       linkedAccounts: '/api/linked-accounts',
       conversations: '/api/conversations',
       notifications: '/api/notifications',
+      messages: '/api/messages',
+      search: '/api/search',
       oauthAuthorize: '/api/oauth/authorize',
       oauthToken: '/api/oauth/token',
     },
@@ -625,10 +662,12 @@ app.post('/api/messages', authenticate, (req: any, res) => {
   const id = uuidv4();
   const now = new Date().toISOString();
   const conversationId = req.body?.conversationId || ensureDirectConversation(req.user.id, recipient.id, now);
+  const attachments = normalizeAttachments(req.body?.attachments);
+  const mentionedUsers = extractMentionedUsers(body, req.body?.mentions);
   db.prepare(`
-    INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, metadata, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, req.user.id, recipient.id, conversationId, subject || '', body, req.body?.channel || 'direct', req.body?.messageType || 'direct', req.body?.metadata ? JSON.stringify(req.body.metadata) : null, now);
+    INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, metadata, attachments, mentioned_users, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, req.user.id, recipient.id, conversationId, subject || '', body, req.body?.channel || 'direct', req.body?.messageType || 'direct', req.body?.metadata ? JSON.stringify(req.body.metadata) : null, attachments, mentionedUsers, now);
 
   db.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').run(now, conversationId);
   createNotification(recipient.id, subject || `Message from ${req.user.username}`, body.slice(0, 180), {
@@ -640,10 +679,41 @@ app.post('/api/messages', authenticate, (req: any, res) => {
   res.status(201).json({ id, sent: true, conversationId });
 });
 
+app.get('/api/messages', authenticate, (req: any, res) => {
+  const filters: string[] = ['(m.from_id = ? OR m.to_id = ?)'];
+  const values: any[] = [req.user.id, req.user.id];
+  if (req.query.unread === 'true') {
+    filters.push('m.to_id = ? AND m.read_at IS NULL');
+    values.push(req.user.id);
+  }
+  if (req.query.type) {
+    filters.push('m.message_type = ?');
+    values.push(String(req.query.type));
+  }
+  if (req.query.q) {
+    filters.push('(m.subject LIKE ? OR m.body LIKE ?)');
+    values.push(`%${req.query.q}%`, `%${req.query.q}%`);
+  }
+
+  values.push(Math.min(Number(req.query.limit || 100) || 100, 200));
+  const messages = db.prepare(`
+    SELECT m.id, m.conversation_id, m.subject, m.body, m.channel, m.message_type, m.metadata, m.attachments, m.mentioned_users, m.created_at, m.read_at,
+      from_user.username as from_user, from_user.display_name as from_name,
+      to_user.username as to_user, to_user.display_name as to_name
+    FROM messages m
+    JOIN users from_user ON m.from_id = from_user.id
+    JOIN users to_user ON m.to_id = to_user.id
+    WHERE ${filters.join(' AND ')}
+    ORDER BY datetime(m.created_at) DESC
+    LIMIT ?
+  `).all(...values);
+  res.json({ messages });
+});
+
 // ─── Messaging: Inbox ───
 app.get('/api/messages/inbox', authenticate, (req: any, res) => {
   const messages = db.prepare(`
-    SELECT m.id, m.subject, m.body, m.created_at, m.read_at, m.channel, u.username as from_user, u.display_name as from_name
+    SELECT m.id, m.subject, m.body, m.created_at, m.read_at, m.channel, m.message_type, m.attachments, m.mentioned_users, u.username as from_user, u.display_name as from_name
     FROM messages m JOIN users u ON m.from_id = u.id
     WHERE m.to_id = ? ORDER BY m.created_at DESC LIMIT 50
   `).all(req.user.id);
@@ -653,7 +723,7 @@ app.get('/api/messages/inbox', authenticate, (req: any, res) => {
 // ─── Messaging: Sent ───
 app.get('/api/messages/sent', authenticate, (req: any, res) => {
   const messages = db.prepare(`
-    SELECT m.id, m.subject, m.body, m.created_at, m.read_at, m.channel, u.username as to_user, u.display_name as to_name
+    SELECT m.id, m.subject, m.body, m.created_at, m.read_at, m.channel, m.message_type, m.attachments, m.mentioned_users, u.username as to_user, u.display_name as to_name
     FROM messages m JOIN users u ON m.to_id = u.id
     WHERE m.from_id = ? ORDER BY m.created_at DESC LIMIT 50
   `).all(req.user.id);
@@ -676,7 +746,7 @@ app.get('/api/conversations', authenticate, (req: any, res) => {
         ORDER BY datetime(created_at) DESC LIMIT 1
       ) as last_message,
       (
-        SELECT COUNT(*) FROM messages
+      SELECT COUNT(*) FROM messages
         WHERE conversation_id = c.id AND to_id = ? AND read_at IS NULL
       ) as unread_count
     FROM conversations c
@@ -719,7 +789,7 @@ app.get('/api/conversations/:id/messages', authenticate, (req: any, res) => {
   if (!membership) return res.status(404).json({ error: 'Conversation not found' });
 
   const messages = db.prepare(`
-    SELECT m.id, m.subject, m.body, m.channel, m.message_type, m.metadata, m.created_at, m.read_at,
+    SELECT m.id, m.subject, m.body, m.channel, m.message_type, m.metadata, m.attachments, m.mentioned_users, m.created_at, m.read_at,
       from_user.username as from_user, from_user.display_name as from_name,
       to_user.username as to_user, to_user.display_name as to_name
     FROM messages m
@@ -744,12 +814,14 @@ app.post('/api/conversations/:id/messages', authenticate, (req: any, res) => {
 
   const now = new Date().toISOString();
   const ids = [];
+  const attachments = normalizeAttachments(req.body?.attachments);
+  const mentionedUsers = extractMentionedUsers(req.body.body, req.body?.mentions);
   for (const member of members) {
     const id = uuidv4();
     db.prepare(`
-      INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, metadata, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, req.user.id, member.user_id, req.params.id, req.body?.subject || '', req.body.body, req.body?.channel || 'conversation', req.body?.messageType || 'conversation', req.body?.metadata ? JSON.stringify(req.body.metadata) : null, now);
+      INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, metadata, attachments, mentioned_users, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, req.user.id, member.user_id, req.params.id, req.body?.subject || '', req.body.body, req.body?.channel || 'conversation', req.body?.messageType || 'conversation', req.body?.metadata ? JSON.stringify(req.body.metadata) : null, attachments, mentionedUsers, now);
     createNotification(member.user_id, req.body?.subject || `Message from ${req.user.username}`, String(req.body.body).slice(0, 180), {
       type: 'message',
       sourceApp: req.body?.sourceApp || 'spmt',
@@ -796,6 +868,46 @@ app.post('/api/notifications/read-all', authenticate, (req: any, res) => {
   const result = db.prepare('UPDATE notifications SET read_at = COALESCE(read_at, ?) WHERE user_id = ?')
     .run(readAt, req.user.id);
   res.json({ ok: true, updated: result.changes, readAt });
+});
+
+app.get('/api/search', authenticate, (req: any, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ query: q, messages: [], notifications: [], forums: [] });
+  const like = `%${q}%`;
+  const limit = Math.min(Number(req.query.limit || 20) || 20, 50);
+
+  const messages = db.prepare(`
+    SELECT m.id, m.conversation_id, m.subject, m.body, m.channel, m.message_type, m.created_at,
+      from_user.username as from_user, to_user.username as to_user
+    FROM messages m
+    JOIN users from_user ON m.from_id = from_user.id
+    JOIN users to_user ON m.to_id = to_user.id
+    WHERE (m.from_id = ? OR m.to_id = ?) AND (m.subject LIKE ? OR m.body LIKE ?)
+    ORDER BY datetime(m.created_at) DESC
+    LIMIT ?
+  `).all(req.user.id, req.user.id, like, like, limit);
+
+  const notifications = db.prepare(`
+    SELECT id, type, title, body, source_app, link_url, read_at, created_at
+    FROM notifications
+    WHERE user_id = ? AND (title LIKE ? OR body LIKE ? OR source_app LIKE ?)
+    ORDER BY datetime(created_at) DESC
+    LIMIT ?
+  `).all(req.user.id, like, like, like, limit);
+
+  const forums = db.prepare(`
+    SELECT t.id, t.title, t.category, t.created_at, u.username as author,
+      (SELECT COUNT(*) FROM forum_posts WHERE thread_id = t.id) as post_count
+    FROM forum_threads t
+    JOIN users u ON t.author_id = u.id
+    WHERE t.title LIKE ? OR t.category LIKE ? OR EXISTS (
+      SELECT 1 FROM forum_posts p WHERE p.thread_id = t.id AND p.body LIKE ?
+    )
+    ORDER BY datetime(t.created_at) DESC
+    LIMIT ?
+  `).all(like, like, like, limit);
+
+  res.json({ query: q, messages, notifications, forums });
 });
 
 // ─── Forum: Create thread ───
@@ -890,10 +1002,12 @@ app.post('/api/system/message', (req, res) => {
   const now = new Date().toISOString();
   const conversationId = ensureDirectConversation(appUser.id, recipient.id, now);
   const title = subject || `Message from ${from_app || 'System'}`;
+  const attachments = normalizeAttachments(req.body?.attachments);
+  const mentionedUsers = extractMentionedUsers(body, req.body?.mentions);
   db.prepare(`
-    INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, appUser.id, recipient.id, conversationId, title, body, 'app', 'app', now);
+    INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, attachments, mentioned_users, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, appUser.id, recipient.id, conversationId, title, body, 'app', 'app', attachments, mentionedUsers, now);
   createNotification(recipient.id, title, String(body).slice(0, 180), {
     type: 'app_message',
     sourceApp: from_app || 'system',
@@ -922,15 +1036,17 @@ app.post('/api/system/broadcast', (req, res) => {
   }
 
   const now = new Date().toISOString();
+  const attachments = normalizeAttachments(req.body?.attachments);
+  const mentionedUsers = extractMentionedUsers(body, req.body?.mentions);
   let sent = 0;
   for (const user of allUsers) {
     const id = uuidv4();
     const conversationId = ensureDirectConversation(appUser.id, user.id, now);
     const title = subject || `Broadcast from ${from_app}`;
     db.prepare(`
-      INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, appUser.id, user.id, conversationId, title, body, 'broadcast', 'app', now);
+      INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, attachments, mentioned_users, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, appUser.id, user.id, conversationId, title, body, 'broadcast', 'app', attachments, mentionedUsers, now);
     createNotification(user.id, title, String(body).slice(0, 180), {
       type: 'broadcast',
       sourceApp: from_app || 'system',

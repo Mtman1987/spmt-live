@@ -59,6 +59,8 @@ export function initDb() {
   try { db.exec('ALTER TABLE messages ADD COLUMN conversation_id TEXT'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT "direct"'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN metadata TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN attachments TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN mentioned_users TEXT'); } catch {}
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS oauth_clients (
@@ -190,6 +192,8 @@ export function initDb() {
   try { db.exec('ALTER TABLE messages ADD COLUMN conversation_id TEXT'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT "direct"'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN metadata TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN attachments TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN mentioned_users TEXT'); } catch {}
 
   seedOauthClient(
     'spacemountain-live',

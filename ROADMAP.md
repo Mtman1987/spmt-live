@@ -2,8 +2,8 @@
 
 ## Status
 
-Current phase: Phase 2 - Commlink
-Overall progress: about 52%
+Current phase: Phase 3 - Shipyard
+Overall progress: about 58%
 Last updated: 2026-07-02
 
 ## Phase 1 - Identity Core
@@ -78,15 +78,15 @@ Goal: one communication system.
 
 Goal: install ecosystem apps with one click.
 
-- [ ] Installed Apps
-- [ ] Available Apps
+- [x] Installed Apps
+- [x] Available Apps
 - [ ] Updates
-- [ ] Permissions
-- [ ] Health
+- [x] Permissions
+- [x] Health
 - [ ] Versioning
-- [ ] Launch
-- [ ] Enable
-- [ ] Disable
+- [x] Launch
+- [x] Enable
+- [x] Disable
 
 ## Phase 4 - Command Bridge
 

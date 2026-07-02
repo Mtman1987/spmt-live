@@ -144,6 +144,18 @@ function findUserByHandle(value: unknown) {
     .get(handle, `${handle}@spmt.live`) as any;
 }
 
+function ensureSystemUser(username: string, displayName: string) {
+  const clean = cleanHandle(username) || 'system';
+  let user = db.prepare('SELECT id, username, email, display_name FROM users WHERE username = ?').get(clean) as any;
+  if (user) return user;
+
+  const id = `app_${clean}`;
+  db.prepare('INSERT OR IGNORE INTO users (id, username, email, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, clean, `${clean}@spmt.live`, displayName, 'SYSTEM_NO_LOGIN', new Date().toISOString());
+  user = db.prepare('SELECT id, username, email, display_name FROM users WHERE username = ?').get(clean) as any;
+  return user;
+}
+
 function ensureDirectConversation(userA: string, userB: string, now = new Date().toISOString()) {
   const existing = db.prepare(`
     SELECT c.id
@@ -275,6 +287,8 @@ app.get('/api/system/health', (req, res) => {
       notifications: '/api/notifications',
       messages: '/api/messages',
       search: '/api/search',
+      aiConversations: '/api/ai/conversations',
+      voiceMessages: '/api/voice-messages',
       oauthAuthorize: '/api/oauth/authorize',
       oauthToken: '/api/oauth/token',
     },
@@ -868,6 +882,124 @@ app.post('/api/notifications/read-all', authenticate, (req: any, res) => {
   const result = db.prepare('UPDATE notifications SET read_at = COALESCE(read_at, ?) WHERE user_id = ?')
     .run(readAt, req.user.id);
   res.json({ ok: true, updated: result.changes, readAt });
+});
+
+app.post('/api/ai/conversations', authenticate, (req: any, res) => {
+  const botHandle = cleanHandle(req.body?.bot || 'athena') || 'athena';
+  const botName = botHandle === 'athena' ? 'Athena Core' : botHandle;
+  const botUser = ensureSystemUser(botHandle, botName);
+  const now = new Date().toISOString();
+  const conversationId = ensureDirectConversation(req.user.id, botUser.id, now);
+
+  db.prepare('UPDATE conversations SET title = COALESCE(title, ?), type = ?, updated_at = ? WHERE id = ?')
+    .run(`${botName} conversation`, 'ai', now, conversationId);
+
+  if (req.body?.prompt) {
+    const id = uuidv4();
+    db.prepare(`
+      INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, metadata, mentioned_users, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      req.user.id,
+      botUser.id,
+      conversationId,
+      req.body?.subject || 'AI conversation',
+      String(req.body.prompt),
+      'ai',
+      'ai_prompt',
+      JSON.stringify({ routedTo: botHandle, sourceApp: req.body?.sourceApp || 'spmt' }),
+      extractMentionedUsers(req.body.prompt, req.body?.mentions),
+      now
+    );
+  }
+
+  res.status(201).json({
+    id: conversationId,
+    bot: { username: botUser.username, displayName: botUser.display_name },
+    routed: true,
+  });
+});
+
+app.post('/api/ai/conversations/:id/messages', authenticate, (req: any, res) => {
+  const membership = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id = ? AND user_id = ?')
+    .get(req.params.id, req.user.id);
+  if (!membership) return res.status(404).json({ error: 'Conversation not found' });
+  if (!req.body?.prompt) return res.status(400).json({ error: 'Prompt required' });
+
+  const botUser = ensureSystemUser(cleanHandle(req.body?.bot || 'athena') || 'athena', 'Athena Core');
+  db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)')
+    .run(req.params.id, botUser.id, 'ai', new Date().toISOString());
+
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, metadata, mentioned_users, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    req.user.id,
+    botUser.id,
+    req.params.id,
+    req.body?.subject || 'AI prompt',
+    String(req.body.prompt),
+    'ai',
+    'ai_prompt',
+    JSON.stringify({ routedTo: botUser.username, sourceApp: req.body?.sourceApp || 'spmt' }),
+    extractMentionedUsers(req.body.prompt, req.body?.mentions),
+    now
+  );
+  db.prepare('UPDATE conversations SET type = ?, updated_at = ? WHERE id = ?').run('ai', now, req.params.id);
+  res.status(201).json({ id, routed: true });
+});
+
+app.post('/api/voice-messages', authenticate, (req: any, res) => {
+  const { to, conversationId, audioUrl, transcript, durationMs } = req.body || {};
+  if (!audioUrl || !/^https?:\/\//i.test(String(audioUrl))) return res.status(400).json({ error: 'audioUrl must be an http(s) URL' });
+
+  let targetConversationId = conversationId;
+  let recipients: any[] = [];
+  if (targetConversationId) {
+    recipients = db.prepare('SELECT user_id as id FROM conversation_members WHERE conversation_id = ? AND user_id != ?')
+      .all(targetConversationId, req.user.id) as any[];
+  } else {
+    const recipient = findUserByHandle(to);
+    if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
+    targetConversationId = ensureDirectConversation(req.user.id, recipient.id);
+    recipients = [recipient];
+  }
+  if (!recipients.length) return res.status(400).json({ error: 'No voice message recipients found' });
+
+  const now = new Date().toISOString();
+  const ids = [];
+  for (const recipient of recipients) {
+    const id = uuidv4();
+    db.prepare(`
+      INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, metadata, attachments, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      req.user.id,
+      recipient.id,
+      targetConversationId,
+      req.body?.subject || 'Voice message',
+      transcript || 'Voice message',
+      'voice',
+      'voice',
+      JSON.stringify({ durationMs: Number(durationMs || 0), transcript: transcript || null }),
+      JSON.stringify([{ url: String(audioUrl), name: 'Voice message', type: 'audio' }]),
+      now
+    );
+    createNotification(recipient.id, 'Voice message', transcript || 'New voice message', {
+      type: 'voice_message',
+      sourceApp: req.body?.sourceApp || 'spmt',
+      linkUrl: `/messages/${targetConversationId}`,
+    });
+    ids.push(id);
+  }
+
+  db.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').run(now, targetConversationId);
+  res.status(201).json({ ids, conversationId: targetConversationId, sent: true });
 });
 
 app.get('/api/search', authenticate, (req: any, res) => {

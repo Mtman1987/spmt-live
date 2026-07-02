@@ -57,8 +57,8 @@ Goal: one communication system.
 - [x] Message filters
 - [x] Mentions metadata
 - [x] Attachment metadata
-- [ ] AI conversation routing
-- [ ] Voice message metadata
+- [x] AI conversation routing
+- [x] Voice message metadata
 
 ### SpaceMountain.live
 

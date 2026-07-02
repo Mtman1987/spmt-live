@@ -69,10 +69,10 @@ Goal: one communication system.
 - [ ] Full thread view
 - [ ] Group chat creation UI
 - [ ] Forum thread detail/reply UI
-- [ ] Search UI
-- [ ] Filters UI
-- [ ] Attachment display for Commlink messages
-- [ ] Mention rendering for Commlink messages
+- [x] Search UI
+- [x] Filters UI
+- [x] Attachment display for Commlink messages
+- [x] Mention rendering for Commlink messages
 
 ## Phase 3 - Shipyard
 

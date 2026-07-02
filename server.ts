@@ -128,6 +128,55 @@ function buildAppsForUser(userId?: string) {
   });
 }
 
+function cleanHandle(value: unknown) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, '')
+    .replace(/@spmt\.live$/, '')
+    .replace(/[^a-z0-9._-]/g, '');
+}
+
+function findUserByHandle(value: unknown) {
+  const handle = cleanHandle(value);
+  if (!handle) return null;
+  return db.prepare('SELECT id, username, email, display_name FROM users WHERE username = ? OR email = ?')
+    .get(handle, `${handle}@spmt.live`) as any;
+}
+
+function ensureDirectConversation(userA: string, userB: string, now = new Date().toISOString()) {
+  const existing = db.prepare(`
+    SELECT c.id
+    FROM conversations c
+    JOIN conversation_members a ON a.conversation_id = c.id AND a.user_id = ?
+    JOIN conversation_members b ON b.conversation_id = c.id AND b.user_id = ?
+    WHERE c.type = 'direct'
+    LIMIT 1
+  `).get(userA, userB) as any;
+  if (existing) {
+    db.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').run(now, existing.id);
+    return existing.id;
+  }
+
+  const id = uuidv4();
+  db.prepare('INSERT INTO conversations (id, title, type, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, null, 'direct', userA, now, now);
+  db.prepare('INSERT INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)')
+    .run(id, userA, 'member', now);
+  db.prepare('INSERT INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)')
+    .run(id, userB, 'member', now);
+  return id;
+}
+
+function createNotification(userId: string, title: string, body: string, options: { type?: string; sourceApp?: string; linkUrl?: string } = {}) {
+  const id = uuidv4();
+  db.prepare(`
+    INSERT INTO notifications (id, user_id, type, title, body, source_app, link_url, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, userId, options.type || 'message', title, body, options.sourceApp || null, options.linkUrl || null, new Date().toISOString());
+  return id;
+}
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -179,12 +228,16 @@ app.get('/api/system/health', (req, res) => {
       messages: scalar('SELECT COUNT(*) as count FROM messages'),
       forumThreads: scalar('SELECT COUNT(*) as count FROM forum_threads'),
       appInstalls: scalar('SELECT COUNT(*) as count FROM app_installs'),
+      conversations: scalar('SELECT COUNT(*) as count FROM conversations'),
+      notifications: scalar('SELECT COUNT(*) as count FROM notifications'),
     },
     endpoints: {
       me: '/api/me',
       apps: '/api/apps',
       refresh: '/api/auth/refresh',
       linkedAccounts: '/api/linked-accounts',
+      conversations: '/api/conversations',
+      notifications: '/api/notifications',
       oauthAuthorize: '/api/oauth/authorize',
       oauthToken: '/api/oauth/token',
     },
@@ -566,15 +619,25 @@ app.post('/api/messages', authenticate, (req: any, res) => {
   const { to, subject, body } = req.body;
   if (!to || !body) return res.status(400).json({ error: 'Recipient and body required' });
 
-  const cleanTo = String(to).trim().toLowerCase().replace(/^@/, '').replace(/@spmt\.live$/, '');
-  const recipient = db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(cleanTo, `${cleanTo}@spmt.live`) as any;
+  const recipient = findUserByHandle(to);
   if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
 
   const id = uuidv4();
-  db.prepare('INSERT INTO messages (id, from_id, to_id, subject, body, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(id, req.user.id, recipient.id, subject || '', body, new Date().toISOString());
+  const now = new Date().toISOString();
+  const conversationId = req.body?.conversationId || ensureDirectConversation(req.user.id, recipient.id, now);
+  db.prepare(`
+    INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, metadata, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, req.user.id, recipient.id, conversationId, subject || '', body, req.body?.channel || 'direct', req.body?.messageType || 'direct', req.body?.metadata ? JSON.stringify(req.body.metadata) : null, now);
 
-  res.status(201).json({ id, sent: true });
+  db.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').run(now, conversationId);
+  createNotification(recipient.id, subject || `Message from ${req.user.username}`, body.slice(0, 180), {
+    type: 'message',
+    sourceApp: req.body?.sourceApp || 'spmt',
+    linkUrl: `/messages/${conversationId}`,
+  });
+
+  res.status(201).json({ id, sent: true, conversationId });
 });
 
 // ─── Messaging: Inbox ───
@@ -602,6 +665,137 @@ app.post('/api/messages/:id/read', authenticate, (req: any, res) => {
     .run(new Date().toISOString(), req.params.id, req.user.id);
   if (!result.changes) return res.status(404).json({ error: 'Message not found' });
   res.json({ ok: true });
+});
+
+app.get('/api/conversations', authenticate, (req: any, res) => {
+  const conversations = db.prepare(`
+    SELECT c.id, c.title, c.type, c.created_at, c.updated_at,
+      (
+        SELECT body FROM messages
+        WHERE conversation_id = c.id
+        ORDER BY datetime(created_at) DESC LIMIT 1
+      ) as last_message,
+      (
+        SELECT COUNT(*) FROM messages
+        WHERE conversation_id = c.id AND to_id = ? AND read_at IS NULL
+      ) as unread_count
+    FROM conversations c
+    JOIN conversation_members cm ON cm.conversation_id = c.id
+    WHERE cm.user_id = ?
+    ORDER BY datetime(c.updated_at) DESC
+    LIMIT 100
+  `).all(req.user.id, req.user.id);
+  res.json({ conversations });
+});
+
+app.post('/api/conversations', authenticate, (req: any, res) => {
+  const recipients = Array.isArray(req.body?.recipients) ? req.body.recipients : [req.body?.to].filter(Boolean);
+  const members = recipients.map(findUserByHandle).filter(Boolean) as any[];
+  if (!members.length) return res.status(400).json({ error: 'At least one valid recipient is required' });
+
+  const now = new Date().toISOString();
+  const type = members.length === 1 ? 'direct' : 'group';
+  const conversationId = type === 'direct'
+    ? ensureDirectConversation(req.user.id, members[0].id, now)
+    : uuidv4();
+
+  if (type === 'group') {
+    db.prepare('INSERT INTO conversations (id, title, type, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(conversationId, String(req.body?.title || 'Group conversation').slice(0, 120), 'group', req.user.id, now, now);
+    db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)')
+      .run(conversationId, req.user.id, 'owner', now);
+    for (const member of members) {
+      db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)')
+        .run(conversationId, member.id, 'member', now);
+    }
+  }
+
+  res.status(201).json({ id: conversationId, type });
+});
+
+app.get('/api/conversations/:id/messages', authenticate, (req: any, res) => {
+  const membership = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id = ? AND user_id = ?')
+    .get(req.params.id, req.user.id);
+  if (!membership) return res.status(404).json({ error: 'Conversation not found' });
+
+  const messages = db.prepare(`
+    SELECT m.id, m.subject, m.body, m.channel, m.message_type, m.metadata, m.created_at, m.read_at,
+      from_user.username as from_user, from_user.display_name as from_name,
+      to_user.username as to_user, to_user.display_name as to_name
+    FROM messages m
+    JOIN users from_user ON m.from_id = from_user.id
+    JOIN users to_user ON m.to_id = to_user.id
+    WHERE m.conversation_id = ?
+    ORDER BY datetime(m.created_at) ASC
+    LIMIT 200
+  `).all(req.params.id);
+  res.json({ messages });
+});
+
+app.post('/api/conversations/:id/messages', authenticate, (req: any, res) => {
+  const membership = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id = ? AND user_id = ?')
+    .get(req.params.id, req.user.id);
+  if (!membership) return res.status(404).json({ error: 'Conversation not found' });
+  if (!req.body?.body) return res.status(400).json({ error: 'Body required' });
+
+  const members = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id = ? AND user_id != ?')
+    .all(req.params.id, req.user.id) as any[];
+  if (!members.length) return res.status(400).json({ error: 'Conversation has no recipients' });
+
+  const now = new Date().toISOString();
+  const ids = [];
+  for (const member of members) {
+    const id = uuidv4();
+    db.prepare(`
+      INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, metadata, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, req.user.id, member.user_id, req.params.id, req.body?.subject || '', req.body.body, req.body?.channel || 'conversation', req.body?.messageType || 'conversation', req.body?.metadata ? JSON.stringify(req.body.metadata) : null, now);
+    createNotification(member.user_id, req.body?.subject || `Message from ${req.user.username}`, String(req.body.body).slice(0, 180), {
+      type: 'message',
+      sourceApp: req.body?.sourceApp || 'spmt',
+      linkUrl: `/messages/${req.params.id}`,
+    });
+    ids.push(id);
+  }
+
+  db.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').run(now, req.params.id);
+  res.status(201).json({ sent: true, ids });
+});
+
+app.post('/api/conversations/:id/read', authenticate, (req: any, res) => {
+  const now = new Date().toISOString();
+  const membership = db.prepare('UPDATE conversation_members SET last_read_at = ? WHERE conversation_id = ? AND user_id = ?')
+    .run(now, req.params.id, req.user.id);
+  if (!membership.changes) return res.status(404).json({ error: 'Conversation not found' });
+  db.prepare('UPDATE messages SET read_at = COALESCE(read_at, ?) WHERE conversation_id = ? AND to_id = ?')
+    .run(now, req.params.id, req.user.id);
+  res.json({ ok: true, readAt: now });
+});
+
+app.get('/api/notifications', authenticate, (req: any, res) => {
+  const limit = Math.min(Number(req.query.limit || 50) || 50, 100);
+  const notifications = db.prepare(`
+    SELECT id, type, title, body, source_app, link_url, read_at, created_at
+    FROM notifications
+    WHERE user_id = ?
+    ORDER BY datetime(created_at) DESC
+    LIMIT ?
+  `).all(req.user.id, limit);
+  res.json({ notifications });
+});
+
+app.post('/api/notifications/:id/read', authenticate, (req: any, res) => {
+  const result = db.prepare('UPDATE notifications SET read_at = COALESCE(read_at, ?) WHERE id = ? AND user_id = ?')
+    .run(new Date().toISOString(), req.params.id, req.user.id);
+  if (!result.changes) return res.status(404).json({ error: 'Notification not found' });
+  res.json({ ok: true });
+});
+
+app.post('/api/notifications/read-all', authenticate, (req: any, res) => {
+  const readAt = new Date().toISOString();
+  const result = db.prepare('UPDATE notifications SET read_at = COALESCE(read_at, ?) WHERE user_id = ?')
+    .run(readAt, req.user.id);
+  res.json({ ok: true, updated: result.changes, readAt });
 });
 
 // ─── Forum: Create thread ───
@@ -693,10 +887,20 @@ app.post('/api/system/message', (req, res) => {
   }
 
   const id = uuidv4();
-  db.prepare('INSERT INTO messages (id, from_id, to_id, subject, body, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(id, appUser.id, recipient.id, subject || `Message from ${from_app || 'System'}`, body, new Date().toISOString());
+  const now = new Date().toISOString();
+  const conversationId = ensureDirectConversation(appUser.id, recipient.id, now);
+  const title = subject || `Message from ${from_app || 'System'}`;
+  db.prepare(`
+    INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, appUser.id, recipient.id, conversationId, title, body, 'app', 'app', now);
+  createNotification(recipient.id, title, String(body).slice(0, 180), {
+    type: 'app_message',
+    sourceApp: from_app || 'system',
+    linkUrl: `/messages/${conversationId}`,
+  });
 
-  res.status(201).json({ id, sent: true });
+  res.status(201).json({ id, sent: true, conversationId });
 });
 
 // ─── System Messaging: Broadcast to all users ───
@@ -721,8 +925,17 @@ app.post('/api/system/broadcast', (req, res) => {
   let sent = 0;
   for (const user of allUsers) {
     const id = uuidv4();
-    db.prepare('INSERT INTO messages (id, from_id, to_id, subject, body, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(id, appUser.id, user.id, subject || `Broadcast from ${from_app}`, body, now);
+    const conversationId = ensureDirectConversation(appUser.id, user.id, now);
+    const title = subject || `Broadcast from ${from_app}`;
+    db.prepare(`
+      INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, appUser.id, user.id, conversationId, title, body, 'broadcast', 'app', now);
+    createNotification(user.id, title, String(body).slice(0, 180), {
+      type: 'broadcast',
+      sourceApp: from_app || 'system',
+      linkUrl: `/messages/${conversationId}`,
+    });
     sent++;
   }
 

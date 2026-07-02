@@ -56,6 +56,9 @@ export function initDb() {
   try { db.exec('ALTER TABLE users ADD COLUMN twitch_id TEXT'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN read_at TEXT'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN channel TEXT DEFAULT "direct"'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN conversation_id TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT "direct"'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN metadata TEXT'); } catch {}
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS oauth_clients (
@@ -146,10 +149,47 @@ export function initDb() {
       PRIMARY KEY(user_id, app_id, permission),
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS conversations (
+      id TEXT PRIMARY KEY,
+      title TEXT,
+      type TEXT NOT NULL DEFAULT 'direct',
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY(created_by) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS conversation_members (
+      conversation_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      joined_at TEXT NOT NULL,
+      last_read_at TEXT,
+      PRIMARY KEY(conversation_id, user_id),
+      FOREIGN KEY(conversation_id) REFERENCES conversations(id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'message',
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      source_app TEXT,
+      link_url TEXT,
+      read_at TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
   `);
 
   try { db.exec('ALTER TABLE messages ADD COLUMN read_at TEXT'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN channel TEXT DEFAULT "direct"'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN conversation_id TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT "direct"'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN metadata TEXT'); } catch {}
 
   seedOauthClient(
     'spacemountain-live',

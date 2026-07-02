@@ -163,6 +163,34 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', app: 'spmt-live', uptime: process.uptime(), users: userCount?.count || 0 });
 });
 
+app.get('/api/system/health', (req, res) => {
+  const scalar = (sql: string) => (db.prepare(sql).get() as any)?.count || 0;
+  res.json({
+    status: 'ok',
+    app: 'spmt-live',
+    phase: 'identity-core',
+    uptime: process.uptime(),
+    checkedAt: new Date().toISOString(),
+    database: {
+      users: scalar("SELECT COUNT(*) as count FROM users WHERE password_hash != 'SYSTEM_NO_LOGIN'"),
+      systemUsers: scalar("SELECT COUNT(*) as count FROM users WHERE password_hash = 'SYSTEM_NO_LOGIN'"),
+      oauthClients: scalar('SELECT COUNT(*) as count FROM oauth_clients'),
+      activeOauthCodes: scalar('SELECT COUNT(*) as count FROM oauth_codes WHERE datetime(expires_at) > datetime(\'now\')'),
+      messages: scalar('SELECT COUNT(*) as count FROM messages'),
+      forumThreads: scalar('SELECT COUNT(*) as count FROM forum_threads'),
+      appInstalls: scalar('SELECT COUNT(*) as count FROM app_installs'),
+    },
+    endpoints: {
+      me: '/api/me',
+      apps: '/api/apps',
+      refresh: '/api/auth/refresh',
+      linkedAccounts: '/api/linked-accounts',
+      oauthAuthorize: '/api/oauth/authorize',
+      oauthToken: '/api/oauth/token',
+    },
+  });
+});
+
 app.get('/api/apps', (req, res) => {
   const token = req.cookies?.spmt_token || req.headers.authorization?.replace('Bearer ', '');
   let userId: string | undefined;
@@ -392,6 +420,70 @@ app.post('/api/user/link', authenticate, async (req: any, res) => {
     console.error('Link failed:', err);
     res.status(500).json({ error: 'Link failed: ' + (err.message || 'unknown error') });
   }
+});
+
+app.get('/api/linked-accounts', authenticate, (req: any, res) => {
+  const user = getUserById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  res.json({
+    accounts: [
+      {
+        platform: 'discord',
+        username: user.discord_username,
+        externalId: user.discord_id,
+        linked: Boolean(user.discord_username || user.discord_id),
+      },
+      {
+        platform: 'twitch',
+        username: user.twitch_username,
+        externalId: user.twitch_id,
+        linked: Boolean(user.twitch_username || user.twitch_id),
+      },
+    ],
+    user: serializeUser(user),
+  });
+});
+
+app.put('/api/linked-accounts', authenticate, async (req: any, res) => {
+  const updates: string[] = [];
+  const values: any[] = [];
+  const discordUsername = req.body?.discord?.username ?? req.body?.discordUsername;
+  const twitchUsername = req.body?.twitch?.username ?? req.body?.twitchUsername;
+
+  if (discordUsername !== undefined) {
+    const cleanDiscord = String(discordUsername || '').trim().replace(/^@/, '');
+    updates.push('discord_username = ?', 'discord_id = NULL');
+    values.push(cleanDiscord || null);
+  }
+  if (twitchUsername !== undefined) {
+    const cleanTwitch = String(twitchUsername || '').trim().toLowerCase().replace(/^@/, '');
+    updates.push('twitch_username = ?', 'twitch_id = NULL');
+    values.push(cleanTwitch || null);
+  }
+
+  if (!updates.length) return res.status(400).json({ error: 'No linked account fields provided' });
+
+  values.push(req.user.id);
+  db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  const user = getUserById(req.user.id);
+  res.json({ ok: true, user: serializeUser(user) });
+});
+
+app.delete('/api/linked-accounts/:platform', authenticate, (req: any, res) => {
+  const platform = String(req.params.platform || '').toLowerCase();
+  if (!['discord', 'twitch'].includes(platform)) {
+    return res.status(400).json({ error: 'Platform must be discord or twitch' });
+  }
+
+  if (platform === 'discord') {
+    db.prepare('UPDATE users SET discord_username = NULL, discord_id = NULL WHERE id = ?').run(req.user.id);
+  } else {
+    db.prepare('UPDATE users SET twitch_username = NULL, twitch_id = NULL WHERE id = ?').run(req.user.id);
+  }
+
+  const user = getUserById(req.user.id);
+  res.json({ ok: true, user: serializeUser(user) });
 });
 
 // ─── User: Lookup by username, discord_id, or twitch_id ───
@@ -794,6 +886,16 @@ app.get('/api/arena/shop', authenticate, async (req: any, res) => {
 app.get('/api/arena/leaderboard', (req, res) => {
   const leaders = db.prepare('SELECT username, kills, deaths FROM arena_players ORDER BY kills DESC LIMIT 20').all();
   res.json(leaders);
+});
+
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error('SPMT API error:', err);
+  if (res.headersSent) return next(err);
+  const status = Number(err?.status || err?.statusCode || 500);
+  res.status(status >= 400 && status < 600 ? status : 500).json({
+    error: status >= 500 ? 'Internal server error' : err?.message || 'Request failed',
+    requestId: req.headers['x-request-id'] || null,
+  });
 });
 
 // ─── Static fallback (for minimal frontend later) ───

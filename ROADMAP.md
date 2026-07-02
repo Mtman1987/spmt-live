@@ -3,7 +3,7 @@
 ## Status
 
 Current phase: Phase 2 - Commlink
-Overall progress: about 48%
+Overall progress: about 52%
 Last updated: 2026-07-02
 
 ## Phase 1 - Identity Core
@@ -68,7 +68,7 @@ Goal: one communication system.
 - [x] Notification bell unread count
 - [x] Full thread view
 - [x] Group chat creation UI
-- [ ] Forum thread detail/reply UI
+- [x] Forum thread detail/reply UI
 - [x] Search UI
 - [x] Filters UI
 - [x] Attachment display for Commlink messages

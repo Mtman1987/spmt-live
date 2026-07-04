@@ -1,0 +1,363 @@
+{
+  "sections": [
+    {
+      "title": "Start Here",
+      "items": [
+        {
+          "title": "Docs Home",
+          "path": "docs/DOCS_HOME.md"
+        },
+        {
+          "title": "Vision",
+          "path": "docs/VISION.md"
+        },
+        {
+          "title": "Architecture",
+          "path": "docs/ARCHITECTURE.md"
+        },
+        {
+          "title": "Glossary",
+          "path": "docs/GLOSSARY.md"
+        },
+        {
+          "title": "FAQ",
+          "path": "docs/FAQ.md"
+        },
+        {
+          "title": "Contributing",
+          "path": "docs/CONTRIBUTING.md"
+        }
+      ]
+    },
+    {
+      "title": "Creator Guide",
+      "items": [
+        {
+          "title": "Getting Started",
+          "path": "docs/creator/GETTING_STARTED.md"
+        },
+        {
+          "title": "Creator Journey",
+          "path": "docs/creator/CREATOR_JOURNEY.md"
+        },
+        {
+          "title": "Real-World Workflows",
+          "path": "docs/creator/REAL_WORLD_WORKFLOWS.md"
+        },
+        {
+          "title": "Using Shipyard",
+          "path": "docs/creator/USING_SHIPYARD.md"
+        },
+        {
+          "title": "Using Commlink",
+          "path": "docs/creator/USING_COMMLINK.md"
+        },
+        {
+          "title": "Using Athena",
+          "path": "docs/creator/USING_ATHENA.md"
+        }
+      ]
+    },
+    {
+      "title": "Platform",
+      "items": [
+        {
+          "title": "Identity",
+          "path": "docs/platform/IDENTITY.md"
+        },
+        {
+          "title": "Shipyard",
+          "path": "docs/platform/SHIPYARD.md"
+        },
+        {
+          "title": "Commlink",
+          "path": "docs/platform/COMMLINK.md"
+        },
+        {
+          "title": "Athena OS",
+          "path": "docs/platform/ATHENA.md"
+        },
+        {
+          "title": "Event Bus",
+          "path": "docs/platform/EVENT_BUS.md"
+        },
+        {
+          "title": "Event Catalog",
+          "path": "docs/platform/EVENT_CATALOG.md"
+        },
+        {
+          "title": "Event Payloads",
+          "path": "docs/platform/EVENT_PAYLOADS.md"
+        },
+        {
+          "title": "Integration Patterns",
+          "path": "docs/platform/INTEGRATION_PATTERNS.md"
+        },
+        {
+          "title": "App Lifecycle",
+          "path": "docs/platform/APP_LIFECYCLE.md"
+        },
+        {
+          "title": "Permissions",
+          "path": "docs/platform/PERMISSIONS.md"
+        },
+        {
+          "title": "Data Ownership",
+          "path": "docs/platform/DATA_OWNERSHIP.md"
+        },
+        {
+          "title": "Observability",
+          "path": "docs/platform/OBSERVABILITY.md"
+        },
+        {
+          "title": "Security Model",
+          "path": "docs/platform/SECURITY_MODEL.md"
+        },
+        {
+          "title": "Release Checklist",
+          "path": "docs/platform/RELEASE_CHECKLIST.md"
+        },
+        {
+          "title": "API Reference",
+          "path": "docs/platform/API_REFERENCE.md"
+        }
+      ]
+    },
+    {
+      "title": "Apps",
+      "items": [
+        {
+          "title": "Apps Overview",
+          "path": "docs/apps/README.md"
+        },
+        {
+          "title": "Discord Stream Hub",
+          "path": "docs/apps/DISCORD_STREAM_HUB.md"
+        },
+        {
+          "title": "StreamWeaver",
+          "path": "docs/apps/STREAMWEAVER.md"
+        },
+        {
+          "title": "HearMeOut",
+          "path": "docs/apps/HEARMEOUT.md"
+        },
+        {
+          "title": "ChatTag",
+          "path": "docs/apps/CHATTAG.md"
+        },
+        {
+          "title": "Quackverse",
+          "path": "docs/apps/QUACKVERSE.md"
+        },
+        {
+          "title": "MountainView",
+          "path": "docs/apps/MOUNTAINVIEW.md"
+        }
+      ]
+    },
+    {
+      "title": "Developers",
+      "items": [
+        {
+          "title": "Quickstart",
+          "path": "docs/developers/QUICKSTART.md"
+        },
+        {
+          "title": "Build Your First App",
+          "path": "docs/developers/BUILD_YOUR_FIRST_APP.md"
+        },
+        {
+          "title": "App Integration Guide",
+          "path": "docs/developers/APP_INTEGRATION_GUIDE.md"
+        },
+        {
+          "title": "Migrating Existing Apps",
+          "path": "docs/developers/MIGRATION_GUIDE.md"
+        },
+        {
+          "title": "OAuth Flow",
+          "path": "docs/developers/OAUTH_FLOW.md"
+        },
+        {
+          "title": "SDK Spec",
+          "path": "docs/developers/SDK_SPEC.md"
+        },
+        {
+          "title": "SDK Direction",
+          "path": "docs/developers/SDK.md"
+        },
+        {
+          "title": "API Examples",
+          "path": "docs/developers/API_EXAMPLES.md"
+        },
+        {
+          "title": "Webhooks",
+          "path": "docs/developers/WEBHOOKS.md"
+        },
+        {
+          "title": "Plugin Guide",
+          "path": "docs/developers/PLUGIN_GUIDE.md"
+        },
+        {
+          "title": "Testing Guide",
+          "path": "docs/developers/TESTING_GUIDE.md"
+        },
+        {
+          "title": "Release Notes Template",
+          "path": "docs/developers/RELEASE_NOTES_TEMPLATE.md"
+        },
+        {
+          "title": "Style Guide",
+          "path": "docs/developers/STYLE_GUIDE.md"
+        }
+      ]
+    },
+    {
+      "title": "Examples",
+      "items": [
+        {
+          "title": "First Ecosystem App",
+          "path": "docs/examples/FIRST_APP_EXAMPLE.md"
+        },
+        {
+          "title": "End-To-End Stream Night",
+          "path": "docs/examples/END_TO_END_STREAM_EXAMPLE.md"
+        }
+      ]
+    },
+    {
+      "title": "Launch",
+      "items": [
+        {
+          "title": "Launch Plan",
+          "path": "docs/launch/LAUNCH_PLAN.md"
+        },
+        {
+          "title": "Launch Checklist",
+          "path": "docs/launch/LAUNCH_CHECKLIST.md"
+        }
+      ]
+    },
+    {
+      "title": "Support",
+      "items": [
+        {
+          "title": "User Support",
+          "path": "docs/support/USER_SUPPORT.md"
+        },
+        {
+          "title": "Known Limitations",
+          "path": "docs/support/KNOWN_LIMITATIONS.md"
+        }
+      ]
+    },
+    {
+      "title": "Business",
+      "items": [
+        {
+          "title": "Positioning",
+          "path": "docs/business/POSITIONING.md"
+        },
+        {
+          "title": "Website Structure",
+          "path": "docs/business/WEBSITE_STRUCTURE.md"
+        },
+        {
+          "title": "Website Copy",
+          "path": "docs/business/WEBSITE_COPY.md"
+        },
+        {
+          "title": "Go To Market",
+          "path": "docs/business/GO_TO_MARKET.md"
+        },
+        {
+          "title": "Marketing",
+          "path": "docs/business/MARKETING.md"
+        },
+        {
+          "title": "Social Posts",
+          "path": "docs/business/SOCIAL_POSTS.md"
+        },
+        {
+          "title": "Pitch",
+          "path": "docs/business/PITCH.md"
+        },
+        {
+          "title": "Pitch Deck Outline",
+          "path": "docs/business/PITCH_DECK_OUTLINE.md"
+        },
+        {
+          "title": "Brand",
+          "path": "docs/business/BRAND.md"
+        }
+      ]
+    },
+    {
+      "title": "Docs UI",
+      "items": [
+        {
+          "title": "Docs Page Spec",
+          "path": "docs/ui/DOCS_PAGE_SPEC.md"
+        }
+      ]
+    },
+    {
+      "title": "Specifications",
+      "items": [
+        {
+          "title": "Spec Index",
+          "path": "docs/platform/SPEC_INDEX.md"
+        },
+        {
+          "title": "Identity Spec",
+          "path": "spec/IDENTITY_SPEC.md"
+        },
+        {
+          "title": "Event Spec",
+          "path": "spec/EVENT_SPEC.md"
+        },
+        {
+          "title": "App Spec",
+          "path": "spec/APP_SPEC.md"
+        },
+        {
+          "title": "Shipyard Spec",
+          "path": "spec/SHIPYARD_SPEC.md"
+        },
+        {
+          "title": "Commlink Spec",
+          "path": "spec/COMMLINK_SPEC.md"
+        },
+        {
+          "title": "Athena Spec",
+          "path": "spec/ATHENA_SPEC.md"
+        },
+        {
+          "title": "Permissions Spec",
+          "path": "spec/PERMISSIONS_SPEC.md"
+        },
+        {
+          "title": "API Contract",
+          "path": "spec/API_CONTRACT.md"
+        },
+        {
+          "title": "Design System",
+          "path": "spec/DESIGN_SYSTEM.md"
+        },
+        {
+          "title": "Marketplace Spec",
+          "path": "spec/MARKETPLACE_SPEC.md"
+        },
+        {
+          "title": "AI Crew Spec",
+          "path": "spec/AI_CREW_SPEC.md"
+        },
+        {
+          "title": "UI Component Spec",
+          "path": "spec/UI_COMPONENT_SPEC.md"
+        }
+      ]
+    }
+  ]
+}

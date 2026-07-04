@@ -171,12 +171,17 @@ Every ecosystem app should work toward this contract:
 - use scoped platform keys for server-to-server writes
 - avoid duplicating user profiles, auth, and messaging
 
-## Current Project State
+## Documentation
 
-See:
+Start with the docs folder for architecture, vision, integration guides, and platform concepts.
+
+Useful entry points:
 
 - `ROADMAP.md` for phase status
 - `ECOSYSTEM_HANDOFF.md` for detailed integration guidance
+- `ECOSYSTEM_ROLLOUT_PLAN.md` for adoption sequencing
+- `docs/DOCS_HOME.md` for the documentation index
+- `spec/README.md` for platform specifications
 - `PHASE_ONE.md` for the identity-core checklist
 
 ## Why This Exists

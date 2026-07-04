@@ -83,6 +83,37 @@ const SUITE_APPS = [
   },
 ];
 
+const ATHENA_SKILLS = [
+  { id: 'command-routing', name: 'Command Routing', description: 'Routes creator commands to apps, dock slots, Commlink, forums, and rooms.', phase: 'core' },
+  { id: 'shared-memory', name: 'Shared Memory', description: 'Stores user and app context for reuse across the ecosystem.', phase: 'core' },
+  { id: 'creator-copilot', name: 'Creator Copilot', description: 'Turns creator goals into launch, message, forum, and automation actions.', phase: 'assistant' },
+  { id: 'voice-control', name: 'Voice Control', description: 'Accepts voice transcripts and maps them to Command Bridge actions.', phase: 'assistant' },
+];
+
+const ATHENA_CREW = [
+  { id: 'athena', name: 'Athena Core', role: 'orchestrator', status: 'online' },
+  { id: 'atlas', name: 'Atlas', role: 'app awareness', status: 'ready' },
+  { id: 'echo', name: 'Echo', role: 'voice and conversation', status: 'ready' },
+  { id: 'forge', name: 'Forge', role: 'automation and plugins', status: 'ready' },
+];
+
+const AUTOMATION_RECIPES = [
+  { id: 'live-creator-brief', name: 'Live Creator Brief', trigger: 'stream-start', action: 'summarize apps, forums, notifications, and shoutouts' },
+  { id: 'dock-workspace', name: 'Dock Workspace', trigger: 'voice-command', action: 'open the requested app into the active dock slot' },
+  { id: 'community-followup', name: 'Community Follow-up', trigger: 'forum-or-message', action: 'route reply drafts through Commlink' },
+];
+
+const PLATFORM_FEATURES = [
+  'Public SDK',
+  'Public API',
+  'Developer Portal',
+  'Plugin Marketplace',
+  'App Submission',
+  'OAuth Apps',
+  'Webhooks',
+  'Documentation',
+];
+
 const USER_COLUMNS = 'id, username, email, display_name, discord_username, discord_id, twitch_username, twitch_id, created_at';
 
 function serializeUser(user: any) {
@@ -309,11 +340,224 @@ app.get('/api/system/health', (req, res) => {
       messages: '/api/messages',
       search: '/api/search',
       aiConversations: '/api/ai/conversations',
+      athena: '/api/athena/os',
+      platform: '/api/platform',
       voiceMessages: '/api/voice-messages',
       oauthAuthorize: '/api/oauth/authorize',
       oauthToken: '/api/oauth/token',
     },
   });
+});
+
+app.get('/api/athena/os', (req, res) => {
+  res.json({
+    name: 'Athena OS',
+    status: 'online',
+    capabilities: {
+      sharedMemory: true,
+      appAwareness: true,
+      voiceControl: true,
+      automation: true,
+      multiAgentCrew: true,
+      crossAppContext: true,
+      creatorAssistant: true,
+      aiSkills: true,
+      aiMarketplace: true,
+    },
+    crew: ATHENA_CREW,
+    skills: ATHENA_SKILLS,
+    automations: AUTOMATION_RECIPES,
+    apps: buildAppsForUser(),
+  });
+});
+
+app.get('/api/athena/context', authenticate, (req: any, res) => {
+  const memory = db.prepare(`
+    SELECT id, scope, topic, content, source_app, created_at, updated_at
+    FROM athena_memory
+    WHERE user_id = ?
+    ORDER BY datetime(updated_at) DESC
+    LIMIT 25
+  `).all(req.user.id);
+
+  res.json({
+    user: req.user,
+    apps: buildAppsForUser(req.user.id),
+    crew: ATHENA_CREW,
+    skills: ATHENA_SKILLS,
+    automations: AUTOMATION_RECIPES,
+    memory,
+  });
+});
+
+app.get('/api/athena/memory', authenticate, (req: any, res) => {
+  const rows = db.prepare(`
+    SELECT id, scope, topic, content, source_app, created_at, updated_at
+    FROM athena_memory
+    WHERE user_id = ?
+    ORDER BY datetime(updated_at) DESC
+    LIMIT 100
+  `).all(req.user.id);
+  res.json({ memory: rows });
+});
+
+app.post('/api/athena/memory', authenticate, (req: any, res) => {
+  const topic = String(req.body?.topic || '').trim();
+  const content = String(req.body?.content || '').trim();
+  if (!topic || !content) return res.status(400).json({ error: 'topic and content are required' });
+
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO athena_memory (id, user_id, scope, topic, content, source_app, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, req.user.id, req.body?.scope || 'user', topic, content, req.body?.sourceApp || 'spmt', now, now);
+  res.status(201).json({ id, topic, content, createdAt: now });
+});
+
+app.get('/api/athena/skills', (req, res) => {
+  res.json({ skills: ATHENA_SKILLS, marketplace: ATHENA_SKILLS.map((skill) => ({ ...skill, installable: true })) });
+});
+
+app.get('/api/athena/crew', (req, res) => {
+  res.json({ crew: ATHENA_CREW });
+});
+
+app.get('/api/athena/automations', (req, res) => {
+  res.json({ automations: AUTOMATION_RECIPES });
+});
+
+app.post('/api/athena/commands', authenticate, (req: any, res) => {
+  const command = String(req.body?.command || '').trim();
+  if (!command) return res.status(400).json({ error: 'command is required' });
+
+  const lower = command.toLowerCase();
+  const target = lower.includes('forum') ? 'forums'
+    : lower.includes('inbox') || lower.includes('message') ? 'commlink'
+    : lower.includes('app') || lower.includes('shipyard') ? 'shipyard'
+    : lower.includes('voice') ? 'voice'
+    : 'command-bridge';
+
+  res.json({
+    routed: true,
+    target,
+    command,
+    context: {
+      apps: buildAppsForUser(req.user.id).length,
+      skills: ATHENA_SKILLS.length,
+      crew: ATHENA_CREW.length,
+    },
+  });
+});
+
+app.get('/api/platform', (req, res) => {
+  res.json({
+    name: 'SpaceMountain Platform',
+    status: 'open',
+    features: PLATFORM_FEATURES,
+    endpoints: {
+      sdk: '/api/platform/sdk',
+      docs: '/api/platform/docs',
+      submitApp: '/api/platform/apps',
+      apiKeys: '/api/platform/api-keys',
+      webhooks: '/api/platform/webhooks',
+      oauthClients: '/api/oauth/authorize',
+    },
+  });
+});
+
+app.get('/api/platform/sdk', (req, res) => {
+  res.json({
+    package: '@spacemountain/sdk',
+    version: '0.1.0',
+    install: 'npm install @spacemountain/sdk',
+    example: "const client = new SpaceMountain({ token }); await client.apps.list();",
+    modules: ['identity', 'apps', 'commlink', 'athena', 'webhooks'],
+  });
+});
+
+app.get('/api/platform/docs', (req, res) => {
+  res.json({
+    sections: [
+      { id: 'auth', title: 'OAuth Apps', path: '/docs/oauth' },
+      { id: 'apps', title: 'App Registry', path: '/docs/apps' },
+      { id: 'commlink', title: 'Commlink API', path: '/docs/commlink' },
+      { id: 'athena', title: 'Athena OS', path: '/docs/athena' },
+      { id: 'webhooks', title: 'Webhooks', path: '/docs/webhooks' },
+    ],
+  });
+});
+
+app.get('/api/platform/api-keys', authenticate, (req: any, res) => {
+  const keys = db.prepare(`
+    SELECT id, name, key_prefix, scopes, created_at, last_used_at
+    FROM developer_api_keys
+    WHERE user_id = ?
+    ORDER BY datetime(created_at) DESC
+  `).all(req.user.id);
+  res.json({ keys });
+});
+
+app.post('/api/platform/api-keys', authenticate, (req: any, res) => {
+  const name = String(req.body?.name || 'Default platform key').trim();
+  const scopes = Array.isArray(req.body?.scopes) ? req.body.scopes : ['identity:read', 'apps:read', 'messages:write'];
+  const id = uuidv4();
+  const token = `spmt_${uuidv4().replace(/-/g, '')}`;
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO developer_api_keys (id, user_id, name, key_prefix, scopes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, req.user.id, name, token.slice(0, 12), JSON.stringify(scopes), now);
+  res.status(201).json({ id, name, token, scopes, createdAt: now });
+});
+
+app.get('/api/platform/webhooks', authenticate, (req: any, res) => {
+  const webhooks = db.prepare(`
+    SELECT id, url, events, active, created_at
+    FROM developer_webhooks
+    WHERE user_id = ?
+    ORDER BY datetime(created_at) DESC
+  `).all(req.user.id);
+  res.json({ webhooks });
+});
+
+app.post('/api/platform/webhooks', authenticate, (req: any, res) => {
+  const url = String(req.body?.url || '').trim();
+  if (!/^https:\/\//i.test(url)) return res.status(400).json({ error: 'https webhook url required' });
+  const events = Array.isArray(req.body?.events) ? req.body.events : ['app.installed', 'message.created'];
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO developer_webhooks (id, user_id, url, events, active, created_at)
+    VALUES (?, ?, ?, ?, 1, ?)
+  `).run(id, req.user.id, url, JSON.stringify(events), now);
+  res.status(201).json({ id, url, events, active: true, createdAt: now });
+});
+
+app.post('/api/platform/apps', authenticate, (req: any, res) => {
+  const name = String(req.body?.name || '').trim();
+  const description = String(req.body?.description || '').trim();
+  const launchUrl = String(req.body?.launchUrl || req.body?.launch_url || '').trim();
+  if (!name || !description || !/^https?:\/\//i.test(launchUrl)) {
+    return res.status(400).json({ error: 'name, description, and launchUrl are required' });
+  }
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO app_submissions (id, user_id, name, description, launch_url, status, created_at)
+    VALUES (?, ?, ?, ?, ?, 'review', ?)
+  `).run(id, req.user.id, name, description, launchUrl, now);
+  res.status(201).json({ id, name, description, launchUrl, status: 'review', createdAt: now });
+});
+
+app.get('/api/platform/apps', authenticate, (req: any, res) => {
+  const submissions = db.prepare(`
+    SELECT id, name, description, launch_url, status, created_at
+    FROM app_submissions
+    WHERE user_id = ?
+    ORDER BY datetime(created_at) DESC
+  `).all(req.user.id);
+  res.json({ submissions });
 });
 
 app.get('/api/apps', (req, res) => {

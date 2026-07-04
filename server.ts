@@ -333,6 +333,19 @@ function createPlatformEvent(input: any, createdBy?: string) {
     event.createdAt,
   );
 
+  if (event.createdBy && ['private', 'creator', 'community'].includes(event.visibility)) {
+    const summary = typeof event.payload.summary === 'string'
+      ? event.payload.summary
+      : typeof event.payload.title === 'string'
+        ? event.payload.title
+        : event.type.replace(/\./g, ' ');
+    createNotification(event.createdBy, `${event.sourceApp}: ${event.type}`, summary, {
+      type: 'event',
+      sourceApp: event.sourceApp,
+      linkUrl: event.links?.[0]?.url,
+    });
+  }
+
   return event;
 }
 

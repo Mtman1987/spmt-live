@@ -28,6 +28,10 @@ const SUITE_APPS = [
     authUrl: 'https://spmt.live/api/oauth/authorize?client_id=spacemountain-live&redirect_uri=https%3A%2F%2Fspacemountain.live%2Fauth%2Fcallback',
     description: 'Main app suite shell, embeds, crew dashboard, and persistent app slots.',
     status: 'connected',
+    version: '0.3.0',
+    latestVersion: '0.3.0',
+    updatedAt: '2026-07-02',
+    releaseNotes: ['Shipyard install state, Commlink inbox routing, and SPMT identity restore.'],
   },
   {
     id: 'discord-stream-hub',
@@ -36,6 +40,10 @@ const SUITE_APPS = [
     authUrl: 'https://spmt.live/api/oauth/authorize?client_id=discord-stream-hub&redirect_uri=https%3A%2F%2Fdiscord-stream-hub-new.fly.dev%2Fauth%2Fcallback',
     description: 'Discord community dashboard, shoutouts, leaderboard, calendar, and bridges.',
     status: 'bridge-ready',
+    version: '0.2.4',
+    latestVersion: '0.2.4',
+    updatedAt: '2026-07-01',
+    releaseNotes: ['Dashboard-first launch flow and SPMT session bridge support.'],
   },
   {
     id: 'streamweaver',
@@ -44,6 +52,10 @@ const SUITE_APPS = [
     authUrl: 'https://streamweaver-new.fly.dev/login?next=%2Fcommands',
     description: 'Automation, commands, image generation, overlays, TTS, and AI workflows.',
     status: 'adapter-needed',
+    version: '0.2.1',
+    latestVersion: '0.2.1',
+    updatedAt: '2026-07-01',
+    releaseNotes: ['Registered with SPMT while full adapter work remains queued.'],
   },
   {
     id: 'chat-tag',
@@ -52,6 +64,10 @@ const SUITE_APPS = [
     authUrl: 'https://chat-tag-new.fly.dev',
     description: 'ChatTag game, Quackverse, card packs, collectibles, overlays, and Twitch/Discord play.',
     status: 'adapter-needed',
+    version: '0.1.8',
+    latestVersion: '0.1.8',
+    updatedAt: '2026-07-01',
+    releaseNotes: ['Registered launcher and health visibility for Shipyard.'],
   },
   {
     id: 'hearmeout',
@@ -60,6 +76,10 @@ const SUITE_APPS = [
     authUrl: 'https://hearmeout-main.fly.dev',
     description: 'Rooms, watch parties, music, voice surfaces, and media overlays.',
     status: 'adapter-needed',
+    version: '0.1.7',
+    latestVersion: '0.1.7',
+    updatedAt: '2026-07-01',
+    releaseNotes: ['Registered launcher and SPMT app catalog metadata.'],
   },
 ];
 
@@ -124,6 +144,7 @@ function buildAppsForUser(userId?: string) {
       enabled: app.id === 'spacemountain-live' ? true : Boolean(install?.enabled),
       installedAt: install?.installed_at || (app.id === 'spacemountain-live' ? 'first-party' : null),
       permissions: appPermissionsFor(app.id),
+      updateAvailable: app.version !== app.latestVersion,
     };
   });
 }
@@ -305,6 +326,43 @@ app.get('/api/apps', (req, res) => {
     } catch {}
   }
   res.json({ apps: buildAppsForUser(userId) });
+});
+
+app.get('/api/apps/:appId', (req, res) => {
+  const appId = String(req.params.appId || '');
+  const token = req.cookies?.spmt_token || req.headers.authorization?.replace('Bearer ', '');
+  let userId: string | undefined;
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET) as any;
+      userId = payload.id;
+    } catch {}
+  }
+
+  const app = buildAppsForUser(userId).find((item) => item.id === appId);
+  if (!app) return res.status(404).json({ error: 'Unknown app' });
+  res.json({ app });
+});
+
+app.get('/api/apps/:appId/versions', (req, res) => {
+  const appId = String(req.params.appId || '');
+  const app = SUITE_APPS.find((item) => item.id === appId);
+  if (!app) return res.status(404).json({ error: 'Unknown app' });
+
+  res.json({
+    appId,
+    currentVersion: app.version,
+    latestVersion: app.latestVersion,
+    updateAvailable: app.version !== app.latestVersion,
+    versions: [
+      {
+        version: app.latestVersion,
+        releasedAt: app.updatedAt,
+        notes: app.releaseNotes,
+        current: app.version === app.latestVersion,
+      },
+    ],
+  });
 });
 
 app.post('/api/apps/:appId/install', authenticate, (req: any, res) => {

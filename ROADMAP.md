@@ -3,8 +3,8 @@
 ## Status
 
 Current phase: Phase 3 - Shipyard
-Overall progress: about 58%
-Last updated: 2026-07-02
+Overall progress: about 63%
+Last updated: 2026-07-03
 
 ## Phase 1 - Identity Core
 
@@ -38,7 +38,7 @@ Goal: every SpaceMountain app shares one SPMT identity.
 - [x] Better login flow through SPMT OAuth
 - [x] Better iframe auth postMessage handling
 - [x] Launch apps through SPMT app catalog/auth URLs
-- [ ] Shipyard page
+- [x] Shipyard page
 - [x] Notification bell routes to Commlink inbox
 
 ## Phase 2 - Commlink
@@ -80,10 +80,10 @@ Goal: install ecosystem apps with one click.
 
 - [x] Installed Apps
 - [x] Available Apps
-- [ ] Updates
+- [x] Updates
 - [x] Permissions
 - [x] Health
-- [ ] Versioning
+- [x] Versioning
 - [x] Launch
 - [x] Enable
 - [x] Disable

@@ -3,7 +3,7 @@
 ## Status
 
 Current phase: Phase 4 - Command Bridge
-Overall progress: about 70%
+Overall progress: about 78%
 Last updated: 2026-07-04
 
 ## Phase 1 - Identity Core
@@ -94,13 +94,13 @@ Goal: SpaceMountain becomes the operating dashboard.
 
 - [x] Unified Dashboard
 - [x] Widgets
-- [ ] Voice Commander
-- [ ] AI Panel
+- [x] Voice Commander
+- [x] AI Panel
 - [x] Dockable Apps
 - [x] Live Status
 - [x] Activity Feed
-- [ ] Search Everywhere
-- [ ] Creator Workspace
+- [x] Search Everywhere
+- [x] Creator Workspace
 
 ## Phase 5 - Athena OS
 

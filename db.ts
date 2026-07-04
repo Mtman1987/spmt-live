@@ -203,9 +203,11 @@ export function initDb() {
       user_id TEXT NOT NULL,
       name TEXT NOT NULL,
       key_prefix TEXT NOT NULL,
+      key_hash TEXT,
       scopes TEXT NOT NULL,
       created_at TEXT NOT NULL,
       last_used_at TEXT,
+      revoked_at TEXT,
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
 
@@ -231,13 +233,8 @@ export function initDb() {
     );
   `);
 
-  try { db.exec('ALTER TABLE messages ADD COLUMN read_at TEXT'); } catch {}
-  try { db.exec('ALTER TABLE messages ADD COLUMN channel TEXT DEFAULT "direct"'); } catch {}
-  try { db.exec('ALTER TABLE messages ADD COLUMN conversation_id TEXT'); } catch {}
-  try { db.exec('ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT "direct"'); } catch {}
-  try { db.exec('ALTER TABLE messages ADD COLUMN metadata TEXT'); } catch {}
-  try { db.exec('ALTER TABLE messages ADD COLUMN attachments TEXT'); } catch {}
-  try { db.exec('ALTER TABLE messages ADD COLUMN mentioned_users TEXT'); } catch {}
+  try { db.exec('ALTER TABLE developer_api_keys ADD COLUMN key_hash TEXT'); } catch {}
+  try { db.exec('ALTER TABLE developer_api_keys ADD COLUMN revoked_at TEXT'); } catch {}
 
   seedOauthClient(
     'spacemountain-live',

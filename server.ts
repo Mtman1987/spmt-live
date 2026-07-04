@@ -2,6 +2,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { db, initDb } from './db.js';
 import dotenv from 'dotenv';
@@ -10,7 +11,8 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'spmt-dev-secret-change-in-production';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || Boolean(process.env.FLY_APP_NAME);
+const JWT_SECRET = process.env.JWT_SECRET || (IS_PRODUCTION ? '' : 'spmt-dev-secret-change-in-production');
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || [
   'https://spacemountain.live',
   'https://spacemountain-live.fly.dev',
@@ -115,6 +117,10 @@ const PLATFORM_FEATURES = [
 ];
 
 const USER_COLUMNS = 'id, username, email, display_name, discord_username, discord_id, twitch_username, twitch_id, created_at';
+
+function hashSecret(value: string) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
 
 function serializeUser(user: any) {
   return {
@@ -437,11 +443,41 @@ app.post('/api/athena/commands', authenticate, (req: any, res) => {
     : lower.includes('app') || lower.includes('shipyard') ? 'shipyard'
     : lower.includes('voice') ? 'voice'
     : 'command-bridge';
+  const now = new Date().toISOString();
+  const botUser = ensureSystemUser('athena', 'Athena Core');
+  const conversationId = ensureDirectConversation(req.user.id, botUser.id, now);
+  const messageId = uuidv4();
+  const memoryId = uuidv4();
+
+  db.prepare('UPDATE conversations SET title = COALESCE(title, ?), type = ?, updated_at = ? WHERE id = ?')
+    .run('Athena Core conversation', 'ai', now, conversationId);
+  db.prepare(`
+    INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, metadata, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    messageId,
+    req.user.id,
+    botUser.id,
+    conversationId,
+    'Athena command',
+    command,
+    'ai',
+    'ai_prompt',
+    JSON.stringify({ target, routedBy: 'athena-os' }),
+    now
+  );
+  db.prepare(`
+    INSERT INTO athena_memory (id, user_id, scope, topic, content, source_app, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(memoryId, req.user.id, 'command', `Routed to ${target}`, command, 'athena-os', now, now);
 
   res.json({
     routed: true,
     target,
     command,
+    conversationId,
+    messageId,
+    memoryId,
     context: {
       apps: buildAppsForUser(req.user.id).length,
       skills: ATHENA_SKILLS.length,
@@ -490,7 +526,7 @@ app.get('/api/platform/docs', (req, res) => {
 
 app.get('/api/platform/api-keys', authenticate, (req: any, res) => {
   const keys = db.prepare(`
-    SELECT id, name, key_prefix, scopes, created_at, last_used_at
+    SELECT id, name, key_prefix, scopes, created_at, last_used_at, revoked_at
     FROM developer_api_keys
     WHERE user_id = ?
     ORDER BY datetime(created_at) DESC
@@ -505,10 +541,31 @@ app.post('/api/platform/api-keys', authenticate, (req: any, res) => {
   const token = `spmt_${uuidv4().replace(/-/g, '')}`;
   const now = new Date().toISOString();
   db.prepare(`
-    INSERT INTO developer_api_keys (id, user_id, name, key_prefix, scopes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, req.user.id, name, token.slice(0, 12), JSON.stringify(scopes), now);
+    INSERT INTO developer_api_keys (id, user_id, name, key_prefix, key_hash, scopes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, req.user.id, name, token.slice(0, 12), hashSecret(token), JSON.stringify(scopes), now);
   res.status(201).json({ id, name, token, scopes, createdAt: now });
+});
+
+app.post('/api/platform/api-keys/verify', (req, res) => {
+  const token = String(req.body?.token || req.headers.authorization?.replace('Bearer ', '') || '').trim();
+  if (!token) return res.status(400).json({ error: 'token required' });
+  const row = db.prepare(`
+    SELECT id, user_id, name, key_prefix, scopes
+    FROM developer_api_keys
+    WHERE key_hash = ? AND revoked_at IS NULL
+  `).get(hashSecret(token)) as any;
+  if (!row) return res.status(401).json({ valid: false });
+  db.prepare('UPDATE developer_api_keys SET last_used_at = ? WHERE id = ?').run(new Date().toISOString(), row.id);
+  res.json({ valid: true, key: { id: row.id, userId: row.user_id, name: row.name, keyPrefix: row.key_prefix, scopes: JSON.parse(row.scopes || '[]') } });
+});
+
+app.post('/api/platform/api-keys/:id/revoke', authenticate, (req: any, res) => {
+  const revokedAt = new Date().toISOString();
+  const result = db.prepare('UPDATE developer_api_keys SET revoked_at = COALESCE(revoked_at, ?) WHERE id = ? AND user_id = ?')
+    .run(revokedAt, req.params.id, req.user.id);
+  if (!result.changes) return res.status(404).json({ error: 'API key not found' });
+  res.json({ ok: true, revokedAt });
 });
 
 app.get('/api/platform/webhooks', authenticate, (req: any, res) => {
@@ -1669,6 +1726,9 @@ app.get('*', (req, res) => {
 });
 
 // ─── Start ───
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is required in production');
+}
 initDb();
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`spmt.live running on http://localhost:${PORT}`);

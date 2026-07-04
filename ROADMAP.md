@@ -3,7 +3,7 @@
 ## Status
 
 Current phase: Phase 6 - Platform
-Overall progress: about 100%
+Overall progress: MVP complete, hardening in progress
 Last updated: 2026-07-04
 
 ## Phase 1 - Identity Core
@@ -128,6 +128,19 @@ Goal: open SpaceMountain to developers.
 - [x] OAuth Apps
 - [x] Webhooks
 - [x] Documentation
+
+## Hardening / Polish
+
+- [x] Remove production JWT fallback
+- [x] Move Discord Stream Hub points token out of browser calls
+- [x] Hash and revoke platform API keys
+- [x] Persist Athena command routing into memory/conversations
+- [x] Back Search Everywhere with SPMT `/api/search`
+- [ ] Add full developer docs UI
+- [ ] Add plugin marketplace management UI
+- [ ] Add production-grade API key scope enforcement middleware
+- [ ] Split Command Bridge into cleaner collapsible sections
+- [ ] Add browser voice support/error guidance polish
 
 ## Rules
 

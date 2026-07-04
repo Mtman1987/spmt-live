@@ -2,6 +2,8 @@
 
 ## Status
 
+Handoff reference: `ECOSYSTEM_HANDOFF.md`
+
 Current phase: Phase 6 - Platform
 Overall progress: MVP complete, hardening in progress
 Last updated: 2026-07-04

@@ -6,6 +6,8 @@ Last updated: 2026-07-04
 
 SPMT owns identity, API, Commlink, Athena, and platform services. SpaceMountain.live owns the user-facing Command Bridge and launcher UI. Ecosystem apps own their app-specific features only.
 
+Active unfinished work lives in `ECOSYSTEM_TODO.md`. Do not use old completed milestone trackers as the current queue.
+
 Keep these rules strict:
 
 - Do not duplicate authentication.
@@ -35,18 +37,22 @@ Keep these rules strict:
 
 ## Latest Known Pushed State
 
-- `spmt-live`: `1a8dc7e Finish platform polish hardening`
-- `spacemountain-live`: `aaeaea4 Enable platform plugin installs`
+- `spmt-live`: `0e723bd Create notifications from platform events`
+- `spacemountain-live`: `a6087a6 Polish Command Bridge landing defaults`
+- `DiscordStreamHub`: `1d37fba Add SPMT event bridge helper`
+- `HearMeOut`: `822eb9e Publish HearMeOut room invite events to SPMT`
+- `ChatTag`: `386d7cf Add SPMT event bridge helper`
 
-The final polish pass verified:
+The latest verified pass confirmed:
 
 - `npm run build` passed in `spmt-live`.
 - `npm run build` passed in `spacemountain-live`.
 - GitHub Actions deployed both apps through Fly.
-- `https://spmt.live/api/platform/plugins` returned 200 with plugin data.
 - `https://spmt.live/api/platform/docs` returned 200 with platform docs.
+- `https://spmt.live/api/apps` returned 200 with app registry data.
 - `https://spacemountain.live/` returned 200.
-- Both main worktrees were clean before this handoff update.
+- `https://spacemountain.live/docs/DOCS_HOME.md` returned real markdown.
+- `https://spacemountain.live/spec/README.md` returned real markdown.
 
 ## SPMT Capabilities Now Available
 
@@ -243,11 +249,14 @@ Recommended changes:
 
 Future shape:
 
-- Treat MountainView as a SPMT-authenticated device/app.
-- Pair device state to a SPMT user.
-- Send QR, camera, voice command, and AR navigation context into Athena memory.
-- Route voice commands through SpaceMountain Command Bridge and Athena.
-- Keep device-specific camera/AR features inside MountainView.
+- Treat MountainView glasses as a SPMT-authenticated first-class app.
+- Use the SPMT SDK/client for identity, platform events, notifications, app launch, and registry metadata.
+- Pair each device to a SPMT user with a simple QR/code flow.
+- Send QR scans, camera captures, voice commands, AR navigation context, device health, and permission changes into platform events and Athena memory.
+- Use Athena Search so streamers can recall scan history, captured notes, moments, and linked platform context.
+- Use Athena OS command routing so glasses voice commands can launch apps, search context, trigger StreamWeaver automations, open HearMeOut rooms, inspect ChatTag status, and ask for live stream help.
+- Add a SpaceMountain setup dashboard for device pairing, camera/mic tests, overlay choices, privacy controls, and connection health.
+- Keep device-specific camera/AR features inside MountainView, but never duplicate identity, cross-app search, notifications, or AI memory outside SPMT.
 
 ### SpaceMountain.live
 
@@ -262,16 +271,15 @@ Recommended changes:
 
 ## Prioritized Next Developer Queue
 
-1. Create a reusable SPMT client/helper for ecosystem apps.
-2. Wire Discord Stream Hub to SPMT OAuth, `/api/me`, and embedded auth restore.
-3. Remove DSH localStorage identity prompts from rank/session flows.
-4. Wire StreamWeaver to SPMT identity and Athena memory.
-5. Wire HearMeOut rooms/watch parties to SPMT identity and Commlink invites.
-6. Wire ChatTag player identity and reward notifications to SPMT.
-7. Promote SDK docs into a real package or shared client module.
-8. Expand platform scope enforcement across all platform endpoints.
-9. Build full Developer Portal forms for API keys, webhooks, app submissions, and plugins.
-10. Componentize SpaceMountain Command Bridge after behavior is stable.
+Use `ECOSYSTEM_TODO.md` as the single active queue. Highest priority items:
+
+1. Deploy the DSH community spotlight/status endpoint and SpaceMountain DSH reconciliation.
+2. Configure `SPMT_API_KEY` on apps that should publish platform events.
+3. Add missing health endpoints and verify registry health metadata.
+4. Finish app identity adapters so apps consume SPMT sessions instead of local/fake auth.
+5. Unify XP/level source of truth across dashboard, arena, DSH, and ChatTag.
+6. Expand Commlink ingestion for Discord/app/bot messages.
+7. Componentize SpaceMountain Command Bridge once behavior is stable.
 
 ## Known Cautions
 
@@ -312,7 +320,7 @@ gh run view <run_id> --json status,conclusion,updatedAt
 ## Handoff Checklist
 
 - Pull `main` in `spmt-live` and `spacemountain-live`.
-- Read `ROADMAP.md` and this handoff before coding.
+- Read `ECOSYSTEM_TODO.md`, `ROADMAP.md`, and this handoff before coding.
 - Confirm live route behavior before changing contracts.
 - Keep SPMT as identity and API source of truth.
 - Keep SpaceMountain as Command Bridge UI.

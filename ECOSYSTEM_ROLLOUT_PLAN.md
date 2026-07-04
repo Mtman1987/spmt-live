@@ -418,9 +418,10 @@ If you are building creator tools, SPMT gives you identity, app registry, messag
 Before coding, every developer should read these files in order:
 
 1. `README.md`
-2. `ROADMAP.md`
-3. `ECOSYSTEM_HANDOFF.md`
-4. `ECOSYSTEM_ROLLOUT_PLAN.md`
+2. `ECOSYSTEM_TODO.md`
+3. `ROADMAP.md`
+4. `ECOSYSTEM_HANDOFF.md`
+5. `ECOSYSTEM_ROLLOUT_PLAN.md`
 
 Then they should answer these questions:
 

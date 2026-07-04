@@ -177,12 +177,12 @@ Start with the docs folder for architecture, vision, integration guides, and pla
 
 Useful entry points:
 
-- `ROADMAP.md` for phase status
+- `ECOSYSTEM_TODO.md` for active unfinished production work
+- `ROADMAP.md` for current release track and completed phase context
 - `ECOSYSTEM_HANDOFF.md` for detailed integration guidance
 - `ECOSYSTEM_ROLLOUT_PLAN.md` for adoption sequencing
 - `docs/DOCS_HOME.md` for the documentation index
 - `spec/README.md` for platform specifications
-- `PHASE_ONE.md` for the identity-core checklist
 
 ## Why This Exists
 

@@ -116,7 +116,7 @@ const PLATFORM_FEATURES = [
   'Documentation',
 ];
 
-const PLATFORM_SCOPES = ['identity:read', 'apps:read', 'apps:write', 'messages:read', 'messages:write', 'athena:write', 'webhooks:write'];
+const PLATFORM_SCOPES = ['identity:read', 'apps:read', 'apps:write', 'messages:read', 'messages:write', 'athena:write', 'events:write', 'webhooks:write'];
 
 const PLUGIN_MARKETPLACE = [
   { id: 'athena-briefs', name: 'Athena Briefs', category: 'AI', description: 'Generates creator briefs from app status, Commlink, forums, and shoutouts.', scopes: ['athena:write', 'messages:read'] },
@@ -260,6 +260,80 @@ function createNotification(userId: string, title: string, body: string, options
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(id, userId, options.type || 'message', title, body, options.sourceApp || null, options.linkUrl || null, new Date().toISOString());
   return id;
+}
+
+function normalizeEventLinks(value: unknown) {
+  if (!Array.isArray(value)) return null;
+  const links = value
+    .map((item: any) => ({
+      label: String(item?.label || '').trim(),
+      url: String(item?.url || '').trim(),
+      kind: String(item?.kind || 'details').trim(),
+    }))
+    .filter((item) => item.label && /^https?:\/\//i.test(item.url) && ['launch', 'details', 'manage', 'external'].includes(item.kind))
+    .slice(0, 10);
+  return links.length ? links : null;
+}
+
+function createPlatformEvent(input: any, createdBy?: string) {
+  const type = String(input?.type || '').trim().toLowerCase();
+  const sourceApp = String(input?.sourceApp || input?.source_app || '').trim();
+  const visibility = String(input?.visibility || 'creator').trim();
+  const allowedVisibility = ['private', 'creator', 'community', 'public', 'system'];
+  const payload = input?.payload && typeof input.payload === 'object' && !Array.isArray(input.payload) ? input.payload : {};
+  const actor = input?.actor && typeof input.actor === 'object' ? input.actor : {};
+  const links = normalizeEventLinks(input?.links);
+
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(type)) {
+    throw Object.assign(new Error('type must use dotted lowercase event naming'), { statusCode: 400 });
+  }
+  if (!sourceApp || !/^[a-z0-9][a-z0-9._-]*$/i.test(sourceApp)) {
+    throw Object.assign(new Error('sourceApp is required'), { statusCode: 400 });
+  }
+  if (!allowedVisibility.includes(visibility)) {
+    throw Object.assign(new Error('visibility must be private, creator, community, public, or system'), { statusCode: 400 });
+  }
+
+  const event = {
+    id: String(input?.id || uuidv4()).trim(),
+    type,
+    version: Number.isFinite(Number(input?.version)) ? Math.max(1, Number(input.version)) : 1,
+    timestamp: String(input?.timestamp || new Date().toISOString()),
+    sourceApp,
+    actor: {
+      userId: actor.userId || actor.user_id || null,
+      username: actor.username || null,
+      displayName: actor.displayName || actor.display_name || null,
+    },
+    visibility,
+    payload,
+    links,
+    createdBy: createdBy || null,
+    createdAt: new Date().toISOString(),
+  };
+
+  db.prepare(`
+    INSERT INTO platform_events (
+      id, type, version, timestamp, source_app, actor_user_id, actor_username,
+      actor_display_name, visibility, payload, links, created_by, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    event.id,
+    event.type,
+    event.version,
+    event.timestamp,
+    event.sourceApp,
+    event.actor.userId,
+    event.actor.username,
+    event.actor.displayName,
+    event.visibility,
+    JSON.stringify(event.payload),
+    event.links ? JSON.stringify(event.links) : null,
+    event.createdBy,
+    event.createdAt,
+  );
+
+  return event;
 }
 
 function normalizeAttachments(value: unknown) {
@@ -532,6 +606,7 @@ app.get('/api/platform', (req, res) => {
     endpoints: {
       sdk: '/api/platform/sdk',
       docs: '/api/platform/docs',
+      events: '/api/platform/events',
       submitApp: '/api/platform/apps',
       apiKeys: '/api/platform/api-keys',
       webhooks: '/api/platform/webhooks',
@@ -546,7 +621,7 @@ app.get('/api/platform/sdk', (req, res) => {
     version: '0.1.0',
     install: 'npm install @spacemountain/sdk',
     example: "const client = new SpaceMountain({ token }); await client.apps.list();",
-    modules: ['identity', 'apps', 'commlink', 'athena', 'webhooks'],
+    modules: ['identity', 'apps', 'events', 'commlink', 'athena', 'webhooks'],
   });
 });
 
@@ -557,6 +632,7 @@ app.get('/api/platform/docs', (req, res) => {
       { id: 'apps', title: 'App Registry', path: '/docs/apps', summary: 'Read, install, disable, launch, and version registered apps.', endpoints: ['/api/apps', '/api/apps/:appId', '/api/apps/:appId/versions'] },
       { id: 'commlink', title: 'Commlink API', path: '/docs/commlink', summary: 'Send messages, create conversations, post voice metadata, and search communication records.', endpoints: ['/api/messages', '/api/conversations', '/api/voice-messages', '/api/search'] },
       { id: 'athena', title: 'Athena OS', path: '/docs/athena', summary: 'Route commands, store memory, list skills, and coordinate the AI crew.', endpoints: ['/api/athena/os', '/api/athena/context', '/api/athena/commands', '/api/athena/memory'] },
+      { id: 'events', title: 'Event Bus', path: '/docs/events', summary: 'Publish typed ecosystem events for Commlink, Athena, plugins, analytics, and webhooks.', endpoints: ['/api/events', '/api/platform/events'] },
       { id: 'webhooks', title: 'Webhooks', path: '/docs/webhooks', summary: 'Register HTTPS endpoints for platform events.', endpoints: ['/api/platform/webhooks'] },
     ],
     scopes: PLATFORM_SCOPES,
@@ -613,6 +689,46 @@ app.get('/api/platform/me', authenticatePlatformKey('identity:read'), (req: any,
 
 app.get('/api/platform/apps/public', authenticatePlatformKey('apps:read'), (req: any, res) => {
   res.json({ key: req.platformKey, apps: buildAppsForUser(req.platformKey.userId) });
+});
+
+app.post('/api/platform/events', authenticatePlatformKey('events:write'), (req: any, res) => {
+  try {
+    const event = createPlatformEvent(req.body, req.platformKey.userId);
+    res.status(201).json({ event });
+  } catch (error: any) {
+    res.status(error.statusCode || 400).json({ error: error.message || 'Invalid event payload' });
+  }
+});
+
+app.get('/api/platform/events', authenticatePlatformKey('events:write'), (req: any, res) => {
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+  const events = db.prepare(`
+    SELECT id, type, version, timestamp, source_app, actor_user_id, actor_username,
+      actor_display_name, visibility, payload, links, created_by, created_at
+    FROM platform_events
+    WHERE created_by = ?
+    ORDER BY datetime(created_at) DESC
+    LIMIT ?
+  `).all(req.platformKey.userId, limit) as any[];
+  res.json({
+    events: events.map((event) => ({
+      id: event.id,
+      type: event.type,
+      version: event.version,
+      timestamp: event.timestamp,
+      sourceApp: event.source_app,
+      actor: {
+        userId: event.actor_user_id,
+        username: event.actor_username,
+        displayName: event.actor_display_name,
+      },
+      visibility: event.visibility,
+      payload: JSON.parse(event.payload || '{}'),
+      links: event.links ? JSON.parse(event.links) : null,
+      createdBy: event.created_by,
+      createdAt: event.created_at,
+    })),
+  });
 });
 
 app.post('/api/platform/api-keys/:id/revoke', authenticate, (req: any, res) => {
@@ -724,6 +840,23 @@ app.get('/api/apps', (req, res) => {
     } catch {}
   }
   res.json({ apps: buildAppsForUser(userId) });
+});
+
+app.post('/api/events', authenticate, (req: any, res) => {
+  try {
+    const user = getUserById(req.user.id);
+    const event = createPlatformEvent({
+      ...req.body,
+      actor: req.body?.actor || {
+        userId: user?.id,
+        username: user?.username,
+        displayName: user?.display_name,
+      },
+    }, req.user.id);
+    res.status(201).json({ event });
+  } catch (error: any) {
+    res.status(error.statusCode || 400).json({ error: error.message || 'Invalid event payload' });
+  }
 });
 
 app.get('/api/apps/:appId', (req, res) => {

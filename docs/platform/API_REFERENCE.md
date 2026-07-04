@@ -27,6 +27,12 @@ This is the human-readable docs overview. The exact implementation may evolve.
 - `GET /api/athena/context`
 - `POST /api/athena/commands`
 
+## Events
+
+- `POST /api/events`
+- `POST /api/platform/events`
+- `GET /api/platform/events`
+
 ## Platform
 
 - `GET /api/platform`

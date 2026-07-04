@@ -37,6 +37,12 @@ client.events.publish({
 })
 ```
 
+Backed by:
+
+- `POST /api/events` for user-session publishing
+- `POST /api/platform/events` for scoped platform API key publishing
+- `GET /api/platform/events` for server-side event history
+
 ### Commlink
 
 ```ts

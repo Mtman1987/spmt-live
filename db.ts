@@ -241,6 +241,22 @@ export function initDb() {
       PRIMARY KEY(user_id, plugin_id),
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS platform_events (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1,
+      timestamp TEXT NOT NULL,
+      source_app TEXT NOT NULL,
+      actor_user_id TEXT,
+      actor_username TEXT,
+      actor_display_name TEXT,
+      visibility TEXT NOT NULL DEFAULT 'creator',
+      payload TEXT NOT NULL,
+      links TEXT,
+      created_by TEXT,
+      created_at TEXT NOT NULL
+    );
   `);
 
   try { db.exec('ALTER TABLE developer_api_keys ADD COLUMN key_hash TEXT'); } catch {}

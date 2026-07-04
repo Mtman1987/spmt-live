@@ -2,9 +2,9 @@
 
 ## Status
 
-Current phase: Phase 3 - Shipyard
-Overall progress: about 63%
-Last updated: 2026-07-03
+Current phase: Phase 4 - Command Bridge
+Overall progress: about 70%
+Last updated: 2026-07-04
 
 ## Phase 1 - Identity Core
 
@@ -92,13 +92,13 @@ Goal: install ecosystem apps with one click.
 
 Goal: SpaceMountain becomes the operating dashboard.
 
-- [ ] Unified Dashboard
-- [ ] Widgets
+- [x] Unified Dashboard
+- [x] Widgets
 - [ ] Voice Commander
 - [ ] AI Panel
-- [ ] Dockable Apps
-- [ ] Live Status
-- [ ] Activity Feed
+- [x] Dockable Apps
+- [x] Live Status
+- [x] Activity Feed
 - [ ] Search Everywhere
 - [ ] Creator Workspace
 

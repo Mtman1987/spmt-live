@@ -231,6 +231,16 @@ export function initDb() {
       created_at TEXT NOT NULL,
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS plugin_installs (
+      user_id TEXT NOT NULL,
+      plugin_id TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      installed_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id, plugin_id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
   `);
 
   try { db.exec('ALTER TABLE developer_api_keys ADD COLUMN key_hash TEXT'); } catch {}

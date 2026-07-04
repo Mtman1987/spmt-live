@@ -116,10 +116,25 @@ const PLATFORM_FEATURES = [
   'Documentation',
 ];
 
+const PLATFORM_SCOPES = ['identity:read', 'apps:read', 'apps:write', 'messages:read', 'messages:write', 'athena:write', 'webhooks:write'];
+
+const PLUGIN_MARKETPLACE = [
+  { id: 'athena-briefs', name: 'Athena Briefs', category: 'AI', description: 'Generates creator briefs from app status, Commlink, forums, and shoutouts.', scopes: ['athena:write', 'messages:read'] },
+  { id: 'stream-snapshot', name: 'Stream Snapshot', category: 'Creator Ops', description: 'Packages live app, points, and community status into a shareable summary.', scopes: ['apps:read', 'messages:read'] },
+  { id: 'webhook-relay', name: 'Webhook Relay', category: 'Developer', description: 'Forwards selected platform events to configured webhook endpoints.', scopes: ['webhooks:write'] },
+  { id: 'crew-router', name: 'Crew Router', category: 'Community', description: 'Routes forum, notification, and Commlink events to creator workspace lanes.', scopes: ['messages:write'] },
+];
+
 const USER_COLUMNS = 'id, username, email, display_name, discord_username, discord_id, twitch_username, twitch_id, created_at';
 
 function hashSecret(value: string) {
   return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function normalizeScopes(value: unknown) {
+  const requested = Array.isArray(value) ? value.map(String) : [];
+  const scopes = requested.length ? requested : ['identity:read', 'apps:read', 'messages:write'];
+  return Array.from(new Set(scopes.filter((scope) => PLATFORM_SCOPES.includes(scope))));
 }
 
 function serializeUser(user: any) {
@@ -309,6 +324,29 @@ function authenticate(req: any, res: any, next: any) {
   } catch {
     return res.status(401).json({ error: 'Invalid token' });
   }
+}
+
+function authenticatePlatformKey(requiredScope: string) {
+  return (req: any, res: any, next: any) => {
+    const token = String(req.headers.authorization?.replace('Bearer ', '') || req.body?.token || req.query?.token || '').trim();
+    if (!token) return res.status(401).json({ error: 'Platform API key required' });
+
+    const row = db.prepare(`
+      SELECT id, user_id, name, key_prefix, scopes
+      FROM developer_api_keys
+      WHERE key_hash = ? AND revoked_at IS NULL
+    `).get(hashSecret(token)) as any;
+    if (!row) return res.status(401).json({ error: 'Invalid platform API key' });
+
+    const scopes = JSON.parse(row.scopes || '[]');
+    if (!scopes.includes(requiredScope)) {
+      return res.status(403).json({ error: `Missing required scope: ${requiredScope}` });
+    }
+
+    db.prepare('UPDATE developer_api_keys SET last_used_at = ? WHERE id = ?').run(new Date().toISOString(), row.id);
+    req.platformKey = { id: row.id, userId: row.user_id, name: row.name, keyPrefix: row.key_prefix, scopes };
+    next();
+  };
 }
 
 // ─── Health ───
@@ -515,11 +553,18 @@ app.get('/api/platform/sdk', (req, res) => {
 app.get('/api/platform/docs', (req, res) => {
   res.json({
     sections: [
-      { id: 'auth', title: 'OAuth Apps', path: '/docs/oauth' },
-      { id: 'apps', title: 'App Registry', path: '/docs/apps' },
-      { id: 'commlink', title: 'Commlink API', path: '/docs/commlink' },
-      { id: 'athena', title: 'Athena OS', path: '/docs/athena' },
-      { id: 'webhooks', title: 'Webhooks', path: '/docs/webhooks' },
+      { id: 'auth', title: 'OAuth Apps', path: '/docs/oauth', summary: 'Use SPMT OAuth to let ecosystem apps share identity without duplicate accounts.', endpoints: ['/api/oauth/authorize', '/api/oauth/token', '/api/oauth/userinfo'] },
+      { id: 'apps', title: 'App Registry', path: '/docs/apps', summary: 'Read, install, disable, launch, and version registered apps.', endpoints: ['/api/apps', '/api/apps/:appId', '/api/apps/:appId/versions'] },
+      { id: 'commlink', title: 'Commlink API', path: '/docs/commlink', summary: 'Send messages, create conversations, post voice metadata, and search communication records.', endpoints: ['/api/messages', '/api/conversations', '/api/voice-messages', '/api/search'] },
+      { id: 'athena', title: 'Athena OS', path: '/docs/athena', summary: 'Route commands, store memory, list skills, and coordinate the AI crew.', endpoints: ['/api/athena/os', '/api/athena/context', '/api/athena/commands', '/api/athena/memory'] },
+      { id: 'webhooks', title: 'Webhooks', path: '/docs/webhooks', summary: 'Register HTTPS endpoints for platform events.', endpoints: ['/api/platform/webhooks'] },
+    ],
+    scopes: PLATFORM_SCOPES,
+    quickStart: [
+      'Create an SPMT account.',
+      'Generate a platform API key with the minimum scopes needed.',
+      'Call scope-protected endpoints with Authorization: Bearer <token>.',
+      'Register webhooks or submit apps through the developer portal.',
     ],
   });
 });
@@ -536,7 +581,8 @@ app.get('/api/platform/api-keys', authenticate, (req: any, res) => {
 
 app.post('/api/platform/api-keys', authenticate, (req: any, res) => {
   const name = String(req.body?.name || 'Default platform key').trim();
-  const scopes = Array.isArray(req.body?.scopes) ? req.body.scopes : ['identity:read', 'apps:read', 'messages:write'];
+  const scopes = normalizeScopes(req.body?.scopes);
+  if (!scopes.length) return res.status(400).json({ error: 'At least one valid scope is required' });
   const id = uuidv4();
   const token = `spmt_${uuidv4().replace(/-/g, '')}`;
   const now = new Date().toISOString();
@@ -558,6 +604,15 @@ app.post('/api/platform/api-keys/verify', (req, res) => {
   if (!row) return res.status(401).json({ valid: false });
   db.prepare('UPDATE developer_api_keys SET last_used_at = ? WHERE id = ?').run(new Date().toISOString(), row.id);
   res.json({ valid: true, key: { id: row.id, userId: row.user_id, name: row.name, keyPrefix: row.key_prefix, scopes: JSON.parse(row.scopes || '[]') } });
+});
+
+app.get('/api/platform/me', authenticatePlatformKey('identity:read'), (req: any, res) => {
+  const user = getUserById(req.platformKey.userId);
+  res.json({ key: req.platformKey, user: user ? serializeUser(user) : null });
+});
+
+app.get('/api/platform/apps/public', authenticatePlatformKey('apps:read'), (req: any, res) => {
+  res.json({ key: req.platformKey, apps: buildAppsForUser(req.platformKey.userId) });
 });
 
 app.post('/api/platform/api-keys/:id/revoke', authenticate, (req: any, res) => {
@@ -615,6 +670,48 @@ app.get('/api/platform/apps', authenticate, (req: any, res) => {
     ORDER BY datetime(created_at) DESC
   `).all(req.user.id);
   res.json({ submissions });
+});
+
+app.get('/api/platform/plugins', (req, res) => {
+  res.json({ plugins: PLUGIN_MARKETPLACE });
+});
+
+app.get('/api/platform/plugins/installed', authenticate, (req: any, res) => {
+  const installs = db.prepare('SELECT plugin_id, enabled, installed_at, updated_at FROM plugin_installs WHERE user_id = ?')
+    .all(req.user.id) as any[];
+  const installMap = new Map(installs.map((row) => [row.plugin_id, row]));
+  res.json({
+    plugins: PLUGIN_MARKETPLACE.map((plugin) => ({
+      ...plugin,
+      installed: installMap.has(plugin.id),
+      enabled: Boolean(installMap.get(plugin.id)?.enabled),
+      installedAt: installMap.get(plugin.id)?.installed_at || null,
+    })),
+  });
+});
+
+app.post('/api/platform/plugins/:id/install', authenticate, (req: any, res) => {
+  const plugin = PLUGIN_MARKETPLACE.find((item) => item.id === req.params.id);
+  if (!plugin) return res.status(404).json({ error: 'Plugin not found' });
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO plugin_installs (user_id, plugin_id, enabled, installed_at, updated_at)
+    VALUES (?, ?, 1, ?, ?)
+    ON CONFLICT(user_id, plugin_id) DO UPDATE SET enabled = 1, updated_at = excluded.updated_at
+  `).run(req.user.id, plugin.id, now, now);
+  res.status(201).json({ ok: true, plugin: { ...plugin, installed: true, enabled: true, installedAt: now } });
+});
+
+app.post('/api/platform/plugins/:id/disable', authenticate, (req: any, res) => {
+  const plugin = PLUGIN_MARKETPLACE.find((item) => item.id === req.params.id);
+  if (!plugin) return res.status(404).json({ error: 'Plugin not found' });
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO plugin_installs (user_id, plugin_id, enabled, installed_at, updated_at)
+    VALUES (?, ?, 0, ?, ?)
+    ON CONFLICT(user_id, plugin_id) DO UPDATE SET enabled = 0, updated_at = excluded.updated_at
+  `).run(req.user.id, plugin.id, now, now);
+  res.json({ ok: true, plugin: { ...plugin, installed: true, enabled: false } });
 });
 
 app.get('/api/apps', (req, res) => {

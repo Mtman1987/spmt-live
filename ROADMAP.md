@@ -136,11 +136,11 @@ Goal: open SpaceMountain to developers.
 - [x] Hash and revoke platform API keys
 - [x] Persist Athena command routing into memory/conversations
 - [x] Back Search Everywhere with SPMT `/api/search`
-- [ ] Add full developer docs UI
-- [ ] Add plugin marketplace management UI
-- [ ] Add production-grade API key scope enforcement middleware
-- [ ] Split Command Bridge into cleaner collapsible sections
-- [ ] Add browser voice support/error guidance polish
+- [x] Add full developer docs UI
+- [x] Add plugin marketplace management UI
+- [x] Add production-grade API key scope enforcement middleware
+- [x] Split Command Bridge into cleaner collapsible sections
+- [x] Add browser voice support/error guidance polish
 
 ## Rules
 

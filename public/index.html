@@ -154,6 +154,7 @@
         <button data-view="dashboard" class="active" onclick="showView('dashboard')">Dashboard</button>
         <button data-view="messages" onclick="showView('messages')">Messages</button>
         <button data-view="apps" onclick="showView('apps')">Apps + SSO</button>
+        <button data-view="connections" onclick="showView('connections')">Connections</button>
         <button data-view="forums" onclick="showView('forums')">Forums</button>
         <button data-view="settings" onclick="showView('settings')">Account</button>
       </nav>
@@ -236,6 +237,14 @@
         <div id="apps-list" class="grid cols span-12"></div>
       </section>
 
+      <section id="view-connections" class="hidden grid cols">
+        <div class="card span-12">
+          <h3>Provider Authorization Hub</h3>
+          <p class="muted small">Start Twitch, Discord, YouTube, and Kick authorizations here. Legacy app sign-ins still work; this screen records the ecosystem-level connection intent while each provider callback is migrated into SPMT.</p>
+        </div>
+        <div id="provider-grants" class="grid cols span-12"></div>
+      </section>
+
       <section id="view-forums" class="hidden grid cols">
         <div class="card span-5">
           <h3>New Forum Thread</h3>
@@ -281,8 +290,10 @@
     let authToken = localStorage.getItem('spmt_token') || null;
     let currentUser = null;
     let apps = [];
+    let providerGrants = [];
     let currentView = 'dashboard';
     const returnUrl = new URLSearchParams(window.location.search).get('return');
+    const initialView = new URLSearchParams(window.location.search).get('view');
 
     function api(path, options = {}) {
       const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
@@ -367,6 +378,7 @@
         dashboard: ['Dashboard', 'Your SPMT account is the control point for the full suite.'],
         messages: ['Messages', 'DMs, app messages, bot messages, and account notifications.'],
         apps: ['Apps + SSO', 'Launch suite apps through SPMT and see which adapters are complete.'],
+        connections: ['Connections', 'One place to authorize Twitch, Discord, YouTube, Kick, and future providers.'],
         forums: ['Forums', 'Public threads and mirrored Discord channels under one identity.'],
         settings: ['Account', 'Linked accounts and bridge payload for connected apps.']
       };
@@ -391,19 +403,56 @@
       document.getElementById('apps-list').innerHTML = apps.map(render).join('');
     }
 
+    function renderProviderGrants() {
+      const badgeClass = (status) => status === 'connected' ? 'good' : status === 'pending' ? 'warn' : '';
+      document.getElementById('provider-grants').innerHTML = providerGrants.map((grant) => `
+        <div class="card app-card span-4">
+          <div class="row between">
+            <h3>${grant.displayName}</h3>
+            <span class="badge ${badgeClass(grant.status)}">${grant.status.replace('_', ' ')}</span>
+          </div>
+          <p class="muted small">${grant.description}</p>
+          <div class="small muted" style="margin-top:10px">Apps: ${(grant.grantedApps || []).join(', ')}</div>
+          <div class="small muted" style="margin-top:6px">Scopes: ${(grant.scopes || []).join(', ')}</div>
+          <div class="row" style="margin-top:12px;flex-wrap:wrap">
+            <a class="btn primary" href="/api/provider-grants/${grant.id}/authorize">Authorize</a>
+            <button class="btn" onclick="markGrantConnected('${grant.id}')">Mark connected</button>
+          </div>
+          <p class="muted small" style="margin-top:10px">${grant.notes || ''}</p>
+        </div>
+      `).join('');
+    }
+
+    async function loadProviderGrants() {
+      const res = await api('/api/provider-grants');
+      const data = res.ok ? await res.json() : { grants: [] };
+      providerGrants = data.grants || [];
+      renderProviderGrants();
+    }
+
+    async function markGrantConnected(grantId) {
+      const res = await api('/api/provider-grants/' + grantId + '/status', {
+        method: 'POST',
+        body: JSON.stringify({ status: 'connected' })
+      });
+      if (res.ok) await loadProviderGrants();
+    }
+
     async function loadBridge() {
       const res = await api('/api/session/bridge');
       if (!res.ok) throw new Error('bridge failed');
       const bridge = await res.json();
       currentUser = bridge.user;
       apps = bridge.apps || [];
-      document.getElementById('bridge-json').textContent = JSON.stringify({ user: bridge.user, apps: bridge.apps }, null, 2);
+      providerGrants = bridge.providerGrants || [];
+      document.getElementById('bridge-json').textContent = JSON.stringify({ user: bridge.user, apps: bridge.apps, providerGrants: bridge.providerGrants }, null, 2);
       document.getElementById('handle-label').textContent = bridge.user.handle;
       document.getElementById('signed-in-as').textContent = bridge.user.handle;
       document.getElementById('account-summary').textContent = `${bridge.user.displayName || bridge.user.username} signs in as ${bridge.user.handle}. Discord: ${bridge.user.discord_username || 'not linked'}; Twitch: ${bridge.user.twitch_username || 'not linked'}.`;
       document.getElementById('link-discord').value = bridge.user.discord_username || '';
       document.getElementById('link-twitch').value = bridge.user.twitch_username || '';
       renderAppCards();
+      renderProviderGrants();
     }
 
     async function loadInbox() {
@@ -514,7 +563,7 @@
 
     async function refreshAll() {
       await loadBridge();
-      await Promise.all([loadInbox(), loadForums()]);
+      await Promise.all([loadInbox(), loadForums(), loadProviderGrants()]);
     }
 
     async function boot() {
@@ -523,6 +572,7 @@
         await refreshAll();
         document.getElementById('auth').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
+        if (initialView && document.getElementById('view-' + initialView)) currentView = initialView;
         showView(currentView);
       } catch {
         localStorage.removeItem('spmt_token');

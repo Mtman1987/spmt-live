@@ -257,6 +257,25 @@ export function initDb() {
       created_by TEXT,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS provider_grants (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      role TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      scopes TEXT NOT NULL,
+      granted_apps TEXT NOT NULL,
+      legacy_authorize_url TEXT,
+      notes TEXT,
+      metadata TEXT,
+      authorized_at TEXT,
+      updated_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE(user_id, provider, role),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
   `);
 
   try { db.exec('ALTER TABLE developer_api_keys ADD COLUMN key_hash TEXT'); } catch {}

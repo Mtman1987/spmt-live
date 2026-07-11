@@ -118,6 +118,75 @@ const PLATFORM_FEATURES = [
 
 const PLATFORM_SCOPES = ['identity:read', 'apps:read', 'apps:write', 'messages:read', 'messages:write', 'athena:write', 'events:write', 'webhooks:write'];
 
+const PROVIDER_GRANT_DEFINITIONS = [
+  {
+    id: 'twitch-broadcaster',
+    provider: 'twitch',
+    role: 'broadcaster',
+    displayName: 'Twitch Broadcaster',
+    description: 'Lets StreamWeaver, ChatTag, MountainView, and Athena act with the creator channel context.',
+    scopes: ['user:read:email', 'user:write:chat', 'channel:read:subscriptions', 'moderator:read:followers'],
+    grantedApps: ['streamweaver', 'chat-tag', 'mountainview', 'spmt'],
+    legacyAuthorizeUrl: 'https://streamweaver-new.fly.dev/api/auth/twitch?role=broadcaster',
+    statusHelp: 'Uses the StreamWeaver broadcaster OAuth path until SPMT owns the token exchange.',
+  },
+  {
+    id: 'twitch-bot',
+    provider: 'twitch',
+    role: 'bot',
+    displayName: 'Twitch Bot',
+    description: 'Lets bot chat, TTS, shoutouts, and command listeners run without reauthorizing per app.',
+    scopes: ['chat:read', 'chat:edit', 'user:bot', 'user:read:chat'],
+    grantedApps: ['streamweaver', 'discord-stream-hub', 'hearmeout', 'mountainview'],
+    legacyAuthorizeUrl: 'https://streamweaver-new.fly.dev/api/auth/twitch?role=bot',
+    statusHelp: 'Uses the StreamWeaver bot OAuth path until the shared SPMT token vault is active.',
+  },
+  {
+    id: 'discord-user',
+    provider: 'discord',
+    role: 'user',
+    displayName: 'Discord User',
+    description: 'Connects the creator Discord identity for dashboard, rooms, rank, calendar, and Commlink matching.',
+    scopes: ['identify', 'email', 'guilds'],
+    grantedApps: ['discord-stream-hub', 'hearmeout', 'chat-tag', 'spmt'],
+    legacyAuthorizeUrl: 'https://discord-stream-hub-new.fly.dev/login',
+    statusHelp: 'Uses DiscordStreamHub login while SPMT-owned Discord OAuth is finished.',
+  },
+  {
+    id: 'discord-bot',
+    provider: 'discord',
+    role: 'bot',
+    displayName: 'Discord Bot / Server',
+    description: 'Connects the server bot permissions for posts, buttons, calendar, shoutouts, forums, and notifications.',
+    scopes: ['bot', 'applications.commands'],
+    grantedApps: ['discord-stream-hub', 'hearmeout', 'chat-tag', 'spmt'],
+    legacyAuthorizeUrl: 'https://discord-stream-hub-new.fly.dev/settings',
+    statusHelp: 'Server bot install remains in DiscordStreamHub until SPMT has the full bot install flow.',
+  },
+  {
+    id: 'youtube-broadcaster',
+    provider: 'youtube',
+    role: 'broadcaster',
+    displayName: 'YouTube Broadcaster',
+    description: 'Prepares shared YouTube context for StreamWeaver, HearMeOut, and Athena commands.',
+    scopes: ['youtube.readonly'],
+    grantedApps: ['streamweaver', 'hearmeout', 'mountainview', 'spmt'],
+    legacyAuthorizeUrl: 'https://streamweaver-new.fly.dev/integrations',
+    statusHelp: 'Starts in StreamWeaver integrations until SPMT owns YouTube token exchange.',
+  },
+  {
+    id: 'kick-broadcaster',
+    provider: 'kick',
+    role: 'broadcaster',
+    displayName: 'Kick Broadcaster',
+    description: 'Prepares shared Kick chat and creator identity for future app routing.',
+    scopes: ['user:read', 'channel:read', 'chat:write'],
+    grantedApps: ['streamweaver', 'mountainview', 'spmt'],
+    legacyAuthorizeUrl: 'https://streamweaver-new.fly.dev/integrations',
+    statusHelp: 'Starts in StreamWeaver integrations until SPMT owns Kick token exchange.',
+  },
+];
+
 const PLUGIN_MARKETPLACE = [
   { id: 'athena-briefs', name: 'Athena Briefs', category: 'AI', description: 'Generates creator briefs from app status, Commlink, forums, and shoutouts.', scopes: ['athena:write', 'messages:read'] },
   { id: 'stream-snapshot', name: 'Stream Snapshot', category: 'Creator Ops', description: 'Packages live app, points, and community status into a shareable summary.', scopes: ['apps:read', 'messages:read'] },
@@ -199,6 +268,66 @@ function buildAppsForUser(userId?: string) {
       updateAvailable: app.version !== app.latestVersion,
     };
   });
+}
+
+function providerGrantDefinitions() {
+  return PROVIDER_GRANT_DEFINITIONS.map((grant) => ({ ...grant }));
+}
+
+function buildProviderGrantsForUser(userId: string) {
+  const rows = db.prepare('SELECT * FROM provider_grants WHERE user_id = ?').all(userId) as any[];
+  const rowMap = new Map(rows.map((row) => [`${row.provider}:${row.role}`, row]));
+  return providerGrantDefinitions().map((definition) => {
+    const row = rowMap.get(`${definition.provider}:${definition.role}`);
+    return {
+      ...definition,
+      status: row?.status || 'not_connected',
+      scopes: row?.scopes ? JSON.parse(row.scopes) : definition.scopes,
+      grantedApps: row?.granted_apps ? JSON.parse(row.granted_apps) : definition.grantedApps,
+      legacyAuthorizeUrl: row?.legacy_authorize_url || definition.legacyAuthorizeUrl,
+      notes: row?.notes || definition.statusHelp,
+      metadata: row?.metadata ? JSON.parse(row.metadata) : {},
+      authorizedAt: row?.authorized_at || null,
+      updatedAt: row?.updated_at || null,
+      createdAt: row?.created_at || null,
+    };
+  });
+}
+
+function upsertProviderGrant(userId: string, grantId: string, status: string, metadata: Record<string, unknown> = {}) {
+  const definition = PROVIDER_GRANT_DEFINITIONS.find((grant) => grant.id === grantId);
+  if (!definition) return null;
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO provider_grants (id, user_id, provider, role, display_name, status, scopes, granted_apps, legacy_authorize_url, notes, metadata, authorized_at, updated_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, provider, role) DO UPDATE SET
+      display_name = excluded.display_name,
+      status = excluded.status,
+      scopes = excluded.scopes,
+      granted_apps = excluded.granted_apps,
+      legacy_authorize_url = excluded.legacy_authorize_url,
+      notes = excluded.notes,
+      metadata = excluded.metadata,
+      authorized_at = excluded.authorized_at,
+      updated_at = excluded.updated_at
+  `).run(
+    `${userId}:${definition.provider}:${definition.role}`,
+    userId,
+    definition.provider,
+    definition.role,
+    definition.displayName,
+    status,
+    JSON.stringify(definition.scopes),
+    JSON.stringify(definition.grantedApps),
+    definition.legacyAuthorizeUrl,
+    definition.statusHelp,
+    JSON.stringify(metadata),
+    status === 'connected' ? now : null,
+    now,
+    now
+  );
+  return buildProviderGrantsForUser(userId).find((grant) => grant.id === grantId);
 }
 
 function cleanHandle(value: unknown) {
@@ -1045,7 +1174,7 @@ app.get('/api/auth/me', authenticate, (req: any, res) => {
 app.get('/api/me', authenticate, (req: any, res) => {
   const user = getUserById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ user: serializeUser(user), apps: buildAppsForUser(user.id) });
+  res.json({ user: serializeUser(user), apps: buildAppsForUser(user.id), providerGrants: buildProviderGrantsForUser(user.id) });
 });
 
 app.post('/api/auth/refresh', authenticate, (req: any, res) => {
@@ -1065,7 +1194,38 @@ app.get('/api/session/bridge', authenticate, (req: any, res) => {
     token,
     user: serializeUser(user),
     apps: buildAppsForUser(user.id),
+    providerGrants: buildProviderGrantsForUser(user.id),
   });
+});
+
+app.get('/api/provider-grants', authenticate, (req: any, res) => {
+  const user = getUserById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ grants: buildProviderGrantsForUser(user.id), user: serializeUser(user) });
+});
+
+app.post('/api/provider-grants/:grantId/status', authenticate, (req: any, res) => {
+  const grant = upsertProviderGrant(req.user.id, req.params.grantId, String(req.body?.status || 'pending'), {
+    source: 'manual-status',
+    updatedBy: req.user.username,
+  });
+  if (!grant) return res.status(404).json({ error: 'Unknown provider grant' });
+  createNotification(req.user.id, `${grant.displayName} marked ${grant.status}`, 'SPMT updated this provider connection state.', {
+    type: 'provider-grant',
+    sourceApp: 'spmt',
+    linkUrl: '/?view=connections',
+  });
+  res.json({ ok: true, grant });
+});
+
+app.get('/api/provider-grants/:grantId/authorize', authenticate, (req: any, res) => {
+  const grant = upsertProviderGrant(req.user.id, req.params.grantId, 'pending', {
+    source: 'authorize-start',
+    returnTo: req.query.returnTo || null,
+  }) as any;
+  if (!grant) return res.status(404).json({ error: 'Unknown provider grant' });
+  const redirectUrl = grant.legacyAuthorizeUrl || '/?view=connections';
+  res.redirect(redirectUrl);
 });
 
 // ─── User: Link Discord/Twitch ───

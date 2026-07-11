@@ -1,6 +1,6 @@
 # SpaceMountain Ecosystem Handoff
 
-Last updated: 2026-07-04
+Last updated: 2026-07-08
 
 ## Current Source Of Truth
 
@@ -40,7 +40,7 @@ Keep these rules strict:
 - `spmt-live`: `0e723bd Create notifications from platform events`
 - `spacemountain-live`: `a6087a6 Polish Command Bridge landing defaults`
 - `DiscordStreamHub`: `1d37fba Add SPMT event bridge helper`
-- `HearMeOut`: `822eb9e Publish HearMeOut room invite events to SPMT`
+- `HearMeOut`: `fcc76a1 Revert music playback to HLS proxy strategy (fix broken media/music)`
 - `ChatTag`: `386d7cf Add SPMT event bridge helper`
 
 The latest verified pass confirmed:

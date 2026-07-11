@@ -1,6 +1,6 @@
 # SpaceMountain Ecosystem TODO
 
-Last updated: 2026-07-04
+Last updated: 2026-07-08
 
 This is the single active unfinished-work list for SPMT, SpaceMountain.live, and the ecosystem apps. Completed milestone trackers and phase checklists should not be treated as current work.
 
@@ -10,12 +10,15 @@ Ship a production-stable ecosystem where SPMT owns identity, app registry, Comml
 
 ## P0 - Production Correctness
 
-- [ ] Configure `SPMT_API_KEY` with `events:write` for each app that should publish platform events.
-- [ ] Standardize app health endpoints and register them in SPMT:
-  - [ ] Discord Stream Hub: `GET /api/health` exists and returns 200.
-  - [ ] StreamWeaver: verify `GET /api/health` live and registered.
-  - [ ] HearMeOut: verify `GET /api/health` live and registered.
-  - [ ] ChatTag: add `GET /api/health`; current live `/api/health` was 404.
+- [ ] Configure `SPMT_API_KEY` with `events:write` on Fly for each app that should publish platform events.
+  - HearMeOut: `src/lib/spmt-client.ts` exists and publishes room invite events. Needs `SPMT_API_KEY` Fly secret.
+  - DSH: event bridge helper committed. Needs `SPMT_API_KEY` Fly secret.
+  - ChatTag: event bridge helper committed. Needs `SPMT_API_KEY` Fly secret.
+- [x] Standardize app health endpoints and register them in SPMT:
+  - [x] Discord Stream Hub: `GET /api/health` exists and returns 200.
+  - [x] StreamWeaver: `GET /api/health` exists and returns 200.
+  - [x] HearMeOut: `GET /api/health` exists and returns 200.
+  - [x] ChatTag: `GET /api/health` exists (`src/app/api/health/route.ts`).
 - [ ] Make DSH the live-community authority for SpaceMountain community spotlight/counts.
 - [ ] Remove stale live community rows from public live sections when DSH says a user is offline.
 - [ ] Use one shared level/XP source of truth so BattleArena, dashboard, ChatTag, and DSH do not show different levels.
@@ -65,7 +68,8 @@ Ship a production-stable ecosystem where SPMT owns identity, app registry, Comml
 
 ## HearMeOut
 
-- [ ] Keep the room invite event bridge and verify it publishes once `SPMT_API_KEY` is configured.
+- [x] Room invite event bridge exists in `src/lib/spmt-client.ts` and is called from `src/app/api/discord/send-invite/route.ts`.
+- [ ] Set `SPMT_API_KEY` Fly secret so events actually publish to spmt.live.
 - [ ] Add SPMT identity for rooms, watch parties, listening state, and room ownership.
 - [ ] Use Commlink notifications for room invites, room lifecycle, queue changes, and watch party updates.
 - [ ] Register room, overlay, watch, and music launch targets in SPMT.
@@ -75,7 +79,7 @@ Ship a production-stable ecosystem where SPMT owns identity, app registry, Comml
 
 ## ChatTag
 
-- [ ] Add `GET /api/health` so Shipyard/health dashboard can verify the app.
+- [x] `GET /api/health` exists at `src/app/api/health/route.ts`.
 - [ ] Use SPMT identity for player profile, rewards, and leaderboard display.
 - [ ] Link Twitch/Discord game participants through SPMT linked accounts.
 - [ ] Publish game invites, tag events, reward changes, leaderboard changes, and arena activity to SPMT.

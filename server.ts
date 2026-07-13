@@ -236,6 +236,27 @@ function normalizeScopes(value: unknown) {
   return Array.from(new Set(scopes.filter((scope) => PLATFORM_SCOPES.includes(scope))));
 }
 
+function normalizeRegistrationUsername(value: unknown): { username: string | null; error: string | null } {
+  const submitted = String(value || '').trim().toLowerCase();
+  const suffix = '@spmt.live';
+  const username = submitted.endsWith(suffix) ? submitted.slice(0, -suffix.length) : submitted;
+
+  if (username.length < 3) {
+    return { username: null, error: 'Username must be at least 3 characters' };
+  }
+  if (username.length > 30) {
+    return { username: null, error: 'Username must be 30 characters or fewer' };
+  }
+  if (!/^[a-z0-9._-]+$/.test(username)) {
+    return {
+      username: null,
+      error: 'Enter only the username before @spmt.live using letters, numbers, dots, underscores, or hyphens',
+    };
+  }
+
+  return { username, error: null };
+}
+
 function serializeUser(user: any) {
   return {
     id: user.id,
@@ -1206,10 +1227,14 @@ app.post('/api/auth/register', async (req, res) => {
   const { username, password, displayName, discordUsername, twitchUsername } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
-  const clean = username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
-  if (clean.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters' });
+  const normalized = normalizeRegistrationUsername(username);
+  if (normalized.error) return res.status(400).json({ error: normalized.error });
+  const clean = normalized.username as string;
 
-  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(clean);
+  const existing = db.prepare('SELECT id, password_hash FROM users WHERE username = ?').get(clean) as any;
+  if (existing?.password_hash === 'SYSTEM_NO_LOGIN') {
+    return res.status(409).json({ error: 'That username belongs to an existing imported profile. Contact support to claim and merge it safely.' });
+  }
   if (existing) return res.status(409).json({ error: 'Username already taken' });
 
   // Resolve Discord ID from username if provided

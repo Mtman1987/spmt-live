@@ -95,6 +95,12 @@ try {
   assert.equal(compatibilityHealth.response.status, 200);
   assert.equal(compatibilityHealth.body.database.integrity, 'ok');
 
+  const homeResponse = await fetch(baseUrl);
+  const home = await homeResponse.text();
+  assert.equal(homeResponse.status, 200);
+  assert.match(home, /Enter only the part before @spmt\.live/);
+  assert.match(home, /profile-completion-modal/);
+
   const athena = await waitForJson(`${baseUrl}/api/athena/os`);
   assert.equal(athena.response.status, 200);
   assert.equal(athena.body.status, 'degraded');
@@ -104,11 +110,37 @@ try {
   const registrationResponse = await fetch(`${baseUrl}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'smoke-user', password: 'smoke-password-123', displayName: 'Smoke User' }),
+    body: JSON.stringify({ username: 'smoke-user@spmt.live', password: 'smoke-password-123', displayName: 'Smoke User' }),
   });
   const registration = await registrationResponse.json();
   assert.equal(registrationResponse.status, 201);
   assert.ok(registration.token);
+  assert.equal(registration.user.username, 'smoke-user');
+  assert.equal(registration.user.email, 'smoke-user@spmt.live');
+  assert.equal(registration.user.handle, 'smoke-user@spmt.live');
+
+  const invalidUsernameResponse = await fetch(`${baseUrl}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'smoke-user@somewhere.test', password: 'smoke-password-123' }),
+  });
+  const invalidUsername = await invalidUsernameResponse.json();
+  assert.equal(invalidUsernameResponse.status, 400);
+  assert.match(invalidUsername.error, /before @spmt\.live/);
+
+  const linkResponse = await fetch(`${baseUrl}/api/user/link`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ discordUsername: 'SmokeDiscord', twitchUsername: 'SmokeTwitch' }),
+  });
+  assert.equal(linkResponse.status, 200);
+  const bridgeResponse = await fetch(`${baseUrl}/api/session/bridge`, {
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const bridge = await bridgeResponse.json();
+  assert.equal(bridgeResponse.status, 200);
+  assert.equal(bridge.user.discordUsername, 'SmokeDiscord');
+  assert.equal(bridge.user.twitchUsername, 'smoketwitch');
 
   const commandResponse = await fetch(`${baseUrl}/api/athena/commands`, {
     method: 'POST',
@@ -130,7 +162,7 @@ try {
   assert.equal(conversation.stored, true);
   assert.equal(conversation.routed, false);
 
-  console.log(JSON.stringify({ status: 'passed', checks: 23 }));
+  console.log(JSON.stringify({ status: 'passed', checks: 36 }));
 } catch (error) {
   throw new Error(`SPMT smoke failed: ${error instanceof Error ? error.message : error}\n${output}`);
 } finally {

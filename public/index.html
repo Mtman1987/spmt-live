@@ -91,6 +91,15 @@
     .split { display: grid; grid-template-columns: 220px 1fr; gap: 14px; }
     .folder button { width: 100%; justify-content: flex-start; margin-bottom: 8px; }
     .thread-body { white-space: pre-wrap; line-height: 1.45; }
+    .field-label { display: block; color: var(--text); font-size: 13px; font-weight: 800; margin: 2px 0 6px; }
+    .field-help { color: var(--muted); font-size: 12px; line-height: 1.45; margin: -4px 0 10px; }
+    .handle-field { display: flex; align-items: stretch; margin-bottom: 6px; }
+    .handle-field input { min-width: 0; margin: 0; border-radius: 8px 0 0 8px; }
+    .handle-suffix { display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--line); border-left: 0; border-radius: 0 8px 8px 0; background: var(--panel-2); color: #fdba74; font-size: 13px; font-weight: 800; white-space: nowrap; }
+    .modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(2,6,12,.82); backdrop-filter: blur(5px); }
+    .modal-card { width: min(520px, 100%); max-height: calc(100vh - 40px); overflow: auto; background: var(--panel); border: 1px solid rgba(249,115,22,.42); border-radius: 12px; padding: 20px; box-shadow: 0 24px 80px rgba(0,0,0,.5); }
+    .modal-card h2 { margin: 0 0 8px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
     @media (max-width: 900px) {
       .shell { grid-template-columns: 1fr; }
       .sidebar { position: static; height: auto; }
@@ -117,15 +126,24 @@
           <button id="tab-recover" onclick="showAuthTab('recover')">Recover</button>
         </div>
         <form id="form-login" onsubmit="handleLogin(event)">
-          <input name="username" placeholder="mtman1987 or mtman1987@spmt.live" required>
+          <label class="field-label" for="login-username">SPMT username or full handle</label>
+          <input id="login-username" name="username" placeholder="differentdecree or differentdecree@spmt.live" autocomplete="username" required>
+          <p class="field-help">Both forms work when signing in.</p>
           <input name="password" type="password" placeholder="password" required>
           <button type="submit" class="btn primary">Sign In</button>
         </form>
         <form id="form-register" class="hidden" onsubmit="handleRegister(event)">
-          <input name="username" placeholder="choose your spmt handle" required>
+          <label class="field-label" for="register-username">Choose your SPMT username</label>
+          <div class="handle-field">
+            <input id="register-username" name="username" placeholder="differentdecree" maxlength="40" autocomplete="username" oninput="updateHandlePreview()" required>
+            <span class="handle-suffix">@spmt.live</span>
+          </div>
+          <p id="register-handle-preview" class="field-help">Enter only the part before @spmt.live. We add the ending automatically.</p>
           <input name="displayName" placeholder="display name">
-          <input name="discordUsername" placeholder="Discord username">
-          <input name="twitchUsername" placeholder="Twitch username">
+          <label class="field-label" for="register-discord">Connect your app identities</label>
+          <input id="register-discord" name="discordUsername" placeholder="Discord username (optional now)">
+          <input name="twitchUsername" placeholder="Twitch username (optional now)">
+          <p class="field-help">These usernames let SPMT, your apps, and bots recognize the same person. Save them now or SPMT will remind you after sign-in.</p>
           <input name="password" type="password" placeholder="password, minimum 6 characters" required minlength="6">
           <button type="submit" class="btn primary">Create Account</button>
         </form>
@@ -310,6 +328,25 @@
     </main>
   </div>
 
+  <div id="profile-completion-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="profile-completion-title">
+    <div class="modal-card">
+      <h2 id="profile-completion-title">Finish connecting your SPMT identity</h2>
+      <p class="muted small" style="line-height:1.5;margin-bottom:16px">Save your current Discord and Twitch usernames so the shared chat, bots, messages, and connected apps can recognize you as the same person.</p>
+      <form onsubmit="handleProfileCompletion(event)">
+        <label class="field-label" for="profile-discord">Discord username</label>
+        <input id="profile-discord" placeholder="your Discord username" autocomplete="off">
+        <label class="field-label" for="profile-twitch">Twitch username</label>
+        <input id="profile-twitch" placeholder="your Twitch username" autocomplete="off">
+        <p class="field-help">Enter usernames only, without an @ sign. You can choose Not now if you do not use one of these services.</p>
+        <div id="profile-completion-msg" class="notice"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="dismissProfileCompletion()">Not now</button>
+          <button type="submit" class="btn primary">Save connections</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     let authToken = localStorage.getItem('spmt_token') || null;
     let currentUser = null;
@@ -341,6 +378,20 @@
       setNotice('auth-msg', '');
     }
 
+    function registrationUsername() {
+      const field = document.getElementById('register-username');
+      const submitted = String(field.value || '').trim().toLowerCase();
+      return submitted.endsWith('@spmt.live') ? submitted.slice(0, -'@spmt.live'.length) : submitted;
+    }
+
+    function updateHandlePreview() {
+      const username = registrationUsername();
+      const preview = document.getElementById('register-handle-preview');
+      preview.textContent = username
+        ? 'Your full handle will be ' + username + '@spmt.live. Do not add @spmt.live yourself.'
+        : 'Enter only the part before @spmt.live. We add the ending automatically.';
+    }
+
     function finishAuth(data) {
       authToken = data.token;
       localStorage.setItem('spmt_token', authToken);
@@ -369,12 +420,16 @@
     async function handleRegister(event) {
       event.preventDefault();
       const form = new FormData(event.target);
+      const username = registrationUsername();
+      if (username.includes('@')) {
+        return setNotice('auth-msg', 'Enter only the username before @spmt.live.', 'err');
+      }
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          username: form.get('username'),
+          username,
           displayName: form.get('displayName'),
           discordUsername: form.get('discordUsername'),
           twitchUsername: form.get('twitchUsername'),
@@ -510,6 +565,45 @@
       renderProviderGrants();
     }
 
+    function profilePromptKey() {
+      return currentUser ? 'spmt_profile_prompt_dismissed:' + currentUser.id : '';
+    }
+
+    function maybeShowProfileCompletion() {
+      if (!currentUser || (currentUser.discordUsername && currentUser.twitchUsername)) return;
+      if (sessionStorage.getItem(profilePromptKey()) === '1') return;
+      document.getElementById('profile-discord').value = currentUser.discordUsername || '';
+      document.getElementById('profile-twitch').value = currentUser.twitchUsername || '';
+      setNotice('profile-completion-msg', 'Add the missing username, then save.', '');
+      document.getElementById('profile-completion-modal').classList.remove('hidden');
+      const missingField = currentUser.discordUsername ? 'profile-twitch' : 'profile-discord';
+      setTimeout(() => document.getElementById(missingField).focus(), 0);
+    }
+
+    function dismissProfileCompletion() {
+      if (currentUser) sessionStorage.setItem(profilePromptKey(), '1');
+      document.getElementById('profile-completion-modal').classList.add('hidden');
+    }
+
+    async function handleProfileCompletion(event) {
+      event.preventDefault();
+      const discordUsername = document.getElementById('profile-discord').value.trim();
+      const twitchUsername = document.getElementById('profile-twitch').value.trim();
+      if (!discordUsername || !twitchUsername) {
+        return setNotice('profile-completion-msg', 'Enter both usernames, or choose Not now.', 'err');
+      }
+      const res = await api('/api/user/link', {
+        method: 'POST',
+        body: JSON.stringify({ discordUsername, twitchUsername })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setNotice('profile-completion-msg', data.error || 'Could not save connections', 'err');
+      await loadBridge();
+      sessionStorage.removeItem(profilePromptKey());
+      document.getElementById('profile-completion-modal').classList.add('hidden');
+      setNotice('link-msg', 'Discord and Twitch usernames saved.', 'ok');
+    }
+
     async function loadInbox() {
       const res = await api('/api/messages/inbox');
       const messages = res.ok ? await res.json() : [];
@@ -613,7 +707,11 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return setNotice('link-msg', data.error || 'Link failed', 'err');
       setNotice('link-msg', 'Linked account settings saved.', 'ok');
-      loadBridge();
+      await loadBridge();
+      if (currentUser.discordUsername && currentUser.twitchUsername) {
+        sessionStorage.removeItem(profilePromptKey());
+        document.getElementById('profile-completion-modal').classList.add('hidden');
+      }
     }
 
     async function handlePasswordChange(event) {
@@ -649,6 +747,7 @@
         document.getElementById('app').classList.remove('hidden');
         if (initialView && document.getElementById('view-' + initialView)) currentView = initialView;
         showView(currentView);
+        maybeShowProfileCompletion();
       } catch {
         localStorage.removeItem('spmt_token');
         authToken = null;

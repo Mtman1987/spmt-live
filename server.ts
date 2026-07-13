@@ -1787,24 +1787,31 @@ app.post('/api/user/link', authenticate, async (req: any, res) => {
   try {
     const { discordUsername, twitchUsername } = req.body;
 
-  let discordId: string | null = null;
+  const existingLinks = db.prepare('SELECT discord_username, discord_id FROM users WHERE id = ?').get(req.user.id) as any;
+  let resolvedDiscordId: string | null = null;
+  let discordVerification = 'not_requested';
   const cleanDiscord = (discordUsername || '').trim().replace(/^@/, '');
-  if (cleanDiscord && process.env.DISCORD_BOT_TOKEN) {
+  if (cleanDiscord) discordVerification = 'unavailable';
+  if (cleanDiscord && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID) {
     try {
-      const guildId = process.env.DISCORD_GUILD_ID || '';
-      if (guildId) {
-        const searchRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/search?query=${encodeURIComponent(cleanDiscord)}&limit=1`, {
-          headers: { 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}` },
-        });
-        if (searchRes.ok) {
-          const members = await searchRes.json();
-          if (members.length > 0 && members[0].user) {
-            discordId = members[0].user.id;
-          }
-        }
+      const searchRes = await fetch(`https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/members/search?query=${encodeURIComponent(cleanDiscord)}&limit=100`, {
+        headers: { 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+      });
+      if (searchRes.ok) {
+        const members = await searchRes.json() as any[];
+        const exactMember = Array.isArray(members)
+          ? members.find((member) => String(member?.user?.username || '').trim().toLowerCase() === cleanDiscord.toLowerCase())
+          : null;
+        resolvedDiscordId = exactMember?.user?.id ? String(exactMember.user.id) : null;
+        discordVerification = resolvedDiscordId ? 'verified' : 'not_found';
       }
     } catch {}
   }
+  const sameDiscordUsername = cleanDiscord
+    && String(existingLinks?.discord_username || '').trim().toLowerCase() === cleanDiscord.toLowerCase();
+  const discordId = resolvedDiscordId
+    || (discordVerification === 'unavailable' && sameDiscordUsername ? String(existingLinks?.discord_id || '') || null : null);
+  if (discordId && discordVerification === 'unavailable') discordVerification = 'retained';
 
   let twitchId: string | null = null;
   const cleanTwitch = (twitchUsername || '').trim().toLowerCase();
@@ -1825,8 +1832,10 @@ app.post('/api/user/link', authenticate, async (req: any, res) => {
 
   const updates: string[] = [];
   const params: any[] = [];
-  if (cleanDiscord) { updates.push('discord_username = ?'); params.push(cleanDiscord); }
-  if (discordId) { updates.push('discord_id = ?'); params.push(discordId); }
+  if (cleanDiscord) {
+    updates.push('discord_username = ?', 'discord_id = ?');
+    params.push(cleanDiscord, discordId);
+  }
   if (cleanTwitch) { updates.push('twitch_username = ?'); params.push(cleanTwitch); }
   if (twitchId) { updates.push('twitch_id = ?'); params.push(twitchId); }
 
@@ -1835,7 +1844,15 @@ app.post('/api/user/link', authenticate, async (req: any, res) => {
     db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
   }
 
-  res.json({ ok: true, discordId, twitchId, discordUsername: cleanDiscord, twitchUsername: cleanTwitch });
+  res.json({
+    ok: true,
+    discordId,
+    discordVerified: Boolean(discordId),
+    discordVerification,
+    twitchId,
+    discordUsername: cleanDiscord,
+    twitchUsername: cleanTwitch,
+  });
   } catch (err: any) {
     console.error('Link failed:', err);
     res.status(500).json({ error: 'Link failed: ' + (err.message || 'unknown error') });

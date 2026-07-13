@@ -18,6 +18,8 @@ The Recover tab can request a fresh code by Discord DM. Delivery happens only wh
 
 The new code replaces the old code only after Discord accepts the DM. Failed delivery leaves the existing recovery code unchanged.
 
+When a user saves their Discord username, SPMT now searches the connected server for an exact current username and reports whether DM recovery is active. Saving a changed or unverified username clears a stale Discord ID. A temporary Discord lookup failure can retain an existing ID only when the saved username did not change; the DM request still performs a fresh exact identity check before sending a code.
+
 The public endpoint always returns the same generic response whether or not the username exists or delivery succeeds. This prevents account discovery. Requests are rate-limited in memory by account input and client address.
 
 ## Username recovery

@@ -820,9 +820,15 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return setNotice('profile-completion-msg', data.error || 'Could not save connections', 'err');
       await loadBridge();
+      if (!data.discordVerified) {
+        const reason = data.discordVerification === 'not_found'
+          ? 'The exact Discord username was not found in the connected server.'
+          : 'Discord verification is temporarily unavailable.';
+        return setNotice('profile-completion-msg', `Usernames saved, but Discord DM recovery is not active. ${reason} Check the spelling and try Save again.`, 'err');
+      }
       sessionStorage.removeItem(profilePromptKey());
       document.getElementById('profile-completion-modal').classList.add('hidden');
-      setNotice('link-msg', 'Discord and Twitch usernames saved.', 'ok');
+      setNotice('link-msg', 'Discord and Twitch usernames saved. Discord DM recovery is active.', 'ok');
     }
 
     async function loadInbox() {
@@ -927,7 +933,14 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return setNotice('link-msg', data.error || 'Link failed', 'err');
-      setNotice('link-msg', 'Linked account settings saved.', 'ok');
+      if (data.discordVerified) {
+        setNotice('link-msg', 'Linked account settings saved. Discord DM recovery is active.', 'ok');
+      } else {
+        const reason = data.discordVerification === 'not_found'
+          ? 'The exact Discord username was not found in the connected server.'
+          : 'Discord verification is temporarily unavailable.';
+        setNotice('link-msg', `Settings saved, but Discord DM recovery is not active. ${reason}`, 'err');
+      }
       await loadBridge();
       if (currentUser.discordUsername && currentUser.twitchUsername) {
         sessionStorage.removeItem(profilePromptKey());

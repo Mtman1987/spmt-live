@@ -151,7 +151,10 @@ try {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
     body: JSON.stringify({ discordUsername: 'SmokeDiscord', twitchUsername: 'SmokeTwitch' }),
   });
+  const linkedAccounts = await linkResponse.json();
   assert.equal(linkResponse.status, 200);
+  assert.equal(linkedAccounts.discordVerified, false);
+  assert.equal(linkedAccounts.discordVerification, 'unavailable');
   const bridgeResponse = await fetch(`${baseUrl}/api/session/bridge`, {
     headers: { Authorization: `Bearer ${registration.token}` },
   });

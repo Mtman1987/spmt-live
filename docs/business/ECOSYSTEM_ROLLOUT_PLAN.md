@@ -1,5 +1,7 @@
 # SpaceMountain Ecosystem Rollout Plan
 
+Document role: product integration and adoption strategy. Engineering execution is tracked in `../ecosystem/PRODUCTION_ROADMAP.md`.
+
 ## Purpose
 
 This document explains how SpaceMountain's apps should become one connected creator ecosystem instead of separate tools that happen to share a theme.

@@ -1,4 +1,6 @@
-# SpaceMountain Ecosystem TODO
+# Archived SpaceMountain Ecosystem TODO
+
+> Archived on 2026-07-13. Several repository-state claims in this snapshot are stale. Use `docs/ecosystem/PRODUCTION_ROADMAP.md` and a fresh baseline capture for current work.
 
 Last updated: 2026-07-08
 

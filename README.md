@@ -173,14 +173,17 @@ Every ecosystem app should work toward this contract:
 
 ## Documentation
 
-Start with the docs folder for architecture, vision, integration guides, and platform concepts.
+Start with the docs folder for architecture, vision, integration guides, platform concepts, and the production control base.
 
 Useful entry points:
 
-- `ECOSYSTEM_TODO.md` for active unfinished production work
-- `ROADMAP.md` for current release track and completed phase context
-- `ECOSYSTEM_HANDOFF.md` for detailed integration guidance
-- `ECOSYSTEM_ROLLOUT_PLAN.md` for adoption sequencing
+- `docs/ecosystem/README.md` for the internal production control index
+- `docs/ecosystem/PRODUCTION_ROADMAP.md` for active production gates and engineering work
+- `docs/ecosystem/PRODUCTION_BASELINE.md` for the reproducible starting evidence
+- `docs/ecosystem/production-manifest.json` for repository, deployment, health, and ownership inventory
+- `docs/ecosystem/WORKING_METHOD.md` for cross-app sequencing and deployment gates
+- `docs/ecosystem/DOCUMENT_REGISTRY.md` for document ownership and archive rules
+- `docs/business/ECOSYSTEM_ROLLOUT_PLAN.md` for product adoption sequencing
 - `docs/DOCS_HOME.md` for the documentation index
 - `spec/README.md` for platform specifications
 

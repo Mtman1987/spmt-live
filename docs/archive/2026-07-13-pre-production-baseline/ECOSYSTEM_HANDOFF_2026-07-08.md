@@ -1,4 +1,6 @@
-# SpaceMountain Ecosystem Handoff
+# Archived SpaceMountain Ecosystem Handoff
+
+> Archived on 2026-07-13. Commit IDs and deployment claims below are historical evidence, not current state. Use `docs/ecosystem/PRODUCTION_BASELINE.md` for the current baseline process.
 
 Last updated: 2026-07-08
 

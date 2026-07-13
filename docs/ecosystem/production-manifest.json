@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-13",
+  "classification": "documentation-only inventory; not consumed as runtime configuration",
+  "workspace": "C:/Users/mtman/Desktop/finished/codex-environment",
+  "repositories": [
+    {
+      "id": "spmt",
+      "path": "spmt-live",
+      "github": "Mtman1987/spmt-live",
+      "role": "shared identity and platform contract owner",
+      "deployments": [
+        {
+          "provider": "fly",
+          "app": "spmt-live",
+          "config": "fly.toml",
+          "publicUrl": "https://spmt.live",
+          "healthPath": "/api/health"
+        }
+      ]
+    },
+    {
+      "id": "spacemountain",
+      "path": "web",
+      "github": "Mtman1987/spacemountain-live",
+      "role": "user-facing command bridge and workspace consumer",
+      "deployments": [
+        {
+          "provider": "fly",
+          "app": "spacemountain-live",
+          "config": "fly.toml",
+          "publicUrl": "https://spacemountain.live",
+          "healthPath": "/api/health"
+        }
+      ]
+    },
+    {
+      "id": "streamweaver",
+      "path": "streamweaver",
+      "github": "Mtman1987/streamweaver",
+      "role": "automation, workflow, overlay, chat, and TTS runtime",
+      "deployments": [
+        {
+          "provider": "fly",
+          "app": "streamweaver-new",
+          "config": "fly.toml",
+          "publicUrl": "https://streamweaver-new.fly.dev",
+          "healthPath": "/api/health"
+        },
+        {
+          "provider": "fly",
+          "app": "streamweaver-work-test",
+          "config": "fly.work-test.toml",
+          "publicUrl": "https://streamweaver-work-test.fly.dev",
+          "healthPath": "/api/health",
+          "environment": "test"
+        }
+      ]
+    },
+    {
+      "id": "discord-stream-hub",
+      "path": "DiscordStreamHub",
+      "github": "Mtman1987/DiscordStreamHub",
+      "role": "Discord and live-community integration owner",
+      "deployments": [
+        {
+          "provider": "fly",
+          "app": "discord-stream-hub-new",
+          "config": "fly.toml",
+          "publicUrl": "https://discord-stream-hub-new.fly.dev",
+          "healthPath": "/api/health"
+        },
+        {
+          "provider": "fly",
+          "app": "dsh-clip-worker",
+          "config": "clip-worker/fly.toml",
+          "publicUrl": "https://dsh-clip-worker.fly.dev",
+          "healthPath": null
+        }
+      ]
+    },
+    {
+      "id": "hearmeout",
+      "path": "hearmeout-main",
+      "github": "Mtman1987/hearmeout-main",
+      "role": "rooms, music, watch parties, and media session owner",
+      "deployments": [
+        {
+          "provider": "fly",
+          "app": "hearmeout-main",
+          "config": "fly.toml",
+          "publicUrl": "https://hearmeout-main.fly.dev",
+          "healthPath": "/api/health"
+        },
+        {
+          "provider": "fly",
+          "app": "hmo-dj-worker",
+          "config": "worker/fly.toml",
+          "publicUrl": "https://hmo-dj-worker.fly.dev",
+          "healthPath": "/health"
+        }
+      ]
+    },
+    {
+      "id": "chat-tag",
+      "path": "chat-tag",
+      "github": "Mtman1987/chat-tag",
+      "role": "games, rewards, arena, and leaderboard owner",
+      "deployments": [
+        {
+          "provider": "fly",
+          "app": "chat-tag-new",
+          "config": "fly.toml",
+          "publicUrl": "https://chat-tag-new.fly.dev",
+          "healthPath": "/api/health",
+          "flyCheckPath": "/"
+        },
+        {
+          "provider": "fly",
+          "app": "chat-tag-bot-new",
+          "config": "fly-bot.toml",
+          "publicUrl": "https://chat-tag-bot-new.fly.dev",
+          "healthPath": "/health"
+        }
+      ]
+    },
+    {
+      "id": "machine-rotator",
+      "path": "fly-machine-rotator",
+      "github": "Mtman1987/fly-machine-rotator",
+      "role": "Fly fleet diagnostics, remediation proposals, and rotation control",
+      "deployments": [
+        {
+          "provider": "fly",
+          "app": "mtman-machine-rotator",
+          "config": "fly.toml",
+          "publicUrl": "https://mtman-machine-rotator.fly.dev",
+          "healthPath": "/healthz"
+        }
+      ]
+    },
+    {
+      "id": "space-mountain-dashboard",
+      "path": "space-mountain-dashboard",
+      "github": "Mtman1987/space-mountain-dashboard",
+      "role": "unresolved dashboard surface; keep, merge, or retire decision required",
+      "deployments": []
+    }
+  ],
+  "plannedComponents": [
+    {
+      "id": "aetherra",
+      "ownership": "partner-owned",
+      "status": "planned first external SPMT SDK canary; no repository in this workspace manifest"
+    },
+    {
+      "id": "athena-os",
+      "ownership": "spmt",
+      "status": "platform surface exists; durable command and adapter control plane remains roadmap work"
+    },
+    {
+      "id": "mountainview",
+      "ownership": "ecosystem component pending boundary decision",
+      "status": "cloud gateway and host-neutral browser or extension relay remain roadmap work"
+    }
+  ]
+}

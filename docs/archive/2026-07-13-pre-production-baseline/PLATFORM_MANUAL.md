@@ -1,4 +1,6 @@
-# SpaceMountain Platform Manual
+# Archived SpaceMountain Platform Manual Pointer
+
+> Archived on 2026-07-13 because `README.md` and `docs/DOCS_HOME.md` now provide the maintained entry points.
 
 The documentation in `docs/` explains SpaceMountain as a creator operating system.
 

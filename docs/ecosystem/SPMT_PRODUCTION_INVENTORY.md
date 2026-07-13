@@ -37,7 +37,7 @@ The clean-database smoke fixture exposed and fixed a schema-ordering defect: com
 
 ## State And Recovery
 
-Authoritative app state is stored in `/data/spmt.db`. It includes identity, OAuth clients, provider grants, messages, conversations, notifications, app installs, workspace state, developer keys/events, and Athena memory.
+Authoritative app state is stored in `/data/spmt.db`. It includes identity, OAuth clients, provider grants, messages, conversations, notifications, app installs, versioned workspace profiles, legacy overlay workspace state, developer keys/events, and Athena memory.
 
 The Fly volume reports automatic snapshots enabled with five-day retention. Five daily snapshots were present, covering 2026-07-08 through 2026-07-12 at capture time.
 
@@ -119,6 +119,14 @@ Readiness can return `degraded` with HTTP 200 when core storage is safe but opti
 - `/api/athena/commands` returns HTTP 501 with `accepted: false` and `routed: false`; it does not create fake command messages or memory records.
 - AI conversation prompts may still be stored for later display, but responses now say `stored: true`, `routed: false`, and `status: unavailable` until a real AI adapter accepts the work.
 - SpaceMountain removes the fake prompt Send control and renders the returned capability states.
+
+## Portable Workspace Contract
+
+`WorkspaceProfileV1` is now the SPMT-owned contract for non-secret appearance, three dock slots, selected overlay-scene identity, TTS subscription identities, and per-app theme mappings. It is stored in `workspace_profiles` with a schema version, monotonically increasing revision, timestamps, field validation, and an SPMT account foreign key.
+
+Authenticated GET/PATCH/PUT/export/import/reset routes enforce optimistic concurrency. Custom dock URLs require HTTPS and reject credential-like query parameters. Update events contain revision and changed-section names only; they do not copy custom URLs into notifications or Athena memory.
+
+SpaceMountain is the first consumer. It migrates the old browser-local slots only while the server profile is untouched, caches by SPMT user ID, prevents state writes during account switches, and presents save/offline/conflict/retry/reset status. The full contract and rollback order are documented in `WORKSPACE_PROFILE_V1.md`.
 
 ## Error Baseline
 

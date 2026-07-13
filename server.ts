@@ -5,6 +5,12 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { db, getDatabaseReadiness, initDb } from './db.js';
+import {
+  createDefaultWorkspaceProfile,
+  mergeWorkspaceProfile,
+  validateWorkspaceProfile,
+  type WorkspaceProfileV1,
+} from './workspace-profile.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -796,7 +802,7 @@ function createPlatformEvent(input: any, createdBy?: string) {
     event.createdAt,
   );
 
-  if (event.createdBy && ['private', 'creator', 'community'].includes(event.visibility)) {
+  if (event.createdBy && event.payload?.notify !== false && ['private', 'creator', 'community'].includes(event.visibility)) {
     const summary = typeof event.payload.summary === 'string'
       ? event.payload.summary
       : typeof event.payload.title === 'string'
@@ -858,8 +864,9 @@ app.use((req, res, next) => {
   if (origin && CORS_ORIGINS.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-spmt-key');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,If-Match,x-spmt-key');
+    res.setHeader('Access-Control-Expose-Headers', 'ETag');
   }
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
@@ -2215,6 +2222,192 @@ app.post('/api/notifications/read-all', authenticate, (req: any, res) => {
   const result = db.prepare('UPDATE notifications SET read_at = COALESCE(read_at, ?) WHERE user_id = ?')
     .run(readAt, req.user.id);
   res.json({ ok: true, updated: result.changes, readAt });
+});
+
+type StoredWorkspaceProfile = {
+  profile: WorkspaceProfileV1;
+  created: boolean;
+};
+
+function workspaceProfileEtag(revision: number) {
+  return `"workspace-${revision}"`;
+}
+
+function sendWorkspaceProfile(res: express.Response, stored: StoredWorkspaceProfile, extra: Record<string, unknown> = {}) {
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('ETag', workspaceProfileEtag(stored.profile.revision));
+  res.json({ profile: stored.profile, created: stored.created, ...extra });
+}
+
+function getOrCreateWorkspaceProfile(userId: string): StoredWorkspaceProfile {
+  const row = db.prepare(`
+    SELECT schema_version, revision, profile, created_at, updated_at
+    FROM workspace_profiles
+    WHERE user_id = ?
+  `).get(userId) as any;
+
+  if (row) {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(row.profile);
+    } catch {
+      throw Object.assign(new Error('Stored workspace profile JSON is invalid'), { statusCode: 500 });
+    }
+    const fallback = createDefaultWorkspaceProfile(row.updated_at);
+    const validation = validateWorkspaceProfile({
+      ...parsed,
+      schemaVersion: Number(row.schema_version),
+      revision: Number(row.revision),
+      updatedAt: row.updated_at,
+    }, fallback);
+    if (Object.keys(validation.fields).length) {
+      throw Object.assign(new Error('Stored workspace profile failed validation'), { statusCode: 500 });
+    }
+    return {
+      created: false,
+      profile: {
+        ...validation.profile,
+        revision: Number(row.revision),
+        updatedAt: row.updated_at,
+      },
+    };
+  }
+
+  const now = new Date().toISOString();
+  const settings = db.prepare('SELECT theme FROM user_settings WHERE user_id = ?').get(userId) as any;
+  const profile = createDefaultWorkspaceProfile(now, String(settings?.theme || 'solar-flare'));
+  db.prepare(`
+    INSERT INTO workspace_profiles (user_id, schema_version, revision, profile, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(userId, profile.schemaVersion, profile.revision, JSON.stringify(profile), now, now);
+  return { profile, created: true };
+}
+
+function expectedWorkspaceRevision(req: express.Request) {
+  const ifMatch = String(req.header('if-match') || '').trim();
+  const match = ifMatch.match(/^(?:W\/)?"workspace-(\d+)"$/);
+  if (match) return Number(match[1]);
+  const bodyRevision = Number(req.body?.revision ?? req.body?.profile?.revision);
+  return Number.isInteger(bodyRevision) && bodyRevision >= 1 ? bodyRevision : null;
+}
+
+function changedWorkspaceSections(previous: WorkspaceProfileV1, next: WorkspaceProfileV1) {
+  return ['appearance', 'dockSlots', 'activeOverlaySceneId', 'ttsSubscriptions', 'appThemeMappings']
+    .filter((key) => JSON.stringify((previous as any)[key]) !== JSON.stringify((next as any)[key]));
+}
+
+function updateWorkspaceProfile(userId: string, input: any, expectedRevision: number, mode: 'replace' | 'patch') {
+  const current = getOrCreateWorkspaceProfile(userId).profile;
+  if (current.revision !== expectedRevision) {
+    return { conflict: true as const, current };
+  }
+
+  const candidate = mode === 'patch' ? mergeWorkspaceProfile(current, input) : input;
+  const validation = validateWorkspaceProfile(candidate, current);
+  if (Object.keys(validation.fields).length) {
+    return { invalid: true as const, fields: validation.fields };
+  }
+
+  const updatedAt = new Date().toISOString();
+  const profile: WorkspaceProfileV1 = {
+    ...validation.profile,
+    schemaVersion: 1,
+    revision: current.revision + 1,
+    updatedAt,
+  };
+  const result = db.prepare(`
+    UPDATE workspace_profiles
+    SET schema_version = ?, revision = ?, profile = ?, updated_at = ?
+    WHERE user_id = ? AND revision = ?
+  `).run(profile.schemaVersion, profile.revision, JSON.stringify(profile), updatedAt, userId, current.revision);
+  if (result.changes !== 1) {
+    return { conflict: true as const, current: getOrCreateWorkspaceProfile(userId).profile };
+  }
+
+  const changed = changedWorkspaceSections(current, profile);
+  try {
+    createPlatformEvent({
+      type: 'workspace.profile.updated',
+      sourceApp: 'spmt',
+      visibility: 'private',
+      payload: {
+        revision: profile.revision,
+        changed,
+        notify: false,
+        athenaMemory: false,
+      },
+    }, userId);
+  } catch (error) {
+    console.error('Workspace profile event could not be recorded:', error);
+  }
+
+  return { profile, changed };
+}
+
+function handleWorkspaceProfileWrite(req: any, res: express.Response, mode: 'replace' | 'patch') {
+  const expectedRevision = expectedWorkspaceRevision(req);
+  if (expectedRevision === null) {
+    return res.status(428).json({ error: 'If-Match or the current profile revision is required' });
+  }
+  const input = req.body?.profile ?? req.body;
+  const result = updateWorkspaceProfile(req.user.id, input, expectedRevision, mode);
+  if ('conflict' in result) {
+    const current = result.current || getOrCreateWorkspaceProfile(req.user.id).profile;
+    res.setHeader('ETag', workspaceProfileEtag(current.revision));
+    return res.status(409).json({ error: 'Workspace profile revision conflict', profile: current });
+  }
+  if ('invalid' in result) {
+    return res.status(400).json({ error: 'Workspace profile validation failed', fields: result.fields });
+  }
+  return sendWorkspaceProfile(res, { profile: result.profile, created: false }, { changed: result.changed });
+}
+
+app.get('/api/workspace-profile', authenticate, (req: any, res) => {
+  try {
+    sendWorkspaceProfile(res, getOrCreateWorkspaceProfile(req.user.id));
+  } catch (error: any) {
+    res.status(error.statusCode || 500).json({ error: error.message || 'Workspace profile could not be loaded' });
+  }
+});
+
+app.get('/api/workspace-profile/export', authenticate, (req: any, res) => {
+  try {
+    const stored = getOrCreateWorkspaceProfile(req.user.id);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Disposition', 'attachment; filename="spmt-workspace-profile-v1.json"');
+    res.json({ profile: stored.profile, exportedAt: new Date().toISOString() });
+  } catch (error: any) {
+    res.status(error.statusCode || 500).json({ error: error.message || 'Workspace profile could not be exported' });
+  }
+});
+
+app.put('/api/workspace-profile', authenticate, (req: any, res) => {
+  handleWorkspaceProfileWrite(req, res, 'replace');
+});
+
+app.patch('/api/workspace-profile', authenticate, (req: any, res) => {
+  handleWorkspaceProfileWrite(req, res, 'patch');
+});
+
+app.post('/api/workspace-profile/import', authenticate, (req: any, res) => {
+  handleWorkspaceProfileWrite(req, res, 'replace');
+});
+
+app.post('/api/workspace-profile/reset', authenticate, (req: any, res) => {
+  const expectedRevision = expectedWorkspaceRevision(req);
+  if (expectedRevision === null) {
+    return res.status(428).json({ error: 'If-Match or the current profile revision is required' });
+  }
+  const current = getOrCreateWorkspaceProfile(req.user.id).profile;
+  if (current.revision !== expectedRevision) {
+    res.setHeader('ETag', workspaceProfileEtag(current.revision));
+    return res.status(409).json({ error: 'Workspace profile revision conflict', profile: current });
+  }
+  const reset = createDefaultWorkspaceProfile(new Date().toISOString());
+  const result = updateWorkspaceProfile(req.user.id, reset, expectedRevision, 'replace');
+  if ('conflict' in result) return res.status(409).json({ error: 'Workspace profile revision conflict', profile: result.current });
+  if ('invalid' in result) return res.status(500).json({ error: 'Default workspace profile failed validation', fields: result.fields });
+  return sendWorkspaceProfile(res, { profile: result.profile, created: false }, { reset: true, changed: result.changed });
 });
 
 app.get('/api/overlay-workspace', authenticate, (req: any, res) => {

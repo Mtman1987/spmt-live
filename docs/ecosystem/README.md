@@ -8,8 +8,9 @@ This directory is the versioned engineering control center for taking the SpaceM
 2. `production-manifest.json` — machine-readable repository, deployment, health, and ownership inventory.
 3. `SPMT_PRODUCTION_INVENTORY.md` — the first app's live Gate 0 evidence, configuration classification, and open stop conditions.
 4. `PRODUCTION_ROADMAP.md` — the ordered production gates and engineering tickets.
-5. `WORKING_METHOD.md` — how to change one app without losing cross-app implications.
-6. `DOCUMENT_REGISTRY.md` — which documents are authoritative, supporting, mirrored, or archived.
+5. `WORKSPACE_PROFILE_V1.md` — the first completed portable-workspace owner/consumer contract, migration, validation, and rollback.
+6. `WORKING_METHOD.md` — how to change one app without losing cross-app implications.
+7. `DOCUMENT_REGISTRY.md` — which documents are authoritative, supporting, mirrored, or archived.
 
 ## Authority Rules
 

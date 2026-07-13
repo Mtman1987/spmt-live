@@ -35,8 +35,8 @@ The snapshot below was verified against local `main`, GitHub Actions, Fly state,
 
 | Product | Current production state | What is real now | What prevents production-ready status |
 | --- | --- | --- | --- |
-| SPMT (`spmt.live`) | Live, health passing, 11 users at audit time | Identity, sessions, account recovery foundation, apps, Commlink messages/conversations, notifications, events, basic user settings, overlay workspace JSON, Athena memory/routes | Owner recovery secret is not configured; app identity adoption is incomplete; event authorization and retention need hardening; workspace settings are not yet a complete versioned contract; Athena reports capabilities it does not execute |
-| SpaceMountain (`spacemountain.live`) | Live, health passing | Suite shell, launcher, rocket arena easter egg, SPMT mail/notifications/events, three URL slots, personal overlay canvas, builder definitions, MountainView surface | Theme persistence calls the wrong/nonexistent relative route; three URL slots are browser-local; overlay has no clean output URL; builder test buttons only show notifications; inbox is not a combined live-chat dock; `App.tsx` is too large for safe ongoing changes |
+| SPMT (`spmt.live`) | Live, health passing, 12 real users at the latest slice | Identity, sessions, account recovery, partner SDK/app review, apps, Commlink messages/conversations, notifications, events, `WorkspaceProfileV1`, overlay workspace JSON, Athena memory/routes | Owner recovery operations still need a durable admin audit path; app identity adoption is incomplete; event authorization and retention need hardening; legacy overlay/builder storage remains unversioned; Athena reports capabilities it does not execute |
+| SpaceMountain (`spacemountain.live`) | Live, health passing | Suite shell, launcher, rocket arena easter egg, SPMT mail/notifications/events, account-backed appearance and three URL slots, personal overlay canvas, builder definitions, MountainView surface | Other apps do not consume shared theme tokens yet; overlay has no clean output URL; builder test buttons only show notifications; inbox is not a combined live-chat dock; `App.tsx` remains too large and its production bundle still needs code splitting |
 | StreamWeaver | Live, health passing | Bot/AI runtime, chat processing, TTS, public overlays/listeners, shared TTS mixer, partial multi-tenant storage | Its own active TODO documents global botshare, AI, TTS, chat, metrics, welcome, gamble, voice, and other tenant-state leaks; these block feeding every bot the shared chat safely |
 | DiscordStreamHub | Live, health passing | Discord interactions, dashboards, community/live state, calendar, shoutout/moderation flows, SPMT event bridge | SPMT identity/session is not the only identity; community authority/spotlight contracts need completion; cross-app events and launch targets need full production verification |
 | HearMeOut + DJ worker | Both live with passing checks | Rooms, LiveKit configuration, watch/listen state, Discord Activity paths, overlays, voice/media event publishing | Media behavior still has multiple truth paths; production media roadmap has 510 unchecked documentation tasks; player/source/Activity/OBS behavior needs contract consolidation and end-to-end tests |
@@ -113,15 +113,15 @@ This is Gate 5, after tenant isolation and normalized chat are safe.
 
 ### Do overlays, URL slots, and themes persist across apps now?
 
-Only partially.
+Partially, with the first Gate 2 consumer now implemented.
 
-- Overlay widget positions and builder rows persist in `spmt-live.overlay_workspaces` for the signed-in account.
-- The three bottom URL slots persist only in browser `localStorage` under `spmtEmbedSlots`.
-- Full visual preferences exist only in React state. Their save handler posts to `/api/user/:id/preference`, but SpaceMountain does not implement that route and does not call SPMT's authenticated `/api/settings` route.
-- Other apps do not consume a shared theme/workspace contract.
-- The overlay only renders on top of the SpaceMountain application; there is no controls-free OBS/browser-source route.
+- `WorkspaceProfileV1` stores every current SpaceMountain appearance control and all three dock slots in the signed-in SPMT account with validation and revision conflicts.
+- SpaceMountain migrates `spmtEmbedSlots` once, uses an account-specific local cache only for startup/offline visibility, and shows save, retry, conflict, reload, and reset states.
+- Overlay widget positions and builder rows still share the legacy `spmt-live.overlay_workspaces` blob and must be split into versioned scene and workflow records.
+- Other apps do not consume shared theme tokens yet.
+- The overlay still renders only on top of SpaceMountain; there is no controls-free OBS/browser-source route.
 
-Gate 2 creates the portable workspace contract. Gate 4 creates the actual overlay studio and output URLs.
+Tickets 13 through 15 are complete for the owner plus first consumer. Gate 2 remains open for overlay/TTS selectors and one-at-a-time app theme adoption. Gate 4 creates the actual overlay studio and output URLs.
 
 ### Can the glasses connect directly to the cloud without the mobile app?
 
@@ -1055,9 +1055,9 @@ These are the next concrete tasks, in dependency order:
 10. Close StreamWeaver high-priority cross-tenant botshare/alias leaks.
 11. Close StreamWeaver global AI/TTS/shared-chat state leaks.
 12. Add the two-tenant automated isolation fixture.
-13. Define and migrate `WorkspaceProfileV1`.
-14. Fix SpaceMountain authenticated theme/settings save and cross-device load.
-15. Migrate the three bottom URL slots from localStorage.
+13. **Completed 2026-07-13:** define and migrate `WorkspaceProfileV1` with validation, revision conflicts, export/import/reset, redacted events, and two-account tests.
+14. **Completed 2026-07-13:** fix SpaceMountain authenticated theme/settings save and cross-device load with visible offline, conflict, retry, reload, and reset states.
+15. **Completed 2026-07-13:** migrate the three bottom URL slots from `localStorage` once and keep only a per-account startup/offline cache.
 16. Split overlay scenes from builder definitions in storage.
 17. Define `SharedChatEventV1` and managed Social Stream listener.
 18. Build the Commlink Live Chat lane with reconnect/replay first.

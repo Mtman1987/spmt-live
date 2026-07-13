@@ -146,6 +146,131 @@ try {
   assert.equal(invalidUsernameResponse.status, 400);
   assert.match(invalidUsername.error, /before @spmt\.live/);
 
+  const workspaceResponse = await fetch(`${baseUrl}/api/workspace-profile`, {
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const workspace = await workspaceResponse.json();
+  assert.equal(workspaceResponse.status, 200);
+  assert.equal(workspace.created, true);
+  assert.equal(workspace.profile.schemaVersion, 1);
+  assert.equal(workspace.profile.revision, 1);
+  assert.equal(workspace.profile.dockSlots.length, 3);
+  assert.equal(workspaceResponse.headers.get('etag'), '"workspace-1"');
+
+  const missingWorkspaceRevisionResponse = await fetch(`${baseUrl}/api/workspace-profile`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ profile: { appearance: { themeId: 'nebula-purple' } } }),
+  });
+  assert.equal(missingWorkspaceRevisionResponse.status, 428);
+
+  const invalidWorkspaceResponse = await fetch(`${baseUrl}/api/workspace-profile`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${registration.token}`,
+      'If-Match': '"workspace-1"',
+    },
+    body: JSON.stringify({
+      profile: {
+        dockSlots: workspace.profile.dockSlots.map((slot) => slot.id === 1
+          ? { ...slot, url: 'https://example.com/overlay?token=must-not-persist' }
+          : slot),
+      },
+    }),
+  });
+  const invalidWorkspace = await invalidWorkspaceResponse.json();
+  assert.equal(invalidWorkspaceResponse.status, 400);
+  assert.match(invalidWorkspace.fields['dockSlots.1.url'], /sensitive token/);
+
+  const updatedDockSlots = workspace.profile.dockSlots.map((slot) => slot.id === 1
+    ? { ...slot, title: 'Smoke Overlay', url: 'https://example.com/smoke-overlay', collapsed: false, volume: 0.5, muted: true }
+    : slot);
+  const workspaceUpdateResponse = await fetch(`${baseUrl}/api/workspace-profile`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${registration.token}`,
+      'If-Match': '"workspace-1"',
+    },
+    body: JSON.stringify({
+      profile: {
+        appearance: { themeId: 'nebula-purple', glowIntensity: 73 },
+        dockSlots: updatedDockSlots,
+        activeOverlaySceneId: 'scene-main',
+        ttsSubscriptions: ['streamweaver-main'],
+        appThemeMappings: { streamweaver: 'follow-workspace' },
+      },
+    }),
+  });
+  const workspaceUpdate = await workspaceUpdateResponse.json();
+  assert.equal(workspaceUpdateResponse.status, 200);
+  assert.equal(workspaceUpdate.profile.revision, 2);
+  assert.equal(workspaceUpdate.profile.appearance.themeId, 'nebula-purple');
+  assert.equal(workspaceUpdate.profile.appearance.glowIntensity, 73);
+  assert.equal(workspaceUpdate.profile.dockSlots[0].muted, true);
+  assert.equal(workspaceUpdateResponse.headers.get('etag'), '"workspace-2"');
+  assert.deepEqual(workspaceUpdate.changed.sort(), ['activeOverlaySceneId', 'appThemeMappings', 'appearance', 'dockSlots', 'ttsSubscriptions']);
+
+  const staleWorkspaceResponse = await fetch(`${baseUrl}/api/workspace-profile`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${registration.token}`,
+      'If-Match': '"workspace-1"',
+    },
+    body: JSON.stringify({ profile: { appearance: { themeId: 'oceanic-blue' } } }),
+  });
+  const staleWorkspace = await staleWorkspaceResponse.json();
+  assert.equal(staleWorkspaceResponse.status, 409);
+  assert.equal(staleWorkspace.profile.revision, 2);
+  assert.equal(staleWorkspace.profile.appearance.themeId, 'nebula-purple');
+
+  const exportedWorkspaceResponse = await fetch(`${baseUrl}/api/workspace-profile/export`, {
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const exportedWorkspace = await exportedWorkspaceResponse.json();
+  assert.equal(exportedWorkspaceResponse.status, 200);
+  assert.equal(exportedWorkspace.profile.revision, 2);
+  assert.match(exportedWorkspaceResponse.headers.get('content-disposition'), /spmt-workspace-profile-v1\.json/);
+
+  const secondRegistrationResponse = await fetch(`${baseUrl}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'workspace-user-two', password: 'smoke-password-123', displayName: 'Workspace User Two' }),
+  });
+  const secondRegistration = await secondRegistrationResponse.json();
+  assert.equal(secondRegistrationResponse.status, 201);
+  const secondWorkspaceResponse = await fetch(`${baseUrl}/api/workspace-profile`, {
+    headers: { Authorization: `Bearer ${secondRegistration.token}` },
+  });
+  const secondWorkspace = await secondWorkspaceResponse.json();
+  assert.equal(secondWorkspaceResponse.status, 200);
+  assert.equal(secondWorkspace.profile.appearance.themeId, 'solar-flare');
+  assert.notEqual(secondWorkspace.profile.dockSlots[0].title, 'Smoke Overlay');
+
+  const resetWorkspaceResponse = await fetch(`${baseUrl}/api/workspace-profile/reset`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${registration.token}`,
+      'If-Match': '"workspace-2"',
+    },
+  });
+  const resetWorkspace = await resetWorkspaceResponse.json();
+  assert.equal(resetWorkspaceResponse.status, 200);
+  assert.equal(resetWorkspace.profile.revision, 3);
+  assert.equal(resetWorkspace.profile.appearance.themeId, 'solar-flare');
+  assert.equal(resetWorkspace.profile.dockSlots[0].title, 'ChatTag Overlay');
+
+  const workspaceDb = new Database(databasePath, { readonly: true });
+  const workspaceEvent = workspaceDb.prepare("SELECT payload FROM platform_events WHERE type = 'workspace.profile.updated' AND created_by = ? ORDER BY datetime(created_at) DESC LIMIT 1")
+    .get(registration.user.id);
+  const workspaceRows = workspaceDb.prepare('SELECT user_id, revision FROM workspace_profiles ORDER BY user_id').all();
+  workspaceDb.close();
+  assert.ok(workspaceEvent);
+  assert.equal(JSON.stringify(JSON.parse(workspaceEvent.payload)).includes('example.com'), false);
+  assert.equal(workspaceRows.length, 2);
+
   const linkResponse = await fetch(`${baseUrl}/api/user/link`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
@@ -394,7 +519,7 @@ try {
   assert.equal(conversation.stored, true);
   assert.equal(conversation.routed, false);
 
-  console.log(JSON.stringify({ status: 'passed', checks: 108 }));
+  console.log(JSON.stringify({ status: 'passed', checks: 144 }));
 } catch (error) {
   throw new Error(`SPMT smoke failed: ${error instanceof Error ? error.message : error}\n${output}`);
 } finally {

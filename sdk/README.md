@@ -8,6 +8,12 @@ This is the installable partner SDK and `spmt` developer CLI. It is served direc
 npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt install
 ```
 
+If npm reuses an old cached tarball, use the versioned package URL:
+
+```powershell
+npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.1.1.tgz -- spmt install
+```
+
 The command creates:
 
 - `spmt.app.json` — public app metadata; safe to commit
@@ -46,6 +52,12 @@ Then publish it without renaming the fields:
 
 ```bash
 npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt event server.status --data-file status.json
+```
+
+Cache-proof version:
+
+```bash
+npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.1.1.tgz -- spmt event server.status --data-file status.json
 ```
 
 The stored event type becomes `game.server.status`, the source app comes from `spmt.app.json`, and the payload keeps the exact JSON shape above.

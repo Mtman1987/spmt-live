@@ -47,6 +47,12 @@ Save it as `status.json`, then run:
 npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt event server.status --data-file status.json
 ```
 
+If npm reuses an old cached SDK, use the versioned package URL:
+
+```bash
+npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.1.1.tgz -- spmt event server.status --data-file status.json
+```
+
 SPMT stores that object unchanged under the event `payload`; it does not require camelCase field names.
 
 ## Non-Node projects

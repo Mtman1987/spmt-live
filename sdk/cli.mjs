@@ -136,9 +136,9 @@ async function install(flags) {
     category: String(flags.category || 'Games'),
     launchUrl,
     healthUrl,
-    version: String(flags.version || packageJson?.version || '0.1.0'),
+    version: String(flags.version || packageJson?.version || '0.1.1'),
     permissions: ['identity:read', 'apps:read', 'events:write'],
-    events: ['game.session.started', 'game.session.ended', 'game.player.progressed'],
+    events: ['game.session.started', 'game.session.ended', 'game.player.progressed', 'game.server.status'],
   };
 
   const manifestWritten = await writeIfAllowed(

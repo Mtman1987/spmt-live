@@ -6,7 +6,7 @@
   "category": "Games",
   "launchUrl": "",
   "healthUrl": "",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "permissions": [
     "identity:read",
     "apps:read",
@@ -15,6 +15,7 @@
   "events": [
     "game.session.started",
     "game.session.ended",
-    "game.player.progressed"
+    "game.player.progressed",
+    "game.server.status"
   ]
 }

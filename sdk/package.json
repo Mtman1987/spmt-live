@@ -1,6 +1,6 @@
 {
   "name": "@spmt/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "SpaceMountain identity, app registry, and game-event SDK",
   "type": "module",
   "exports": {

@@ -9,13 +9,64 @@
       "path": "spmt-live",
       "github": "Mtman1987/spmt-live",
       "role": "shared identity and platform contract owner",
+      "decision": "keep and harden",
+      "operationalOwner": "Fly organization mtman-new and Mtman1987 repository owner",
       "deployments": [
         {
           "provider": "fly",
           "app": "spmt-live",
           "config": "fly.toml",
           "publicUrl": "https://spmt.live",
-          "healthPath": "/api/health"
+          "livenessPath": "/api/health/live",
+          "readinessPath": "/api/health/ready",
+          "compatibilityHealthPath": "/api/health",
+          "baselineBuildSha": "abb4b480bf85ff68d5acc2cb10726fa63599145a",
+          "process": "app",
+          "region": "lax",
+          "machineCount": 1,
+          "machineSize": "shared-cpu-1x/256MB",
+          "autoStart": true,
+          "autoStop": false,
+          "minimumMachinesRunning": 1,
+          "volume": {
+            "name": "spmt_data",
+            "mount": "/data",
+            "sizeGB": 1,
+            "encrypted": true,
+            "automaticSnapshots": true,
+            "snapshotRetentionDays": 5
+          },
+          "database": {
+            "engine": "SQLite",
+            "path": "/data/spmt.db",
+            "journalMode": "wal",
+            "authoritativeState": [
+              "identity",
+              "sessions and OAuth clients",
+              "provider grants",
+              "messages and notifications",
+              "app installs",
+              "workspace state",
+              "Athena memory"
+            ]
+          },
+          "configuredSecretNamesAtCapture": [
+            "JWT_SECRET",
+            "SYSTEM_API_KEY",
+            "DSH_BOT_KEY",
+            "DISCORD_BOT_TOKEN",
+            "DISCORD_GUILD_ID",
+            "TWITCH_CLIENT_ID",
+            "TWITCH_CLIENT_SECRET"
+          ],
+          "missingProductionSecretNamesAtCapture": [
+            "SPMT_ADMIN_RECOVERY_KEY",
+            "SPACEMOUNTAIN_CLIENT_SECRET",
+            "DSH_CLIENT_SECRET",
+            "STREAMWEAVER_CLIENT_SECRET",
+            "CHAT_TAG_CLIENT_SECRET",
+            "HEARMEOUT_CLIENT_SECRET"
+          ]
         }
       ]
     },

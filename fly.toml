@@ -15,7 +15,7 @@ primary_region = "lax"
   grace_period = "10s"
   interval = "30s"
   method = "GET"
-  path = "/api/health"
+  path = "/api/health/ready"
   timeout = "5s"
 
 [[mounts]]

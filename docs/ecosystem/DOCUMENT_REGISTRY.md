@@ -11,6 +11,7 @@ This registry prevents old plans, generated mirrors, and public copy from becomi
 | Internal production execution | `docs/ecosystem/PRODUCTION_ROADMAP.md` | Ordered gates and active engineering tickets |
 | Starting evidence and capture process | `docs/ecosystem/PRODUCTION_BASELINE.md` | Refresh evidence before every slice |
 | Machine-readable repo/deploy inventory | `docs/ecosystem/production-manifest.json` | Documentation inventory only; never a runtime secret/config store |
+| SPMT Gate 0 runtime evidence | `docs/ecosystem/SPMT_PRODUCTION_INVENTORY.md` | Refresh from live Fly, database, workflow, backup, and smoke evidence |
 | Cross-app implementation method | `docs/ecosystem/WORKING_METHOD.md` | Plan ecosystem-wide; implement and verify one owner/consumer at a time |
 | Public docs entry | `docs/DOCS_HOME.md` | Creator and developer documentation navigation |
 | Public roadmap | `PUBLIC_ROADMAP.md` | Short, truthful, non-technical status only |

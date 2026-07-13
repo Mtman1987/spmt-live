@@ -1,25 +1,97 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import 'dotenv/config';
 
-const DB_PATH = process.env.DATABASE_PATH || '/data/spmt.db';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || Boolean(process.env.FLY_APP_NAME);
+const PERSISTENT_DATABASE_ROOT = path.resolve('/data');
+const DEFAULT_DATABASE_PATH = IS_PRODUCTION ? '/data/spmt.db' : path.join(process.cwd(), 'spmt.db');
+const CONFIGURED_DATABASE_PATH = process.env.DATABASE_PATH || DEFAULT_DATABASE_PATH;
 
-// Ensure directory exists
-const dir = path.dirname(DB_PATH);
-if (!fs.existsSync(dir)) {
-  try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+function openDatabase(targetPath: string) {
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  const instance = new Database(targetPath);
+  instance.pragma('journal_mode = WAL');
+  return instance;
 }
 
-let dbPath = DB_PATH;
+function isPersistentDatabasePath(targetPath: string) {
+  const resolved = path.resolve(targetPath);
+  return resolved === PERSISTENT_DATABASE_ROOT || resolved.startsWith(`${PERSISTENT_DATABASE_ROOT}${path.sep}`);
+}
+
+let dbPath = CONFIGURED_DATABASE_PATH;
+let database: ReturnType<typeof openDatabase>;
 try {
-  const test = new Database(dbPath);
-  test.close();
-} catch {
-  dbPath = path.join(process.cwd(), 'spmt.db');
+  database = openDatabase(dbPath);
+} catch (error) {
+  if (IS_PRODUCTION) {
+    throw new Error(`Unable to open configured production database at ${dbPath}`, { cause: error });
+  }
+
+  const fallbackPath = path.join(process.cwd(), 'spmt.db');
+  if (path.resolve(fallbackPath) === path.resolve(dbPath)) {
+    throw error;
+  }
+
+  console.warn(`Unable to open development database at ${dbPath}; using ${fallbackPath}`);
+  dbPath = fallbackPath;
+  database = openDatabase(dbPath);
 }
 
-export const db = new Database(dbPath);
-db.pragma('journal_mode = WAL');
+export const db = database;
+
+export const databaseRuntime = Object.freeze({
+  file: path.basename(dbPath),
+  storage: isPersistentDatabasePath(dbPath) ? 'persistent-volume' : 'local',
+  persistentExpected: IS_PRODUCTION,
+});
+
+export function getDatabaseReadiness() {
+  const startedAt = performance.now();
+  let transactionStarted = false;
+
+  try {
+    db.prepare('SELECT 1 AS ok').get();
+    const integrity = String(db.pragma('quick_check', { simple: true }) || 'unknown').toLowerCase();
+    const journalMode = String(db.pragma('journal_mode', { simple: true }) || 'unknown').toLowerCase();
+
+    db.exec('BEGIN IMMEDIATE');
+    transactionStarted = true;
+    db.exec('ROLLBACK');
+    transactionStarted = false;
+
+    const stats = fs.statSync(dbPath);
+    const persistentStorageReady = !databaseRuntime.persistentExpected || databaseRuntime.storage === 'persistent-volume';
+    const ready = integrity === 'ok' && persistentStorageReady;
+
+    return {
+      status: ready ? 'ready' : 'not_ready',
+      storage: databaseRuntime.storage,
+      persistentExpected: databaseRuntime.persistentExpected,
+      file: databaseRuntime.file,
+      bytes: stats.size,
+      journalMode,
+      integrity,
+      writable: true,
+      latencyMs: Number((performance.now() - startedAt).toFixed(2)),
+    };
+  } catch {
+    if (transactionStarted) {
+      try { db.exec('ROLLBACK'); } catch {}
+    }
+
+    return {
+      status: 'not_ready',
+      storage: databaseRuntime.storage,
+      persistentExpected: databaseRuntime.persistentExpected,
+      file: databaseRuntime.file,
+      writable: false,
+      latencyMs: Number((performance.now() - startedAt).toFixed(2)),
+      error: 'database_check_failed',
+    };
+  }
+}
 
 function seedOauthClient(clientId: string, clientSecret: string, name: string, redirectUris: string) {
   const existing = db.prepare('SELECT client_id FROM oauth_clients WHERE client_id = ?').get(clientId);
@@ -49,19 +121,6 @@ export function initDb() {
     );
   `);
 
-  // Migrate: add columns if they don't exist (for existing databases)
-  try { db.exec('ALTER TABLE users ADD COLUMN discord_username TEXT'); } catch {}
-  try { db.exec('ALTER TABLE users ADD COLUMN discord_id TEXT'); } catch {}
-  try { db.exec('ALTER TABLE users ADD COLUMN twitch_username TEXT'); } catch {}
-  try { db.exec('ALTER TABLE users ADD COLUMN twitch_id TEXT'); } catch {}
-  try { db.exec('ALTER TABLE messages ADD COLUMN read_at TEXT'); } catch {}
-  try { db.exec('ALTER TABLE messages ADD COLUMN channel TEXT DEFAULT "direct"'); } catch {}
-  try { db.exec('ALTER TABLE messages ADD COLUMN conversation_id TEXT'); } catch {}
-  try { db.exec('ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT "direct"'); } catch {}
-  try { db.exec('ALTER TABLE messages ADD COLUMN metadata TEXT'); } catch {}
-  try { db.exec('ALTER TABLE messages ADD COLUMN attachments TEXT'); } catch {}
-  try { db.exec('ALTER TABLE messages ADD COLUMN mentioned_users TEXT'); } catch {}
-
   db.exec(`
     CREATE TABLE IF NOT EXISTS oauth_clients (
       client_id TEXT PRIMARY KEY,
@@ -87,6 +146,13 @@ export function initDb() {
       to_id TEXT NOT NULL,
       subject TEXT DEFAULT '',
       body TEXT NOT NULL,
+      read_at TEXT,
+      channel TEXT DEFAULT 'direct',
+      conversation_id TEXT,
+      message_type TEXT DEFAULT 'direct',
+      metadata TEXT,
+      attachments TEXT,
+      mentioned_users TEXT,
       created_at TEXT NOT NULL,
       FOREIGN KEY(from_id) REFERENCES users(id),
       FOREIGN KEY(to_id) REFERENCES users(id)
@@ -292,6 +358,20 @@ export function initDb() {
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
   `);
+
+  // Compatibility migrations run after canonical tables exist so a fresh database
+  // and an older production database converge on the same schema.
+  try { db.exec('ALTER TABLE users ADD COLUMN discord_username TEXT'); } catch {}
+  try { db.exec('ALTER TABLE users ADD COLUMN discord_id TEXT'); } catch {}
+  try { db.exec('ALTER TABLE users ADD COLUMN twitch_username TEXT'); } catch {}
+  try { db.exec('ALTER TABLE users ADD COLUMN twitch_id TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN read_at TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN channel TEXT DEFAULT "direct"'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN conversation_id TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT "direct"'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN metadata TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN attachments TEXT'); } catch {}
+  try { db.exec('ALTER TABLE messages ADD COLUMN mentioned_users TEXT'); } catch {}
 
   try { db.exec('ALTER TABLE developer_api_keys ADD COLUMN key_hash TEXT'); } catch {}
   try { db.exec('ALTER TABLE developer_api_keys ADD COLUMN revoked_at TEXT'); } catch {}

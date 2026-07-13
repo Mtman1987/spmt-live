@@ -4,15 +4,21 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import { db, initDb } from './db.js';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import { db, getDatabaseReadiness, initDb } from './db.js';
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || Boolean(process.env.FLY_APP_NAME);
 const JWT_SECRET = process.env.JWT_SECRET || (IS_PRODUCTION ? '' : 'spmt-dev-secret-change-in-production');
+const APP_VERSION = '1.0.0';
+const BUILD_SHA = process.env.BUILD_SHA || 'development';
+const OAUTH_CLIENT_SECRET_NAMES = [
+  'SPACEMOUNTAIN_CLIENT_SECRET',
+  'DSH_CLIENT_SECRET',
+  'STREAMWEAVER_CLIENT_SECRET',
+  'CHAT_TAG_CLIENT_SECRET',
+  'HEARMEOUT_CLIENT_SECRET',
+] as const;
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || [
   'https://spacemountain.live',
   'https://spacemountain-live.fly.dev',
@@ -86,23 +92,35 @@ const SUITE_APPS = [
 ];
 
 const ATHENA_SKILLS = [
-  { id: 'command-routing', name: 'Command Routing', description: 'Routes creator commands to apps, dock slots, Commlink, forums, and rooms.', phase: 'core' },
-  { id: 'shared-memory', name: 'Shared Memory', description: 'Stores user and app context for reuse across the ecosystem.', phase: 'core' },
-  { id: 'creator-copilot', name: 'Creator Copilot', description: 'Turns creator goals into launch, message, forum, and automation actions.', phase: 'assistant' },
-  { id: 'voice-control', name: 'Voice Control', description: 'Accepts voice transcripts and maps them to Command Bridge actions.', phase: 'assistant' },
+  { id: 'command-routing', name: 'Command Routing', description: 'Will route creator commands to apps through durable jobs and adapters.', phase: 'core', status: 'unavailable' },
+  { id: 'shared-memory', name: 'Shared Memory', description: 'Stores authenticated user and app context for reuse across the ecosystem.', phase: 'core', status: 'ready' },
+  { id: 'creator-copilot', name: 'Creator Copilot', description: 'Planned assistant for launch, message, forum, and automation actions.', phase: 'assistant', status: 'planned' },
+  { id: 'voice-control', name: 'Voice Control', description: 'Planned voice transcript adapter for permissioned Command Bridge jobs.', phase: 'assistant', status: 'unavailable' },
 ];
 
 const ATHENA_CREW = [
-  { id: 'athena', name: 'Athena Core', role: 'orchestrator', status: 'online' },
-  { id: 'atlas', name: 'Atlas', role: 'app awareness', status: 'ready' },
-  { id: 'echo', name: 'Echo', role: 'voice and conversation', status: 'ready' },
-  { id: 'forge', name: 'Forge', role: 'automation and plugins', status: 'ready' },
+  { id: 'athena', name: 'Athena Core', role: 'orchestrator', status: 'configured' },
+  { id: 'atlas', name: 'Atlas', role: 'app awareness', status: 'configured' },
+  { id: 'echo', name: 'Echo', role: 'voice and conversation', status: 'unavailable' },
+  { id: 'forge', name: 'Forge', role: 'automation and plugins', status: 'unavailable' },
 ];
 
+const ATHENA_CAPABILITIES = {
+  sharedMemory: 'ready',
+  appAwareness: 'configured',
+  voiceControl: 'unavailable',
+  automation: 'unavailable',
+  multiAgentCrew: 'unavailable',
+  crossAppContext: 'configured',
+  creatorAssistant: 'unavailable',
+  aiSkills: 'configured',
+  aiMarketplace: 'unavailable',
+} as const;
+
 const AUTOMATION_RECIPES = [
-  { id: 'live-creator-brief', name: 'Live Creator Brief', trigger: 'stream-start', action: 'summarize apps, forums, notifications, and shoutouts' },
-  { id: 'dock-workspace', name: 'Dock Workspace', trigger: 'voice-command', action: 'open the requested app into the active dock slot' },
-  { id: 'community-followup', name: 'Community Follow-up', trigger: 'forum-or-message', action: 'route reply drafts through Commlink' },
+  { id: 'live-creator-brief', name: 'Live Creator Brief', trigger: 'stream-start', action: 'summarize apps, forums, notifications, and shoutouts', status: 'planned' },
+  { id: 'dock-workspace', name: 'Dock Workspace', trigger: 'voice-command', action: 'open the requested app into the active dock slot', status: 'planned' },
+  { id: 'community-followup', name: 'Community Follow-up', trigger: 'forum-or-message', action: 'route reply drafts through Commlink', status: 'planned' },
 ];
 
 const PLATFORM_FEATURES = [
@@ -639,9 +657,65 @@ function authenticatePlatformKey(requiredScope: string) {
 }
 
 // ─── Health ───
-app.get('/api/health', (req, res) => {
+function getRuntimeReadiness() {
+  const database = getDatabaseReadiness();
+  const missingOauthSecrets = OAUTH_CLIENT_SECRET_NAMES.filter((name) => !process.env[name]);
+  const requiredReady = database.status === 'ready' && Boolean(JWT_SECRET);
+  const degradedReasons = [
+    ...(missingOauthSecrets.length ? ['oauth_client_rotation_required'] : []),
+    ...(!process.env.SPMT_ADMIN_RECOVERY_KEY ? ['owner_recovery_unconfigured'] : []),
+  ];
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE password_hash != ?').get('SYSTEM_NO_LOGIN') as any;
-  res.json({ status: 'ok', app: 'spmt-live', uptime: process.uptime(), users: userCount?.count || 0 });
+
+  return {
+    status: requiredReady ? (degradedReasons.length ? 'degraded' : 'ready') : 'not_ready',
+    app: 'spmt-live',
+    version: APP_VERSION,
+    buildSha: BUILD_SHA,
+    uptime: process.uptime(),
+    checkedAt: new Date().toISOString(),
+    users: userCount?.count || 0,
+    database,
+    configuration: {
+      jwtSecret: JWT_SECRET ? 'configured' : 'missing',
+      ownerRecovery: process.env.SPMT_ADMIN_RECOVERY_KEY ? 'configured' : 'unavailable',
+      oauthClientSecrets: {
+        status: missingOauthSecrets.length ? 'rotation_required' : 'configured',
+        configured: OAUTH_CLIENT_SECRET_NAMES.length - missingOauthSecrets.length,
+        total: OAUTH_CLIENT_SECRET_NAMES.length,
+      },
+    },
+    dependencies: {
+      discordIdentityLookup: process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID ? 'configured' : 'unavailable',
+      twitchIdentityLookup: process.env.TWITCH_CLIENT_ID && process.env.TWITCH_ACCESS_TOKEN ? 'configured' : 'unavailable',
+      discordStreamHubPoints: process.env.DSH_BOT_KEY ? 'configured' : 'unavailable',
+    },
+    degradedReasons,
+  };
+}
+
+app.get('/api/health/live', (req, res) => {
+  res.json({
+    status: 'alive',
+    app: 'spmt-live',
+    version: APP_VERSION,
+    buildSha: BUILD_SHA,
+    uptime: process.uptime(),
+    checkedAt: new Date().toISOString(),
+  });
+});
+
+function sendReadiness(res: express.Response) {
+  const readiness = getRuntimeReadiness();
+  res.status(readiness.status === 'not_ready' ? 503 : 200).json(readiness);
+}
+
+app.get('/api/health/ready', (req, res) => {
+  sendReadiness(res);
+});
+
+app.get('/api/health', (req, res) => {
+  sendReadiness(res);
 });
 
 app.get('/api/system/health', (req, res) => {
@@ -685,18 +759,9 @@ app.get('/api/system/health', (req, res) => {
 app.get('/api/athena/os', (req, res) => {
   res.json({
     name: 'Athena OS',
-    status: 'online',
-    capabilities: {
-      sharedMemory: true,
-      appAwareness: true,
-      voiceControl: true,
-      automation: true,
-      multiAgentCrew: true,
-      crossAppContext: true,
-      creatorAssistant: true,
-      aiSkills: true,
-      aiMarketplace: true,
-    },
+    status: 'degraded',
+    summary: 'Memory and catalog surfaces exist. Durable command dispatch, voice control, automation adapters, and a live agent crew are not available yet.',
+    capabilities: ATHENA_CAPABILITIES,
     crew: ATHENA_CREW,
     skills: ATHENA_SKILLS,
     automations: AUTOMATION_RECIPES,
@@ -749,7 +814,7 @@ app.post('/api/athena/memory', authenticate, (req: any, res) => {
 });
 
 app.get('/api/athena/skills', (req, res) => {
-  res.json({ skills: ATHENA_SKILLS, marketplace: ATHENA_SKILLS.map((skill) => ({ ...skill, installable: true })) });
+  res.json({ skills: ATHENA_SKILLS, marketplace: ATHENA_SKILLS.map((skill) => ({ ...skill, installable: false })) });
 });
 
 app.get('/api/athena/crew', (req, res) => {
@@ -764,52 +829,12 @@ app.post('/api/athena/commands', authenticate, (req: any, res) => {
   const command = String(req.body?.command || '').trim();
   if (!command) return res.status(400).json({ error: 'command is required' });
 
-  const lower = command.toLowerCase();
-  const target = lower.includes('forum') ? 'forums'
-    : lower.includes('inbox') || lower.includes('message') ? 'commlink'
-    : lower.includes('app') || lower.includes('shipyard') ? 'shipyard'
-    : lower.includes('voice') ? 'voice'
-    : 'command-bridge';
-  const now = new Date().toISOString();
-  const botUser = ensureSystemUser('athena', 'Athena Core');
-  const conversationId = ensureDirectConversation(req.user.id, botUser.id, now);
-  const messageId = uuidv4();
-  const memoryId = uuidv4();
-
-  db.prepare('UPDATE conversations SET title = COALESCE(title, ?), type = ?, updated_at = ? WHERE id = ?')
-    .run('Athena Core conversation', 'ai', now, conversationId);
-  db.prepare(`
-    INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, metadata, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    messageId,
-    req.user.id,
-    botUser.id,
-    conversationId,
-    'Athena command',
+  res.status(501).json({
+    accepted: false,
+    routed: false,
+    status: 'unavailable',
     command,
-    'ai',
-    'ai_prompt',
-    JSON.stringify({ target, routedBy: 'athena-os' }),
-    now
-  );
-  db.prepare(`
-    INSERT INTO athena_memory (id, user_id, scope, topic, content, source_app, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(memoryId, req.user.id, 'command', `Routed to ${target}`, command, 'athena-os', now, now);
-
-  res.json({
-    routed: true,
-    target,
-    command,
-    conversationId,
-    messageId,
-    memoryId,
-    context: {
-      apps: buildAppsForUser(req.user.id).length,
-      skills: ATHENA_SKILLS.length,
-      crew: ATHENA_CREW.length,
-    },
+    error: 'Athena command dispatch is not implemented. No app action or durable job was created.',
   });
 });
 
@@ -846,7 +871,7 @@ app.get('/api/platform/docs', (req, res) => {
       { id: 'auth', title: 'OAuth Apps', path: '/docs/oauth', summary: 'Use SPMT OAuth to let ecosystem apps share identity without duplicate accounts.', endpoints: ['/api/oauth/authorize', '/api/oauth/token', '/api/oauth/userinfo'] },
       { id: 'apps', title: 'App Registry', path: '/docs/apps', summary: 'Read, install, disable, launch, and version registered apps.', endpoints: ['/api/apps', '/api/apps/:appId', '/api/apps/:appId/versions'] },
       { id: 'commlink', title: 'Commlink API', path: '/docs/commlink', summary: 'Send messages, create conversations, post voice metadata, and search communication records.', endpoints: ['/api/messages', '/api/conversations', '/api/voice-messages', '/api/search'] },
-      { id: 'athena', title: 'Athena OS', path: '/docs/athena', summary: 'Route commands, store memory, list skills, and coordinate the AI crew.', endpoints: ['/api/athena/os', '/api/athena/context', '/api/athena/commands', '/api/athena/memory'] },
+      { id: 'athena', title: 'Athena OS', path: '/docs/athena', summary: 'Inspect capability status, store memory, and view planned skills. Command dispatch reports unavailable until durable jobs and adapters exist.', endpoints: ['/api/athena/os', '/api/athena/context', '/api/athena/commands', '/api/athena/memory'] },
       { id: 'events', title: 'Event Bus', path: '/docs/events', summary: 'Publish typed ecosystem events for Commlink, Athena, plugins, analytics, and webhooks.', endpoints: ['/api/events', '/api/platform/events'] },
       { id: 'webhooks', title: 'Webhooks', path: '/docs/webhooks', summary: 'Register HTTPS endpoints for platform events.', endpoints: ['/api/platform/webhooks'] },
     ],
@@ -1856,7 +1881,7 @@ app.post('/api/ai/conversations', authenticate, (req: any, res) => {
       String(req.body.prompt),
       'ai',
       'ai_prompt',
-      JSON.stringify({ routedTo: botHandle, sourceApp: req.body?.sourceApp || 'spmt' }),
+      JSON.stringify({ requestedBot: botHandle, dispatchStatus: 'unavailable', sourceApp: req.body?.sourceApp || 'spmt' }),
       extractMentionedUsers(req.body.prompt, req.body?.mentions),
       now
     );
@@ -1865,7 +1890,9 @@ app.post('/api/ai/conversations', authenticate, (req: any, res) => {
   res.status(201).json({
     id: conversationId,
     bot: { username: botUser.username, displayName: botUser.display_name },
-    routed: true,
+    stored: true,
+    routed: false,
+    status: 'unavailable',
   });
 });
 
@@ -1893,12 +1920,12 @@ app.post('/api/ai/conversations/:id/messages', authenticate, (req: any, res) => 
     String(req.body.prompt),
     'ai',
     'ai_prompt',
-    JSON.stringify({ routedTo: botUser.username, sourceApp: req.body?.sourceApp || 'spmt' }),
+    JSON.stringify({ requestedBot: botUser.username, dispatchStatus: 'unavailable', sourceApp: req.body?.sourceApp || 'spmt' }),
     extractMentionedUsers(req.body.prompt, req.body?.mentions),
     now
   );
   db.prepare('UPDATE conversations SET type = ?, updated_at = ? WHERE id = ?').run('ai', now, req.params.id);
-  res.status(201).json({ id, routed: true });
+  res.status(201).json({ id, stored: true, routed: false, status: 'unavailable' });
 });
 
 app.post('/api/voice-messages', authenticate, (req: any, res) => {

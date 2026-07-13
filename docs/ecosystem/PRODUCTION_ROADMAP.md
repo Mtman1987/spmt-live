@@ -60,7 +60,7 @@ Athena currently has three different partial meanings:
 2. StreamWeaver is the working AI/chat/TTS runtime and contains the real Athena persona/bot behavior.
 3. MountainView directly selects and calls app endpoints, falling back to StreamWeaver when SPMT/Athena authorization is unavailable.
 
-SPMT `/api/athena/commands` currently records a command, chooses a text label such as `commlink` or `shipyard`, and returns `routed: true`; it does not dispatch the command to that app. The SpaceMountain Athena text box currently prints a simulated routed-success message without calling a real executor. `/api/athena/os` also reports all capabilities as available even though execution is incomplete.
+The first Gate 0 slice removes the false-success behavior: SPMT reports capability states, rejects command dispatch as unavailable without creating fake jobs, and SpaceMountain no longer offers the simulated Athena Send control. A durable command job and adapter dispatcher still need to be built in Gate 6.
 
 Decision:
 

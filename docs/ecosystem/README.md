@@ -6,9 +6,10 @@ This directory is the versioned engineering control center for taking the SpaceM
 
 1. `PRODUCTION_BASELINE.md` — what repositories and evidence form the starting point.
 2. `production-manifest.json` — machine-readable repository, deployment, health, and ownership inventory.
-3. `PRODUCTION_ROADMAP.md` — the ordered production gates and engineering tickets.
-4. `WORKING_METHOD.md` — how to change one app without losing cross-app implications.
-5. `DOCUMENT_REGISTRY.md` — which documents are authoritative, supporting, mirrored, or archived.
+3. `SPMT_PRODUCTION_INVENTORY.md` — the first app's live Gate 0 evidence, configuration classification, and open stop conditions.
+4. `PRODUCTION_ROADMAP.md` — the ordered production gates and engineering tickets.
+5. `WORKING_METHOD.md` — how to change one app without losing cross-app implications.
+6. `DOCUMENT_REGISTRY.md` — which documents are authoritative, supporting, mirrored, or archived.
 
 ## Authority Rules
 

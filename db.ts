@@ -186,6 +186,21 @@ export function initDb() {
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS overlay_workspaces (
+      user_id TEXT PRIMARY KEY,
+      layout TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS account_recovery_codes (
+      user_id TEXT PRIMARY KEY,
+      code_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      used_at TEXT,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS athena_memory (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,

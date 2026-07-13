@@ -114,6 +114,7 @@
         <div class="tabs">
           <button id="tab-login" class="active" onclick="showAuthTab('login')">Sign In</button>
           <button id="tab-register" onclick="showAuthTab('register')">Create Account</button>
+          <button id="tab-recover" onclick="showAuthTab('recover')">Recover</button>
         </div>
         <form id="form-login" onsubmit="handleLogin(event)">
           <input name="username" placeholder="mtman1987 or mtman1987@spmt.live" required>
@@ -128,6 +129,19 @@
           <input name="password" type="password" placeholder="password, minimum 6 characters" required minlength="6">
           <button type="submit" class="btn primary">Create Account</button>
         </form>
+        <div id="form-recover" class="hidden">
+          <form onsubmit="handleUsernameRecovery(event)">
+            <input name="discordUsername" placeholder="linked Discord username (or use Twitch below)">
+            <input name="twitchUsername" placeholder="linked Twitch username">
+            <button type="submit" class="btn">Find Username</button>
+          </form>
+          <form onsubmit="handlePasswordReset(event)" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--line)">
+            <input name="username" placeholder="SPMT username" required>
+            <input name="recoveryCode" placeholder="SPMT recovery code" required>
+            <input name="newPassword" type="password" placeholder="new password, minimum 8 characters" minlength="8" required>
+            <button type="submit" class="btn primary">Reset Password</button>
+          </form>
+        </div>
         <div id="auth-msg" class="notice"></div>
       </div>
       <div class="card">
@@ -282,6 +296,16 @@
           <p class="muted small">This is the shape apps receive when they ask SPMT for the current signed-in account.</p>
           <pre id="bridge-json" class="small" style="white-space:pre-wrap;overflow:auto;background:#080b11;border:1px solid var(--line);border-radius:8px;padding:12px"></pre>
         </div>
+        <div class="card span-5">
+          <h3>Password + Recovery</h3>
+          <form onsubmit="handlePasswordChange(event)">
+            <input name="currentPassword" type="password" placeholder="current password" required>
+            <input name="newPassword" type="password" placeholder="new password, minimum 8 characters" minlength="8" required>
+            <button type="submit" class="btn primary">Change Password</button>
+          </form>
+          <button class="btn" style="margin-top:12px" onclick="generateRecoveryCode()">Generate New Recovery Code</button>
+          <div id="password-msg" class="notice"></div>
+        </div>
       </section>
     </main>
   </div>
@@ -310,8 +334,10 @@
     function showAuthTab(tab) {
       document.getElementById('form-login').classList.toggle('hidden', tab !== 'login');
       document.getElementById('form-register').classList.toggle('hidden', tab !== 'register');
+      document.getElementById('form-recover').classList.toggle('hidden', tab !== 'recover');
       document.getElementById('tab-login').classList.toggle('active', tab === 'login');
       document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+      document.getElementById('tab-recover').classList.toggle('active', tab === 'recover');
       setNotice('auth-msg', '');
     }
 
@@ -357,7 +383,36 @@
       });
       const data = await res.json();
       if (!res.ok) return setNotice('auth-msg', data.error || 'Registration failed', 'err');
+      if (data.recoveryCode) window.alert('Save this one-time SPMT recovery code somewhere safe. It will not be shown again unless you generate a new one:\n\n' + data.recoveryCode);
       finishAuth(data);
+    }
+
+    async function handleUsernameRecovery(event) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      const res = await fetch('/api/auth/recover-username', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ discordUsername: form.get('discordUsername'), twitchUsername: form.get('twitchUsername') })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setNotice('auth-msg', data.error || 'Username recovery failed', 'err');
+      setNotice('auth-msg', 'Your SPMT username is ' + data.handle, 'ok');
+    }
+
+    async function handlePasswordReset(event) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: form.get('username'), recoveryCode: form.get('recoveryCode'), newPassword: form.get('newPassword') })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setNotice('auth-msg', data.error || 'Password reset failed', 'err');
+      event.target.reset();
+      showAuthTab('login');
+      setNotice('auth-msg', 'Password reset. You can sign in now.', 'ok');
     }
 
     async function logout() {
@@ -559,6 +614,26 @@
       if (!res.ok) return setNotice('link-msg', data.error || 'Link failed', 'err');
       setNotice('link-msg', 'Linked account settings saved.', 'ok');
       loadBridge();
+    }
+
+    async function handlePasswordChange(event) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      const res = await api('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword: form.get('currentPassword'), newPassword: form.get('newPassword') })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setNotice('password-msg', data.error || 'Password change failed', 'err');
+      event.target.reset();
+      setNotice('password-msg', 'Password changed.', 'ok');
+    }
+
+    async function generateRecoveryCode() {
+      const res = await api('/api/auth/recovery-code', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setNotice('password-msg', data.error || 'Could not generate a recovery code', 'err');
+      setNotice('password-msg', 'Save this recovery code now: ' + data.recoveryCode, 'ok');
     }
 
     async function refreshAll() {

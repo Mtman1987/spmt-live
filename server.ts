@@ -200,6 +200,18 @@ function hashSecret(value: string) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
+function createRecoveryCode(userId: string) {
+  const raw = crypto.randomBytes(9).toString('base64url').toUpperCase();
+  const code = `SPMT-${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO account_recovery_codes (user_id, code_hash, created_at, used_at)
+    VALUES (?, ?, ?, NULL)
+    ON CONFLICT(user_id) DO UPDATE SET code_hash = excluded.code_hash, created_at = excluded.created_at, used_at = NULL
+  `).run(userId, hashSecret(code), now);
+  return code;
+}
+
 function normalizeScopes(value: unknown) {
   const requested = Array.isArray(value) ? value.map(String) : [];
   const scopes = requested.length ? requested : ['identity:read', 'apps:read', 'messages:write'];
@@ -1062,6 +1074,32 @@ app.post('/api/events', authenticate, (req: any, res) => {
   }
 });
 
+app.get('/api/events', authenticate, (req: any, res) => {
+  const limit = Math.min(Number(req.query.limit || 100) || 100, 200);
+  const rows = db.prepare(`
+    SELECT id, type, version, timestamp, source_app, actor_user_id, actor_username,
+      actor_display_name, visibility, payload, links, created_by, created_at
+    FROM platform_events
+    WHERE created_by = ? OR visibility IN ('public', 'community', 'system')
+    ORDER BY datetime(timestamp) DESC
+    LIMIT ?
+  `).all(req.user.id, limit) as any[];
+  res.json({
+    events: rows.map((row) => ({
+      id: row.id,
+      type: row.type,
+      version: row.version,
+      timestamp: row.timestamp,
+      sourceApp: row.source_app,
+      actor: { userId: row.actor_user_id, username: row.actor_username, displayName: row.actor_display_name },
+      visibility: row.visibility,
+      payload: JSON.parse(row.payload || '{}'),
+      links: row.links ? JSON.parse(row.links) : null,
+      createdAt: row.created_at,
+    })),
+  });
+});
+
 app.get('/api/apps/:appId', (req, res) => {
   const appId = String(req.params.appId || '');
   const token = req.cookies?.spmt_token || req.headers.authorization?.replace('Bearer ', '');
@@ -1198,8 +1236,9 @@ app.post('/api/auth/register', async (req, res) => {
 
   const user = getUserById(id);
   const token = signSession(user);
+  const recoveryCode = createRecoveryCode(id);
   setSessionCookie(res, token);
-  res.status(201).json({ user: serializeUser(user), token });
+  res.status(201).json({ user: serializeUser(user), token, recoveryCode });
 });
 
 // ─── Auth: Login ───
@@ -1217,6 +1256,66 @@ app.post('/api/auth/login', async (req, res) => {
   const token = signSession(user);
   setSessionCookie(res, token);
   res.json({ user: serializeUser(user), token });
+});
+
+app.post('/api/auth/recover-username', (req, res) => {
+  const discordUsername = String(req.body?.discordUsername || '').trim().replace(/^@/, '').toLowerCase();
+  const twitchUsername = String(req.body?.twitchUsername || '').trim().replace(/^@/, '').toLowerCase();
+  if (!discordUsername && !twitchUsername) return res.status(400).json({ error: 'Enter a linked Discord or Twitch username' });
+  const user = discordUsername
+    ? db.prepare(`SELECT username FROM users WHERE lower(discord_username) = ? AND password_hash != 'SYSTEM_NO_LOGIN'`).get(discordUsername) as any
+    : db.prepare(`SELECT username FROM users WHERE lower(twitch_username) = ? AND password_hash != 'SYSTEM_NO_LOGIN'`).get(twitchUsername) as any;
+  if (!user) return res.status(404).json({ error: 'No SPMT account is linked to that username' });
+  res.json({ username: user.username, handle: `${user.username}@spmt.live` });
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  const username = String(req.body?.username || '').trim().toLowerCase().replace(/@spmt\.live$/, '');
+  const recoveryCode = String(req.body?.recoveryCode || '').trim().toUpperCase();
+  const newPassword = String(req.body?.newPassword || '');
+  if (!username || !recoveryCode || newPassword.length < 8) {
+    return res.status(400).json({ error: 'Username, recovery code, and a new password of at least 8 characters are required' });
+  }
+  const user = db.prepare(`SELECT id FROM users WHERE username = ? AND password_hash != 'SYSTEM_NO_LOGIN'`).get(username) as any;
+  const recovery = user
+    ? db.prepare('SELECT code_hash, used_at FROM account_recovery_codes WHERE user_id = ?').get(user.id) as any
+    : null;
+  if (!user || !recovery || recovery.used_at || recovery.code_hash !== hashSecret(recoveryCode)) {
+    return res.status(400).json({ error: 'Invalid or already-used recovery code' });
+  }
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  const usedAt = new Date().toISOString();
+  const transaction = db.transaction(() => {
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, user.id);
+    db.prepare('UPDATE account_recovery_codes SET used_at = ? WHERE user_id = ?').run(usedAt, user.id);
+  });
+  transaction();
+  res.json({ ok: true });
+});
+
+app.post('/api/auth/change-password', authenticate, async (req: any, res) => {
+  const currentPassword = String(req.body?.currentPassword || '');
+  const newPassword = String(req.body?.newPassword || '');
+  if (!currentPassword || newPassword.length < 8) return res.status(400).json({ error: 'Current password and a new password of at least 8 characters are required' });
+  const user = db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(req.user.id) as any;
+  if (!user || !(await bcrypt.compare(currentPassword, user.password_hash))) return res.status(401).json({ error: 'Current password is incorrect' });
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(await bcrypt.hash(newPassword, 12), user.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/auth/recovery-code', authenticate, (req: any, res) => {
+  res.json({ recoveryCode: createRecoveryCode(req.user.id) });
+});
+
+app.post('/api/auth/admin/recovery-code', (req, res) => {
+  const configuredSecret = String(process.env.SPMT_ADMIN_RECOVERY_KEY || '');
+  const providedSecret = String(req.headers['x-spmt-recovery-admin'] || '');
+  if (!configuredSecret) return res.status(503).json({ error: 'Owner-assisted recovery is not configured' });
+  if (!providedSecret || providedSecret !== configuredSecret) return res.status(401).json({ error: 'Unauthorized' });
+  const username = String(req.body?.username || '').trim().toLowerCase().replace(/@spmt\.live$/, '');
+  const user = db.prepare(`SELECT id, username FROM users WHERE username = ? AND password_hash != 'SYSTEM_NO_LOGIN'`).get(username) as any;
+  if (!user) return res.status(404).json({ error: 'Account not found' });
+  res.json({ username: user.username, recoveryCode: createRecoveryCode(user.id) });
 });
 
 // ─── Auth: Logout ───
@@ -1705,6 +1804,32 @@ app.post('/api/notifications/read-all', authenticate, (req: any, res) => {
   const result = db.prepare('UPDATE notifications SET read_at = COALESCE(read_at, ?) WHERE user_id = ?')
     .run(readAt, req.user.id);
   res.json({ ok: true, updated: result.changes, readAt });
+});
+
+app.get('/api/overlay-workspace', authenticate, (req: any, res) => {
+  const row = db.prepare('SELECT layout, updated_at FROM overlay_workspaces WHERE user_id = ?').get(req.user.id) as any;
+  if (!row) return res.json({ layout: null, updatedAt: null });
+  try {
+    res.json({ layout: JSON.parse(row.layout), updatedAt: row.updated_at });
+  } catch {
+    res.json({ layout: null, updatedAt: row.updated_at });
+  }
+});
+
+app.put('/api/overlay-workspace', authenticate, (req: any, res) => {
+  const layout = req.body?.layout;
+  if (!layout || typeof layout !== 'object' || Array.isArray(layout)) {
+    return res.status(400).json({ error: 'A layout object is required' });
+  }
+  const serialized = JSON.stringify(layout);
+  if (serialized.length > 100_000) return res.status(413).json({ error: 'Overlay layout is too large' });
+  const updatedAt = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO overlay_workspaces (user_id, layout, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET layout = excluded.layout, updated_at = excluded.updated_at
+  `).run(req.user.id, serialized, updatedAt);
+  res.json({ ok: true, layout, updatedAt });
 });
 
 app.post('/api/ai/conversations', authenticate, (req: any, res) => {

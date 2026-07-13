@@ -28,7 +28,25 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || [
   'https://hearmeout-main.fly.dev',
 ].join(',')).split(',');
 
-const SUITE_APPS = [
+type EcosystemAppRecord = {
+  id: string;
+  name: string;
+  url: string;
+  authUrl?: string;
+  healthUrl?: string;
+  iconUrl?: string;
+  description: string;
+  category?: string;
+  status: string;
+  version: string;
+  latestVersion: string;
+  updatedAt: string;
+  releaseNotes: string[];
+  official?: boolean;
+  permissions?: string[];
+};
+
+const SUITE_APPS: EcosystemAppRecord[] = [
   {
     id: 'spacemountain-live',
     name: 'SpaceMountain',
@@ -212,7 +230,7 @@ const PLUGIN_MARKETPLACE = [
   { id: 'crew-router', name: 'Crew Router', category: 'Community', description: 'Routes forum, notification, and Commlink events to creator workspace lanes.', scopes: ['messages:write'] },
 ];
 
-const USER_COLUMNS = 'id, username, email, display_name, discord_username, discord_id, twitch_username, twitch_id, created_at';
+const USER_COLUMNS = 'id, username, email, display_name, discord_username, discord_id, twitch_username, twitch_id, is_admin, created_at';
 
 function hashSecret(value: string) {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -257,6 +275,121 @@ function normalizeRegistrationUsername(value: unknown): { username: string | nul
   return { username, error: null };
 }
 
+function normalizeDeveloperUrl(value: unknown, field: string, required = false) {
+  const url = String(value || '').trim();
+  if (!url && !required) return null;
+  if (!url) throw Object.assign(new Error(`${field} is required`), { statusCode: 400 });
+  if (!/^https:\/\//i.test(url) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(url)) {
+    throw Object.assign(new Error(`${field} must be an HTTPS URL (localhost HTTP is allowed for development)`), { statusCode: 400 });
+  }
+  return url;
+}
+
+function normalizeAppSubmission(input: any) {
+  const appId = String(input?.appId || input?.app_id || '').trim().toLowerCase();
+  const name = compactText(input?.name, 80);
+  const description = compactText(input?.description, 600);
+  const category = compactText(input?.category || 'Games', 60);
+  const version = String(input?.version || '0.1.0').trim();
+  const permissions = Array.from(new Set(
+    (Array.isArray(input?.permissions) ? input.permissions : [])
+      .map((permission: unknown) => String(permission).trim())
+      .filter((permission: string) => /^[a-z0-9][a-z0-9:._-]*$/i.test(permission))
+      .slice(0, 20),
+  ));
+
+  if (!/^[a-z0-9][a-z0-9-]{1,49}$/.test(appId)) {
+    throw Object.assign(new Error('appId must be a 2-50 character lowercase slug using letters, numbers, or hyphens'), { statusCode: 400 });
+  }
+  if (SUITE_APPS.some((app) => app.id === appId)) {
+    throw Object.assign(new Error('appId is reserved by a first-party SPMT app'), { statusCode: 409 });
+  }
+  if (name.length < 2 || description.length < 10) {
+    throw Object.assign(new Error('name and a description of at least 10 characters are required'), { statusCode: 400 });
+  }
+  if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
+    throw Object.assign(new Error('version must use semantic versioning such as 0.1.0'), { statusCode: 400 });
+  }
+
+  return {
+    appId,
+    name,
+    description,
+    category,
+    launchUrl: normalizeDeveloperUrl(input?.launchUrl || input?.launch_url, 'launchUrl', true) as string,
+    authUrl: normalizeDeveloperUrl(input?.authUrl || input?.auth_url, 'authUrl'),
+    healthUrl: normalizeDeveloperUrl(input?.healthUrl || input?.health_url, 'healthUrl'),
+    iconUrl: normalizeDeveloperUrl(input?.iconUrl || input?.icon_url, 'iconUrl'),
+    version,
+    permissions,
+  };
+}
+
+function serializeAppSubmission(row: any) {
+  return {
+    id: row.id,
+    appId: row.app_id,
+    name: row.name,
+    description: row.description,
+    category: row.category,
+    launchUrl: row.launch_url,
+    authUrl: row.auth_url,
+    healthUrl: row.health_url,
+    iconUrl: row.icon_url,
+    version: row.version,
+    permissions: parseStringArray(row.permissions),
+    status: row.status,
+    reviewNotes: row.review_notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    reviewedAt: row.reviewed_at,
+  };
+}
+
+function listAppSubmissions(userId: string) {
+  return (db.prepare(`
+    SELECT id, app_id, name, description, category, launch_url, auth_url, health_url,
+      icon_url, version, permissions, status, review_notes, created_at, updated_at, reviewed_at
+    FROM app_submissions
+    WHERE user_id = ?
+    ORDER BY datetime(COALESCE(updated_at, created_at)) DESC
+  `).all(userId) as any[]).map(serializeAppSubmission);
+}
+
+function submitAppForUser(userId: string, input: any) {
+  const submission = normalizeAppSubmission(input);
+  const now = new Date().toISOString();
+  const existing = db.prepare('SELECT id FROM app_submissions WHERE user_id = ? AND app_id = ?').get(userId, submission.appId) as any;
+  const id = existing?.id || uuidv4();
+
+  if (existing) {
+    db.prepare(`
+      UPDATE app_submissions
+      SET name = ?, description = ?, category = ?, launch_url = ?, auth_url = ?, health_url = ?,
+        icon_url = ?, version = ?, permissions = ?, status = 'review', updated_at = ?, reviewed_at = NULL, review_notes = NULL
+      WHERE id = ? AND user_id = ?
+    `).run(
+      submission.name, submission.description, submission.category, submission.launchUrl,
+      submission.authUrl, submission.healthUrl, submission.iconUrl, submission.version,
+      JSON.stringify(submission.permissions), now, id, userId,
+    );
+  } else {
+    db.prepare(`
+      INSERT INTO app_submissions (
+        id, user_id, app_id, name, description, category, launch_url, auth_url, health_url,
+        icon_url, version, permissions, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'review', ?, ?)
+    `).run(
+      id, userId, submission.appId, submission.name, submission.description, submission.category,
+      submission.launchUrl, submission.authUrl, submission.healthUrl, submission.iconUrl,
+      submission.version, JSON.stringify(submission.permissions), now, now,
+    );
+  }
+
+  const row = db.prepare('SELECT * FROM app_submissions WHERE id = ?').get(id);
+  return serializeAppSubmission(row);
+}
+
 function serializeUser(user: any) {
   return {
     id: user.id,
@@ -273,6 +406,8 @@ function serializeUser(user: any) {
     twitch_username: user.twitch_username,
     twitchId: user.twitch_id,
     twitch_id: user.twitch_id,
+    isAdmin: Boolean(user.is_admin),
+    is_admin: Boolean(user.is_admin),
     createdAt: user.created_at,
     created_at: user.created_at,
   };
@@ -301,13 +436,57 @@ function appPermissionsFor(appId: string) {
   return base[appId] || ['identity:read'];
 }
 
+function parseStringArray(value: unknown) {
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function approvedPartnerApps(): EcosystemAppRecord[] {
+  const rows = db.prepare(`
+    SELECT app_id, name, description, category, launch_url, auth_url, health_url,
+      icon_url, version, permissions, reviewed_at, updated_at, created_at
+    FROM app_submissions
+    WHERE status = 'approved' AND app_id IS NOT NULL
+    ORDER BY datetime(COALESCE(reviewed_at, updated_at, created_at)) ASC
+  `).all() as any[];
+
+  const reservedIds = new Set(SUITE_APPS.map((app) => app.id));
+  return rows
+    .filter((row) => row.app_id && !reservedIds.has(row.app_id))
+    .map((row) => ({
+      id: row.app_id,
+      name: row.name,
+      url: row.launch_url,
+      authUrl: row.auth_url || row.launch_url,
+      healthUrl: row.health_url || undefined,
+      iconUrl: row.icon_url || undefined,
+      description: row.description,
+      category: row.category || 'Games',
+      status: 'available',
+      version: row.version || '0.1.0',
+      latestVersion: row.version || '0.1.0',
+      updatedAt: row.reviewed_at || row.updated_at || row.created_at,
+      releaseNotes: ['Approved partner app from the SPMT developer registry.'],
+      official: false,
+      permissions: parseStringArray(row.permissions),
+    }));
+}
+
+function ecosystemApps() {
+  return [...SUITE_APPS, ...approvedPartnerApps()];
+}
+
 function buildAppsForUser(userId?: string) {
   const installs = userId
     ? db.prepare('SELECT app_id, enabled, installed_at FROM app_installs WHERE user_id = ?').all(userId) as any[]
     : [];
   const installMap = new Map(installs.map((row) => [row.app_id, row]));
 
-  return SUITE_APPS.map((app) => {
+  return ecosystemApps().map((app) => {
     const installed = app.id === 'spacemountain-live' ? true : Boolean(installMap.get(app.id));
     const install = installMap.get(app.id);
     return {
@@ -315,7 +494,7 @@ function buildAppsForUser(userId?: string) {
       installed,
       enabled: app.id === 'spacemountain-live' ? true : Boolean(install?.enabled),
       installedAt: install?.installed_at || (app.id === 'spacemountain-live' ? 'first-party' : null),
-      permissions: appPermissionsFor(app.id),
+      permissions: app.permissions?.length ? app.permissions : appPermissionsFor(app.id),
       updateAvailable: app.version !== app.latestVersion,
     };
   });
@@ -654,13 +833,20 @@ function authenticate(req: any, res: any, next: any) {
   }
 }
 
+function requirePlatformAdmin(req: any, res: any, next: any) {
+  const user = getUserById(req.user?.id);
+  if (!user?.is_admin) return res.status(403).json({ error: 'Platform administrator access required' });
+  req.currentUser = user;
+  next();
+}
+
 function authenticatePlatformKey(requiredScope: string) {
   return (req: any, res: any, next: any) => {
     const token = String(req.headers.authorization?.replace('Bearer ', '') || req.body?.token || req.query?.token || '').trim();
     if (!token) return res.status(401).json({ error: 'Platform API key required' });
 
     const row = db.prepare(`
-      SELECT id, user_id, name, key_prefix, scopes
+      SELECT id, user_id, app_id, name, key_prefix, scopes
       FROM developer_api_keys
       WHERE key_hash = ? AND revoked_at IS NULL
     `).get(hashSecret(token)) as any;
@@ -672,7 +858,7 @@ function authenticatePlatformKey(requiredScope: string) {
     }
 
     db.prepare('UPDATE developer_api_keys SET last_used_at = ? WHERE id = ?').run(new Date().toISOString(), row.id);
-    req.platformKey = { id: row.id, userId: row.user_id, name: row.name, keyPrefix: row.key_prefix, scopes };
+    req.platformKey = { id: row.id, userId: row.user_id, appId: row.app_id || null, name: row.name, keyPrefix: row.key_prefix, scopes };
     next();
   };
 }
@@ -878,11 +1064,15 @@ app.get('/api/platform', (req, res) => {
 
 app.get('/api/platform/sdk', (req, res) => {
   res.json({
-    package: '@spacemountain/sdk',
+    package: '@spmt/sdk',
     version: '0.1.0',
-    install: 'npm install @spacemountain/sdk',
-    example: "const client = new SpaceMountain({ token }); await client.apps.list();",
-    modules: ['identity', 'apps', 'events', 'commlink', 'athena', 'webhooks'],
+    npmPublished: false,
+    install: 'npm install https://spmt.live/sdk/spmt-sdk.tgz',
+    quickInstall: 'npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt install',
+    download: 'https://spmt.live/sdk/spmt-sdk.tgz',
+    starterZip: 'https://spmt.live/sdk/atherrea-spmt-starter.zip',
+    example: "const spmt = new SpaceMountainClient({ apiKey: process.env.SPMT_API_KEY, appId: 'atherrea' }); await spmt.game.publish('session.started', { sessionId: 'demo' });",
+    modules: ['identity', 'apps', 'developer', 'events', 'game', 'commlink', 'athena', 'webhooks'],
   });
 });
 
@@ -908,39 +1098,52 @@ app.get('/api/platform/docs', (req, res) => {
 
 app.get('/api/platform/api-keys', authenticate, (req: any, res) => {
   const keys = db.prepare(`
-    SELECT id, name, key_prefix, scopes, created_at, last_used_at, revoked_at
+    SELECT id, app_id, name, key_prefix, scopes, created_at, last_used_at, revoked_at
     FROM developer_api_keys
     WHERE user_id = ?
     ORDER BY datetime(created_at) DESC
-  `).all(req.user.id);
-  res.json({ keys });
+  `).all(req.user.id) as any[];
+  res.json({ keys: keys.map((row) => ({
+    id: row.id,
+    appId: row.app_id || null,
+    name: row.name,
+    keyPrefix: row.key_prefix,
+    scopes: parseStringArray(row.scopes),
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at,
+    revokedAt: row.revoked_at,
+  })) });
 });
 
 app.post('/api/platform/api-keys', authenticate, (req: any, res) => {
   const name = String(req.body?.name || 'Default platform key').trim();
+  const appId = String(req.body?.appId || req.body?.app_id || '').trim().toLowerCase() || null;
   const scopes = normalizeScopes(req.body?.scopes);
+  if (appId && !/^[a-z0-9][a-z0-9-]{1,49}$/.test(appId)) {
+    return res.status(400).json({ error: 'appId must be a lowercase slug using letters, numbers, or hyphens' });
+  }
   if (!scopes.length) return res.status(400).json({ error: 'At least one valid scope is required' });
   const id = uuidv4();
   const token = `spmt_${uuidv4().replace(/-/g, '')}`;
   const now = new Date().toISOString();
   db.prepare(`
-    INSERT INTO developer_api_keys (id, user_id, name, key_prefix, key_hash, scopes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, req.user.id, name, token.slice(0, 12), hashSecret(token), JSON.stringify(scopes), now);
-  res.status(201).json({ id, name, token, scopes, createdAt: now });
+    INSERT INTO developer_api_keys (id, user_id, app_id, name, key_prefix, key_hash, scopes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, req.user.id, appId, name, token.slice(0, 12), hashSecret(token), JSON.stringify(scopes), now);
+  res.status(201).json({ id, appId, name, token, scopes, createdAt: now });
 });
 
 app.post('/api/platform/api-keys/verify', (req, res) => {
   const token = String(req.body?.token || req.headers.authorization?.replace('Bearer ', '') || '').trim();
   if (!token) return res.status(400).json({ error: 'token required' });
   const row = db.prepare(`
-    SELECT id, user_id, name, key_prefix, scopes
+    SELECT id, user_id, app_id, name, key_prefix, scopes
     FROM developer_api_keys
     WHERE key_hash = ? AND revoked_at IS NULL
   `).get(hashSecret(token)) as any;
   if (!row) return res.status(401).json({ valid: false });
   db.prepare('UPDATE developer_api_keys SET last_used_at = ? WHERE id = ?').run(new Date().toISOString(), row.id);
-  res.json({ valid: true, key: { id: row.id, userId: row.user_id, name: row.name, keyPrefix: row.key_prefix, scopes: JSON.parse(row.scopes || '[]') } });
+  res.json({ valid: true, key: { id: row.id, userId: row.user_id, appId: row.app_id || null, name: row.name, keyPrefix: row.key_prefix, scopes: JSON.parse(row.scopes || '[]') } });
 });
 
 app.get('/api/platform/me', authenticatePlatformKey('identity:read'), (req: any, res) => {
@@ -952,9 +1155,33 @@ app.get('/api/platform/apps/public', authenticatePlatformKey('apps:read'), (req:
   res.json({ key: req.platformKey, apps: buildAppsForUser(req.platformKey.userId) });
 });
 
-app.post('/api/platform/events', authenticatePlatformKey('events:write'), (req: any, res) => {
+app.post('/api/platform/apps/submit', authenticatePlatformKey('apps:write'), (req: any, res) => {
+  const requestedAppId = String(req.body?.appId || req.body?.app_id || '').trim().toLowerCase();
+  if (req.platformKey.appId && requestedAppId !== req.platformKey.appId) {
+    return res.status(403).json({ error: `This key is limited to appId ${req.platformKey.appId}` });
+  }
   try {
-    const event = createPlatformEvent(req.body, req.platformKey.userId);
+    const submission = submitAppForUser(req.platformKey.userId, req.body);
+    res.status(201).json({ submission });
+  } catch (error: any) {
+    res.status(error.statusCode || 400).json({ error: error.message || 'Invalid app submission' });
+  }
+});
+
+app.get('/api/platform/apps/submissions', authenticatePlatformKey('apps:read'), (req: any, res) => {
+  res.json({ submissions: listAppSubmissions(req.platformKey.userId) });
+});
+
+app.post('/api/platform/events', authenticatePlatformKey('events:write'), (req: any, res) => {
+  const requestedSourceApp = String(req.body?.sourceApp || req.body?.source_app || '').trim().toLowerCase();
+  if (req.platformKey.appId && requestedSourceApp && requestedSourceApp !== req.platformKey.appId) {
+    return res.status(403).json({ error: `This key may only publish events for ${req.platformKey.appId}` });
+  }
+  try {
+    const event = createPlatformEvent({
+      ...req.body,
+      sourceApp: req.platformKey.appId || requestedSourceApp,
+    }, req.platformKey.userId);
     res.status(201).json({ event });
   } catch (error: any) {
     res.status(error.statusCode || 400).json({ error: error.message || 'Invalid event payload' });
@@ -967,10 +1194,10 @@ app.get('/api/platform/events', authenticatePlatformKey('events:write'), (req: a
     SELECT id, type, version, timestamp, source_app, actor_user_id, actor_username,
       actor_display_name, visibility, payload, links, created_by, created_at
     FROM platform_events
-    WHERE created_by = ?
+    WHERE created_by = ? AND (? IS NULL OR source_app = ?)
     ORDER BY datetime(created_at) DESC
     LIMIT ?
-  `).all(req.platformKey.userId, limit) as any[];
+  `).all(req.platformKey.userId, req.platformKey.appId, req.platformKey.appId, limit) as any[];
   res.json({
     events: events.map((event) => ({
       id: event.id,
@@ -1024,29 +1251,63 @@ app.post('/api/platform/webhooks', authenticate, (req: any, res) => {
 });
 
 app.post('/api/platform/apps', authenticate, (req: any, res) => {
-  const name = String(req.body?.name || '').trim();
-  const description = String(req.body?.description || '').trim();
-  const launchUrl = String(req.body?.launchUrl || req.body?.launch_url || '').trim();
-  if (!name || !description || !/^https?:\/\//i.test(launchUrl)) {
-    return res.status(400).json({ error: 'name, description, and launchUrl are required' });
+  try {
+    const submission = submitAppForUser(req.user.id, req.body);
+    res.status(201).json({ submission });
+  } catch (error: any) {
+    res.status(error.statusCode || 400).json({ error: error.message || 'Invalid app submission' });
   }
-  const id = uuidv4();
-  const now = new Date().toISOString();
-  db.prepare(`
-    INSERT INTO app_submissions (id, user_id, name, description, launch_url, status, created_at)
-    VALUES (?, ?, ?, ?, ?, 'review', ?)
-  `).run(id, req.user.id, name, description, launchUrl, now);
-  res.status(201).json({ id, name, description, launchUrl, status: 'review', createdAt: now });
 });
 
 app.get('/api/platform/apps', authenticate, (req: any, res) => {
-  const submissions = db.prepare(`
-    SELECT id, name, description, launch_url, status, created_at
-    FROM app_submissions
-    WHERE user_id = ?
-    ORDER BY datetime(created_at) DESC
-  `).all(req.user.id);
-  res.json({ submissions });
+  res.json({ submissions: listAppSubmissions(req.user.id) });
+});
+
+app.get('/api/platform/apps/review', authenticate, requirePlatformAdmin, (req: any, res) => {
+  const rows = db.prepare(`
+    SELECT s.*, u.username AS submitter_username, u.display_name AS submitter_display_name
+    FROM app_submissions s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.status = 'review'
+    ORDER BY datetime(COALESCE(s.updated_at, s.created_at)) ASC
+  `).all() as any[];
+  res.json({
+    submissions: rows.map((row) => ({
+      ...serializeAppSubmission(row),
+      submitter: {
+        username: row.submitter_username,
+        displayName: row.submitter_display_name,
+      },
+    })),
+  });
+});
+
+app.post('/api/platform/apps/:submissionId/review', authenticate, requirePlatformAdmin, (req: any, res) => {
+  const status = String(req.body?.status || '').trim().toLowerCase();
+  const reviewNotes = compactText(req.body?.reviewNotes || req.body?.notes || '', 600) || null;
+  if (!['approved', 'rejected'].includes(status)) {
+    return res.status(400).json({ error: 'status must be approved or rejected' });
+  }
+
+  const row = db.prepare('SELECT * FROM app_submissions WHERE id = ?').get(req.params.submissionId) as any;
+  if (!row) return res.status(404).json({ error: 'App submission not found' });
+  if (status === 'approved') {
+    const conflict = db.prepare("SELECT id FROM app_submissions WHERE status = 'approved' AND app_id = ? AND id != ?")
+      .get(row.app_id, row.id);
+    if (conflict) return res.status(409).json({ error: 'Another approved app already uses this appId' });
+  }
+
+  const reviewedAt = new Date().toISOString();
+  db.prepare('UPDATE app_submissions SET status = ?, review_notes = ?, reviewed_at = ?, updated_at = ? WHERE id = ?')
+    .run(status, reviewNotes, reviewedAt, reviewedAt, row.id);
+  createNotification(
+    row.user_id,
+    `${row.name} submission ${status}`,
+    reviewNotes || (status === 'approved' ? 'Your app is now available in the SPMT app list.' : 'Update the manifest and submit again when ready.'),
+    { type: 'app_submission', sourceApp: 'spmt', linkUrl: '/?view=developers' },
+  );
+  const updated = db.prepare('SELECT * FROM app_submissions WHERE id = ?').get(row.id);
+  res.json({ submission: serializeAppSubmission(updated) });
 });
 
 app.get('/api/platform/plugins', (req, res) => {
@@ -1164,7 +1425,7 @@ app.get('/api/apps/:appId', (req, res) => {
 
 app.get('/api/apps/:appId/versions', (req, res) => {
   const appId = String(req.params.appId || '');
-  const app = SUITE_APPS.find((item) => item.id === appId);
+  const app = ecosystemApps().find((item) => item.id === appId);
   if (!app) return res.status(404).json({ error: 'Unknown app' });
 
   res.json({
@@ -1185,7 +1446,7 @@ app.get('/api/apps/:appId/versions', (req, res) => {
 
 app.post('/api/apps/:appId/install', authenticate, (req: any, res) => {
   const appId = String(req.params.appId || '');
-  const app = SUITE_APPS.find((item) => item.id === appId);
+  const app = ecosystemApps().find((item) => item.id === appId);
   if (!app) return res.status(404).json({ error: 'Unknown app' });
 
   const now = new Date().toISOString();
@@ -1208,7 +1469,7 @@ app.post('/api/apps/:appId/install', authenticate, (req: any, res) => {
 
 app.post('/api/apps/:appId/disable', authenticate, (req: any, res) => {
   const appId = String(req.params.appId || '');
-  const app = SUITE_APPS.find((item) => item.id === appId);
+  const app = ecosystemApps().find((item) => item.id === appId);
   if (!app) return res.status(404).json({ error: 'Unknown app' });
   if (appId === 'spacemountain-live') return res.status(400).json({ error: 'SpaceMountain is a first-party app and cannot be disabled' });
 

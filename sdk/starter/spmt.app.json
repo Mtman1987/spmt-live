@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "appId": "atherrea",
+  "name": "Atherrea",
+  "description": "Atherrea connected game application for the SpaceMountain ecosystem.",
+  "category": "Games",
+  "launchUrl": "",
+  "healthUrl": "",
+  "version": "0.1.0",
+  "permissions": [
+    "identity:read",
+    "apps:read",
+    "events:write"
+  ],
+  "events": [
+    "game.session.started",
+    "game.session.ended",
+    "game.player.progressed"
+  ]
+}

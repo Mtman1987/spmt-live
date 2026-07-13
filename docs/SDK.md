@@ -1,6 +1,12 @@
-# SDK Direction
+# SDK
 
-Future package: @spmt/sdk
+Current package: `@spmt/sdk` version `0.1.0`, distributed from `https://spmt.live/sdk/spmt-sdk.tgz` until npm publication.
+
+Cross-platform setup:
+
+```bash
+npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt install
+```
 
 Suggested modules:
 - auth
@@ -14,3 +20,5 @@ Suggested modules:
 - types
 
 Apps should consume the SDK instead of duplicating API logic.
+
+See `docs/developers/PARTNER_SDK_QUICKSTART.md` for app submission, app-bound keys, Linux usage, and game-event publishing.

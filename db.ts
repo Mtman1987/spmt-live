@@ -117,6 +117,7 @@ export function initDb() {
       discord_id TEXT,
       twitch_username TEXT,
       twitch_id TEXT,
+      is_admin INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     );
   `);
@@ -282,6 +283,7 @@ export function initDb() {
     CREATE TABLE IF NOT EXISTS developer_api_keys (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
+      app_id TEXT,
       name TEXT NOT NULL,
       key_prefix TEXT NOT NULL,
       key_hash TEXT,
@@ -305,11 +307,21 @@ export function initDb() {
     CREATE TABLE IF NOT EXISTS app_submissions (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
+      app_id TEXT,
       name TEXT NOT NULL,
       description TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'Games',
       launch_url TEXT NOT NULL,
+      auth_url TEXT,
+      health_url TEXT,
+      icon_url TEXT,
+      version TEXT NOT NULL DEFAULT '0.1.0',
+      permissions TEXT NOT NULL DEFAULT '[]',
       status TEXT NOT NULL DEFAULT 'review',
       created_at TEXT NOT NULL,
+      updated_at TEXT,
+      reviewed_at TEXT,
+      review_notes TEXT,
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
 
@@ -365,6 +377,7 @@ export function initDb() {
   try { db.exec('ALTER TABLE users ADD COLUMN discord_id TEXT'); } catch {}
   try { db.exec('ALTER TABLE users ADD COLUMN twitch_username TEXT'); } catch {}
   try { db.exec('ALTER TABLE users ADD COLUMN twitch_id TEXT'); } catch {}
+  try { db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN read_at TEXT'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN channel TEXT DEFAULT "direct"'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN conversation_id TEXT'); } catch {}
@@ -375,6 +388,18 @@ export function initDb() {
 
   try { db.exec('ALTER TABLE developer_api_keys ADD COLUMN key_hash TEXT'); } catch {}
   try { db.exec('ALTER TABLE developer_api_keys ADD COLUMN revoked_at TEXT'); } catch {}
+  try { db.exec('ALTER TABLE developer_api_keys ADD COLUMN app_id TEXT'); } catch {}
+  try { db.exec('ALTER TABLE app_submissions ADD COLUMN app_id TEXT'); } catch {}
+  try { db.exec("ALTER TABLE app_submissions ADD COLUMN category TEXT NOT NULL DEFAULT 'Games'"); } catch {}
+  try { db.exec('ALTER TABLE app_submissions ADD COLUMN auth_url TEXT'); } catch {}
+  try { db.exec('ALTER TABLE app_submissions ADD COLUMN health_url TEXT'); } catch {}
+  try { db.exec('ALTER TABLE app_submissions ADD COLUMN icon_url TEXT'); } catch {}
+  try { db.exec("ALTER TABLE app_submissions ADD COLUMN version TEXT NOT NULL DEFAULT '0.1.0'"); } catch {}
+  try { db.exec("ALTER TABLE app_submissions ADD COLUMN permissions TEXT NOT NULL DEFAULT '[]'"); } catch {}
+  try { db.exec('ALTER TABLE app_submissions ADD COLUMN updated_at TEXT'); } catch {}
+  try { db.exec('ALTER TABLE app_submissions ADD COLUMN reviewed_at TEXT'); } catch {}
+  try { db.exec('ALTER TABLE app_submissions ADD COLUMN review_notes TEXT'); } catch {}
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS app_submissions_user_app ON app_submissions(user_id, app_id) WHERE app_id IS NOT NULL');
 
   seedOauthClient(
     'spacemountain-live',

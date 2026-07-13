@@ -1,5 +1,7 @@
 # Developer Quickstart
 
+For the installable partner SDK and the Atherrea proof, start with [Partner SDK Quickstart](PARTNER_SDK_QUICKSTART.md).
+
 ## Goal
 
 Build or integrate an app that feels native to the SpaceMountain ecosystem.

@@ -2,6 +2,7 @@ export type SpaceMountainTokenProvider = string | (() => string | Promise<string
 
 export type SpaceMountainClientOptions = {
   baseUrl?: string;
+  appId?: string;
   token?: SpaceMountainTokenProvider;
   apiKey?: SpaceMountainTokenProvider;
   fetchImpl?: typeof fetch;
@@ -50,6 +51,28 @@ export type WebhookInput = {
   events: string[];
 };
 
+export type AppSubmissionInput = {
+  appId: string;
+  name: string;
+  description: string;
+  category?: string;
+  launchUrl: string;
+  authUrl?: string;
+  healthUrl?: string;
+  iconUrl?: string;
+  version?: string;
+  permissions?: string[];
+};
+
+export type GameEventOptions = {
+  sourceApp?: string;
+  visibility?: EventVisibility;
+  actor?: EcosystemEventInput['actor'];
+  links?: EcosystemEventInput['links'];
+  version?: number;
+  timestamp?: string;
+};
+
 export class SpaceMountainApiError extends Error {
   status: number;
   data: unknown;
@@ -64,12 +87,14 @@ export class SpaceMountainApiError extends Error {
 
 export class SpaceMountainClient {
   readonly baseUrl: string;
+  readonly appId?: string;
   private readonly token?: SpaceMountainTokenProvider;
   private readonly apiKey?: SpaceMountainTokenProvider;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: SpaceMountainClientOptions = {}) {
     this.baseUrl = (options.baseUrl || 'https://spmt.live').replace(/\/$/, '');
+    this.appId = options.appId;
     this.token = options.token;
     this.apiKey = options.apiKey;
     this.fetchImpl = options.fetchImpl || fetch;
@@ -87,6 +112,16 @@ export class SpaceMountainClient {
     get: (appId: string) => this.request(`/api/apps/${encodeURIComponent(appId)}`),
     install: (appId: string) => this.request(`/api/apps/${encodeURIComponent(appId)}/install`, { method: 'POST' }),
     disable: (appId: string) => this.request(`/api/apps/${encodeURIComponent(appId)}/disable`, { method: 'POST' }),
+  };
+
+  developer = {
+    verifyKey: () => this.request('/api/platform/api-keys/verify', { method: 'POST', authMode: 'apiKey' }),
+    submitApp: (input: AppSubmissionInput) => this.request('/api/platform/apps/submit', {
+      method: 'POST',
+      authMode: 'apiKey',
+      body: input,
+    }),
+    submissions: () => this.request('/api/platform/apps/submissions', { authMode: 'apiKey' }),
   };
 
   events = {
@@ -108,6 +143,26 @@ export class SpaceMountainClient {
       },
     }),
     list: (limit = 50) => this.request(`/api/platform/events?limit=${encodeURIComponent(String(limit))}`, { authMode: 'apiKey' }),
+  };
+
+  game = {
+    publish: (eventType: string, payload: Record<string, unknown> = {}, options: GameEventOptions = {}) => {
+      const normalizedType = String(eventType || '').trim().toLowerCase();
+      const type = normalizedType.startsWith('game.') ? normalizedType : `game.${normalizedType}`;
+      const sourceApp = options.sourceApp || this.appId;
+      if (!sourceApp) throw new Error('appId is required in the client options or game event options');
+      return this.events.publish({
+        type,
+        sourceApp,
+        payload,
+        visibility: options.visibility || 'creator',
+        actor: options.actor,
+        links: options.links,
+        version: options.version,
+        timestamp: options.timestamp,
+      });
+    },
+    list: (limit = 50) => this.events.list(limit),
   };
 
   commlink = {

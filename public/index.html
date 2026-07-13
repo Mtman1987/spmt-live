@@ -100,6 +100,7 @@
     .modal-card { width: min(520px, 100%); max-height: calc(100vh - 40px); overflow: auto; background: var(--panel); border: 1px solid rgba(249,115,22,.42); border-radius: 12px; padding: 20px; box-shadow: 0 24px 80px rgba(0,0,0,.5); }
     .modal-card h2 { margin: 0 0 8px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+    .code-block { width: 100%; overflow: auto; white-space: pre-wrap; word-break: break-word; background: #05080d; border: 1px solid var(--line); border-radius: 8px; color: #bae6fd; padding: 12px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
     @media (max-width: 900px) {
       .shell { grid-template-columns: 1fr; }
       .sidebar { position: static; height: auto; }
@@ -187,6 +188,7 @@
         <button data-view="messages" onclick="showView('messages')">Messages</button>
         <button data-view="apps" onclick="showView('apps')">Apps + SSO</button>
         <button data-view="connections" onclick="showView('connections')">Connections</button>
+        <button data-view="developers" onclick="showView('developers')">Developers</button>
         <button data-view="forums" onclick="showView('forums')">Forums</button>
         <button data-view="settings" onclick="showView('settings')">Account</button>
       </nav>
@@ -277,6 +279,62 @@
         <div id="provider-grants" class="grid cols span-12"></div>
       </section>
 
+      <section id="view-developers" class="hidden grid cols">
+        <div class="card span-12">
+          <h3>Install the SPMT developer kit</h3>
+          <p class="muted small" style="margin-bottom:12px">Run this inside the app folder on Windows, macOS, or Linux. It creates the public manifest and a working game-event proof.</p>
+          <pre id="sdk-install-command" class="code-block">Loading SDK command...</pre>
+          <div class="row" style="margin-top:10px;flex-wrap:wrap">
+            <button class="btn" onclick="copySdkCommand()">Copy command</button>
+            <a id="sdk-download-link" class="btn" href="/sdk/spmt-sdk.tgz">Download package</a>
+            <a id="sdk-starter-link" class="btn" href="/sdk/atherrea-spmt-starter.zip">Download Atherrea ZIP</a>
+          </div>
+        </div>
+        <div class="card span-5">
+          <h3>Create an app-bound key</h3>
+          <p class="muted small" style="margin-bottom:12px">The key can identify the account, read/submit apps, and publish events only for the app ID entered here.</p>
+          <form onsubmit="createPlatformKey(event)">
+            <label class="field-label" for="developer-key-app-id">App ID</label>
+            <input id="developer-key-app-id" placeholder="atherrea" pattern="[a-z0-9][a-z0-9-]{1,49}" required>
+            <input id="developer-key-name" placeholder="Atherrea development key" required>
+            <button type="submit" class="btn primary">Create scoped key</button>
+          </form>
+          <div id="developer-key-msg" class="notice"></div>
+          <div id="developer-new-key" class="hidden">
+            <label class="field-label" for="developer-key-token">Copy this secret now; it is shown only once</label>
+            <textarea id="developer-key-token" readonly style="min-height:76px"></textarea>
+            <button class="btn" onclick="copyDeveloperKey()">Copy key</button>
+          </div>
+        </div>
+        <div class="card span-7">
+          <div class="row between"><h3>Platform keys</h3><button class="btn" onclick="loadDeveloperPortal()">Refresh</button></div>
+          <div id="developer-keys" class="list"></div>
+        </div>
+        <div class="card span-5">
+          <h3>Submit an app for the app list</h3>
+          <form onsubmit="submitDeveloperApp(event)">
+            <input id="developer-app-id" placeholder="app id, such as atherrea" required>
+            <input id="developer-app-name" placeholder="app name" required>
+            <textarea id="developer-app-description" placeholder="what this app does" required style="min-height:90px"></textarea>
+            <input id="developer-app-launch-url" type="url" placeholder="https://app.example.com" required>
+            <input id="developer-app-health-url" type="url" placeholder="https://app.example.com/health (optional)">
+            <input id="developer-app-version" placeholder="version" value="0.1.0" required>
+            <button type="submit" class="btn primary">Submit for review</button>
+          </form>
+          <div id="developer-app-msg" class="notice"></div>
+        </div>
+        <div class="card span-7">
+          <h3>App submissions</h3>
+          <p class="muted small" style="margin-bottom:12px">Review submissions remain private. Approved submissions automatically become installable app-list entries.</p>
+          <div id="developer-submissions" class="list"></div>
+        </div>
+        <div id="developer-review-card" class="card span-12 hidden">
+          <h3>Owner review queue</h3>
+          <p class="muted small" style="margin-bottom:12px">Approval promotes the submitted metadata into the public app list immediately. Rejection sends the review note back to the developer.</p>
+          <div id="developer-review-queue" class="list"></div>
+        </div>
+      </section>
+
       <section id="view-forums" class="hidden grid cols">
         <div class="card span-5">
           <h3>New Forum Thread</h3>
@@ -352,6 +410,7 @@
     let currentUser = null;
     let apps = [];
     let providerGrants = [];
+    let sdkMetadata = null;
     let currentView = 'dashboard';
     const returnUrl = new URLSearchParams(window.location.search).get('return');
     const initialView = new URLSearchParams(window.location.search).get('view');
@@ -489,6 +548,7 @@
         messages: ['Messages', 'DMs, app messages, bot messages, and account notifications.'],
         apps: ['Apps + SSO', 'Launch suite apps through SPMT and see which adapters are complete.'],
         connections: ['Connections', 'One place to authorize Twitch, Discord, YouTube, Kick, and future providers.'],
+        developers: ['Developers', 'Install the SDK, create scoped keys, submit apps, and publish game events.'],
         forums: ['Forums', 'Public threads and mirrored Discord channels under one identity.'],
         settings: ['Account', 'Linked accounts and bridge payload for connected apps.']
       };
@@ -563,6 +623,139 @@
       document.getElementById('link-twitch').value = bridge.user.twitch_username || '';
       renderAppCards();
       renderProviderGrants();
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+      })[character]);
+    }
+
+    async function loadDeveloperPortal() {
+      const [keysRes, submissionsRes, sdkRes] = await Promise.all([
+        api('/api/platform/api-keys'),
+        api('/api/platform/apps'),
+        fetch('/api/platform/sdk')
+      ]);
+      const keysData = keysRes.ok ? await keysRes.json() : { keys: [] };
+      const submissionsData = submissionsRes.ok ? await submissionsRes.json() : { submissions: [] };
+      sdkMetadata = sdkRes.ok ? await sdkRes.json() : null;
+
+      document.getElementById('sdk-install-command').textContent = sdkMetadata?.quickInstall || 'SDK metadata unavailable';
+      if (sdkMetadata?.download) document.getElementById('sdk-download-link').href = sdkMetadata.download;
+      if (sdkMetadata?.starterZip) document.getElementById('sdk-starter-link').href = sdkMetadata.starterZip;
+
+      const keys = keysData.keys || [];
+      document.getElementById('developer-keys').innerHTML = keys.length ? keys.map((key) => `
+        <div class="item">
+          <div class="row between"><strong>${escapeHtml(key.name)}</strong><span class="badge ${key.revokedAt ? '' : 'good'}">${key.revokedAt ? 'revoked' : 'active'}</span></div>
+          <div class="small muted">App: ${escapeHtml(key.appId || 'unbound')} · Prefix: ${escapeHtml(key.keyPrefix)}</div>
+          <div class="small muted">Scopes: ${(key.scopes || []).map(escapeHtml).join(', ')}</div>
+          ${key.revokedAt ? '' : `<button class="btn danger" style="margin-top:10px" onclick="revokePlatformKey('${escapeHtml(key.id)}')">Revoke</button>`}
+        </div>`).join('') : '<div class="item muted">No platform keys yet.</div>';
+
+      const submissions = submissionsData.submissions || [];
+      document.getElementById('developer-submissions').innerHTML = submissions.length ? submissions.map((submission) => `
+        <div class="item">
+          <div class="row between"><strong>${escapeHtml(submission.name)}</strong><span class="badge ${submission.status === 'approved' ? 'good' : 'warn'}">${escapeHtml(submission.status)}</span></div>
+          <div class="small muted">${escapeHtml(submission.appId)} · v${escapeHtml(submission.version)} · ${escapeHtml(submission.launchUrl)}</div>
+          <div class="small muted">${escapeHtml(submission.description)}</div>
+          ${submission.reviewNotes ? `<div class="small err">Review: ${escapeHtml(submission.reviewNotes)}</div>` : ''}
+        </div>`).join('') : '<div class="item muted">No app submissions yet.</div>';
+
+      const reviewCard = document.getElementById('developer-review-card');
+      if (currentUser?.isAdmin) {
+        reviewCard.classList.remove('hidden');
+        const reviewRes = await api('/api/platform/apps/review');
+        const reviewData = reviewRes.ok ? await reviewRes.json() : { submissions: [] };
+        const reviewQueue = reviewData.submissions || [];
+        document.getElementById('developer-review-queue').innerHTML = reviewQueue.length ? reviewQueue.map((submission) => `
+          <div class="item">
+            <div class="row between"><strong>${escapeHtml(submission.name)}</strong><span class="badge warn">review</span></div>
+            <div class="small muted">${escapeHtml(submission.appId)} · submitted by ${escapeHtml(submission.submitter?.displayName || submission.submitter?.username)}</div>
+            <div class="small muted">${escapeHtml(submission.description)}</div>
+            <div class="small muted">Launch: ${escapeHtml(submission.launchUrl)} · Health: ${escapeHtml(submission.healthUrl || 'not supplied')}</div>
+            <div class="row" style="margin-top:10px;flex-wrap:wrap">
+              <button class="btn primary" onclick="reviewDeveloperApp('${escapeHtml(submission.id)}', 'approved')">Approve</button>
+              <button class="btn danger" onclick="reviewDeveloperApp('${escapeHtml(submission.id)}', 'rejected')">Reject</button>
+            </div>
+          </div>`).join('') : '<div class="item muted">No apps are waiting for review.</div>';
+      } else {
+        reviewCard.classList.add('hidden');
+      }
+    }
+
+    async function copySdkCommand() {
+      await navigator.clipboard.writeText(document.getElementById('sdk-install-command').textContent);
+    }
+
+    async function createPlatformKey(event) {
+      event.preventDefault();
+      const appId = document.getElementById('developer-key-app-id').value.trim().toLowerCase();
+      const res = await api('/api/platform/api-keys', {
+        method: 'POST',
+        body: JSON.stringify({
+          appId,
+          name: document.getElementById('developer-key-name').value.trim(),
+          scopes: ['identity:read', 'apps:read', 'apps:write', 'events:write']
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setNotice('developer-key-msg', data.error || 'Could not create key', 'err');
+      document.getElementById('developer-key-token').value = data.token;
+      document.getElementById('developer-new-key').classList.remove('hidden');
+      setNotice('developer-key-msg', 'Key created. Copy it into the app server .env now.', 'ok');
+      await loadDeveloperPortal();
+    }
+
+    async function copyDeveloperKey() {
+      await navigator.clipboard.writeText(document.getElementById('developer-key-token').value);
+      setNotice('developer-key-msg', 'Key copied.', 'ok');
+    }
+
+    async function revokePlatformKey(id) {
+      const res = await api('/api/platform/api-keys/' + encodeURIComponent(id) + '/revoke', { method: 'POST' });
+      if (!res.ok) return setNotice('developer-key-msg', 'Could not revoke key', 'err');
+      document.getElementById('developer-key-token').value = '';
+      document.getElementById('developer-new-key').classList.add('hidden');
+      await loadDeveloperPortal();
+    }
+
+    async function submitDeveloperApp(event) {
+      event.preventDefault();
+      const res = await api('/api/platform/apps', {
+        method: 'POST',
+        body: JSON.stringify({
+          appId: document.getElementById('developer-app-id').value.trim().toLowerCase(),
+          name: document.getElementById('developer-app-name').value.trim(),
+          description: document.getElementById('developer-app-description').value.trim(),
+          category: 'Games',
+          launchUrl: document.getElementById('developer-app-launch-url').value.trim(),
+          healthUrl: document.getElementById('developer-app-health-url').value.trim(),
+          version: document.getElementById('developer-app-version').value.trim(),
+          permissions: ['identity:read', 'apps:read', 'events:write']
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setNotice('developer-app-msg', data.error || 'Submission failed', 'err');
+      setNotice('developer-app-msg', data.submission.name + ' submitted for review.', 'ok');
+      await loadDeveloperPortal();
+    }
+
+    async function reviewDeveloperApp(id, status) {
+      const reviewNotes = window.prompt(
+        status === 'approved' ? 'Optional approval note' : 'Tell the developer what must change',
+        status === 'approved' ? 'Approved for the SPMT app list.' : ''
+      );
+      if (reviewNotes === null) return;
+      const res = await api('/api/platform/apps/' + encodeURIComponent(id) + '/review', {
+        method: 'POST',
+        body: JSON.stringify({ status, reviewNotes })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setNotice('developer-app-msg', data.error || 'Review failed', 'err');
+      setNotice('developer-app-msg', data.submission.name + ' was ' + data.submission.status + '.', 'ok');
+      await Promise.all([loadDeveloperPortal(), loadBridge()]);
     }
 
     function profilePromptKey() {
@@ -736,7 +929,7 @@
 
     async function refreshAll() {
       await loadBridge();
-      await Promise.all([loadInbox(), loadForums(), loadProviderGrants()]);
+      await Promise.all([loadInbox(), loadForums(), loadProviderGrants(), loadDeveloperPortal()]);
     }
 
     async function boot() {

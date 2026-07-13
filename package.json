@@ -7,9 +7,11 @@
     "dev": "tsx watch server.ts",
     "typecheck": "tsc --noEmit",
     "build": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "sdk:build": "esbuild sdk/index.ts --bundle --platform=neutral --format=esm --target=es2022 --outfile=sdk/dist/index.js && tsc sdk/index.ts --declaration --emitDeclarationOnly --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck --outDir sdk/dist",
+    "sdk:package": "npm run sdk:build && node scripts/package-sdk.mjs",
     "start": "node dist/server.cjs",
     "smoke": "node scripts/smoke.mjs",
-    "test": "npm run typecheck && npm run build && npm run smoke"
+    "test": "npm run typecheck && npm run build && npm run sdk:package && npm run smoke"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",

@@ -45,6 +45,31 @@ Publish arbitrary game data with:
 npx spmt event game.player.progressed --data '{"playerId":"safe-reference","level":2,"summary":"Reached level 2"}'
 ```
 
+If the SDK was not installed locally yet, use the hosted package form:
+
+```bash
+npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt event player.progressed --data '{"playerId":"safe-reference","level":2,"summary":"Reached level 2"}'
+```
+
+For an existing server-status JSON file, keep the app's original shape and publish it as the event payload:
+
+```json
+{
+  "PlayerCount": 0,
+  "LastUpdated": "2026-07-13T21:22:42.3245966+00:00",
+  "Year": 3,
+  "DayOfYear": 11,
+  "Season": "Winter",
+  "IsTemporalStormActive": false,
+  "RiftActivity": "Unknown",
+  "ServerVersion": "1.22.3.0"
+}
+```
+
+```bash
+npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt event server.status --data-file status.json
+```
+
 Do not publish passwords, tokens, private player records, or raw personal data in event payloads.
 
 ## Non-Node fallback

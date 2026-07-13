@@ -25,6 +25,31 @@ node --env-file=.env spmt/publish-event.mjs
 
 Submission creates or updates a review record. Owner approval promotes it into the public, installable app list.
 
+## Publishing an existing server-status JSON shape
+
+SPMT wraps app data in a platform event, but the nested `payload` object can keep the app's original field names. For example, a Vintage Story server can write this to `status.json`:
+
+```json
+{
+  "PlayerCount": 0,
+  "LastUpdated": "2026-07-13T21:22:42.3245966+00:00",
+  "Year": 3,
+  "DayOfYear": 11,
+  "Season": "Winter",
+  "IsTemporalStormActive": false,
+  "RiftActivity": "Unknown",
+  "ServerVersion": "1.22.3.0"
+}
+```
+
+Then publish it without renaming the fields:
+
+```bash
+npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt event server.status --data-file status.json
+```
+
+The stored event type becomes `game.server.status`, the source app comes from `spmt.app.json`, and the payload keeps the exact JSON shape above.
+
 ## Server-side usage
 
 ```ts

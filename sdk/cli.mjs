@@ -89,7 +89,7 @@ async function readLocalEnvironment() {
   try {
     const text = await fs.readFile(path.join(cwd, '.env'), 'utf8');
     for (const line of text.split(/\r?\n/)) {
-      const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+      const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
       if (!match) continue;
       values[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
     }
@@ -241,16 +241,39 @@ async function submit(flags) {
   console.log(`Status: ${result.submission.status}. It appears in the public app list after owner approval.`);
 }
 
+async function readPayloadJson(flags) {
+  let raw = '';
+  if (flags['data-file']) {
+    raw = await fs.readFile(path.resolve(cwd, String(flags['data-file'])), 'utf8');
+  } else if (flags.data) {
+    const value = String(flags.data);
+    raw = value.startsWith('@')
+      ? await fs.readFile(path.resolve(cwd, value.slice(1)), 'utf8')
+      : value;
+  } else if (flags.stdin === true) {
+    const chunks = [];
+    for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
+    raw = Buffer.concat(chunks).toString('utf8');
+  }
+  if (!raw.trim()) return { summary: 'Published game event' };
+  try {
+    const payload = JSON.parse(raw);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('Payload must be a JSON object');
+    }
+    return payload;
+  } catch (error) {
+    throw new Error(`event payload must be valid JSON: ${error.message}`);
+  }
+}
+
 async function publishEvent(positional, flags) {
   const context = await projectContext(flags);
   if (!context.manifest?.appId) throw new Error('spmt.app.json is missing; run spmt install first');
   if (!context.apiKey) throw new Error('SPMT_API_KEY is missing from the environment or local .env');
   const type = positional[1];
   if (!type) throw new Error('event type required, for example: spmt event game.session.started');
-  let payload = { summary: `${context.manifest.name || context.manifest.appId} published ${type}` };
-  if (flags.data) {
-    try { payload = JSON.parse(String(flags.data)); } catch { throw new Error('--data must be valid JSON'); }
-  }
+  const payload = await readPayloadJson(flags);
   const client = new SpaceMountainClient({ apiKey: context.apiKey, appId: context.manifest.appId, baseUrl: context.baseUrl });
   const result = await client.game.publish(type, payload, { visibility: String(flags.visibility || 'creator') });
   console.log(`Published ${result.event.type} as ${result.event.sourceApp} (${result.event.id}).`);
@@ -272,6 +295,9 @@ Commands:
   spmt doctor                  Verify manifest, platform, key, and app binding
   spmt submit                  Submit or update the app for registry review
   spmt event <type>            Publish a game event; use --data '{"score":10}'
+  spmt event <type> --data-file status.json
+  spmt event <type> --data @status.json
+  spmt event <type> --stdin
   spmt status                  Show submissions and recent app events
 
 Useful install command:

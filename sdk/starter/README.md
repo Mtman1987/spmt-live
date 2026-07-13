@@ -24,6 +24,31 @@ npx spmt submit
 node --env-file=.env javascript/publish-event.mjs
 ```
 
+## Existing server status JSON
+
+If your game already writes status JSON, keep that shape and publish it as the event payload. For example:
+
+```json
+{
+  "PlayerCount": 0,
+  "LastUpdated": "2026-07-13T21:22:42.3245966+00:00",
+  "Year": 3,
+  "DayOfYear": 11,
+  "Season": "Winter",
+  "IsTemporalStormActive": false,
+  "RiftActivity": "Unknown",
+  "ServerVersion": "1.22.3.0"
+}
+```
+
+Save it as `status.json`, then run:
+
+```bash
+npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt event server.status --data-file status.json
+```
+
+SPMT stores that object unchanged under the event `payload`; it does not require camelCase field names.
+
 ## Non-Node projects
 
 - C# / Unity-style HTTP: `csharp/SpmtClient.cs`

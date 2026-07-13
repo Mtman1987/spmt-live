@@ -56,4 +56,3 @@ Every slice follows this order:
 ## Slice Exit Gate
 
 A slice is complete only when ownership is explicit, the contract is versioned, authorization and tenant isolation are tested, persistence and migration are proven, normal and failure UI states are visible, telemetry is useful without leaking secrets, rollback is documented, all touched repositories are clean and aligned, and the live cross-app flow passes.
-

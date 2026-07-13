@@ -12,4 +12,3 @@ These files were moved out of the SPMT repository root when `docs/ecosystem/` be
 | `PLATFORM_MANUAL.md` | Root-level docs pointer | Duplicated maintained entry points in `README.md` and `docs/DOCS_HOME.md` |
 
 The adoption-oriented rollout plan was not archived. It was moved to `docs/business/ECOSYSTEM_ROLLOUT_PLAN.md` and explicitly classified as product strategy rather than an engineering queue.
-

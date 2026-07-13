@@ -404,6 +404,65 @@ function normalizeEventLinks(value: unknown) {
   return links.length ? links : null;
 }
 
+function compactText(value: unknown, maxLength = 1200) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+}
+
+function summarizePlatformEventPayload(event: any) {
+  const payload = event?.payload && typeof event.payload === 'object' ? event.payload : {};
+  const summary = compactText(
+    payload.summary ||
+    payload.title ||
+    payload.message ||
+    payload.command ||
+    payload.transcript ||
+    payload.query ||
+    payload.prompt ||
+    event.type.replace(/\./g, ' '),
+    500,
+  );
+  const actor = compactText(event.actor?.displayName || event.actor?.username || event.actor?.userId || '', 120);
+  const target = compactText(payload.target || payload.channel || payload.roomName || payload.roomId || payload.tenantId || '', 180);
+  const details = JSON.stringify({
+    type: event.type,
+    sourceApp: event.sourceApp,
+    actor: event.actor,
+    visibility: event.visibility,
+    payload,
+    links: event.links,
+  });
+
+  return [
+    summary,
+    actor ? `Actor: ${actor}` : '',
+    target ? `Target: ${target}` : '',
+    `Event: ${event.type} from ${event.sourceApp}`,
+    `Details: ${compactText(details, 1800)}`,
+  ].filter(Boolean).join('\n');
+}
+
+function recordPlatformEventMemory(event: any) {
+  if (!event.createdBy) return;
+  if (event.payload?.athenaMemory === false) return;
+  if (!['private', 'creator', 'community', 'public'].includes(event.visibility)) return;
+
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO athena_memory (id, user_id, scope, topic, content, source_app, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    uuidv4(),
+    event.createdBy,
+    event.visibility === 'private' ? 'private-event' : 'app-event',
+    `${event.sourceApp}: ${event.type}`,
+    summarizePlatformEventPayload(event),
+    event.sourceApp,
+    now,
+    now,
+  );
+}
+
 function createPlatformEvent(input: any, createdBy?: string) {
   const type = String(input?.type || '').trim().toLowerCase();
   const sourceApp = String(input?.sourceApp || input?.source_app || '').trim();
@@ -474,6 +533,8 @@ function createPlatformEvent(input: any, createdBy?: string) {
       linkUrl: event.links?.[0]?.url,
     });
   }
+
+  recordPlatformEventMemory(event);
 
   return event;
 }

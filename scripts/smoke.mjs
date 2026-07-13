@@ -103,6 +103,8 @@ try {
   assert.match(home, /profile-completion-modal/);
   assert.match(home, /view-developers/);
   assert.match(home, /Create an app-bound key/);
+  assert.match(home, /request-recovery-code/);
+  assert.match(home, /Generate \+ Show New Recovery Code/);
 
   const sdkMetadataResponse = await fetch(`${baseUrl}/api/platform/sdk`);
   const sdkMetadata = await sdkMetadataResponse.json();
@@ -325,6 +327,50 @@ try {
   assert.equal(installAppResponse.status, 200);
   assert.equal(installedApp.app.id, 'smoke-game');
 
+  const recoveryDeliveryResponse = await fetch(`${baseUrl}/api/auth/request-recovery-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'smoke-user@spmt.live' }),
+  });
+  const recoveryDelivery = await recoveryDeliveryResponse.json();
+  assert.equal(recoveryDeliveryResponse.status, 202);
+  assert.equal(recoveryDelivery.ok, true);
+  assert.match(recoveryDelivery.message, /If that account/);
+  assert.equal('delivered' in recoveryDelivery, false);
+  const repeatedRecoveryResponse = await fetch(`${baseUrl}/api/auth/request-recovery-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'smoke-user' }),
+  });
+  assert.equal(repeatedRecoveryResponse.status, 202);
+
+  const resetResponse = await fetch(`${baseUrl}/api/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: 'smoke-user',
+      recoveryCode: registration.recoveryCode,
+      newPassword: 'smoke-password-456',
+    }),
+  });
+  assert.equal(resetResponse.status, 200, 'an unavailable DM must not replace the existing recovery code');
+  const reusedCodeResponse = await fetch(`${baseUrl}/api/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: 'smoke-user',
+      recoveryCode: registration.recoveryCode,
+      newPassword: 'smoke-password-789',
+    }),
+  });
+  assert.equal(reusedCodeResponse.status, 400);
+  const newPasswordLoginResponse = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'smoke-user@spmt.live', password: 'smoke-password-456' }),
+  });
+  assert.equal(newPasswordLoginResponse.status, 200);
+
   const commandResponse = await fetch(`${baseUrl}/api/athena/commands`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
@@ -345,7 +391,7 @@ try {
   assert.equal(conversation.stored, true);
   assert.equal(conversation.routed, false);
 
-  console.log(JSON.stringify({ status: 'passed', checks: 94 }));
+  console.log(JSON.stringify({ status: 'passed', checks: 108 }));
 } catch (error) {
   throw new Error(`SPMT smoke failed: ${error instanceof Error ? error.message : error}\n${output}`);
 } finally {

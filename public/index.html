@@ -154,9 +154,15 @@
             <input name="twitchUsername" placeholder="linked Twitch username">
             <button type="submit" class="btn">Find Username</button>
           </form>
+          <form onsubmit="handleRecoveryCodeRequest(event)" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--line)">
+            <label class="field-label">Send a fresh code to linked Discord</label>
+            <input name="username" placeholder="SPMT username or full handle" required>
+            <p class="field-help">This works only when the account has an exact linked Discord username and the SPMT bot can open a DM. The response never reveals whether an account exists.</p>
+            <button type="submit" class="btn">Request Discord DM</button>
+          </form>
           <form onsubmit="handlePasswordReset(event)" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--line)">
             <input name="username" placeholder="SPMT username" required>
-            <input name="recoveryCode" placeholder="SPMT recovery code" required>
+            <input name="recoveryCode" placeholder="code from signup, Account, or Discord DM" required>
             <input name="newPassword" type="password" placeholder="new password, minimum 8 characters" minlength="8" required>
             <button type="submit" class="btn primary">Reset Password</button>
           </form>
@@ -379,7 +385,12 @@
             <input name="newPassword" type="password" placeholder="new password, minimum 8 characters" minlength="8" required>
             <button type="submit" class="btn primary">Change Password</button>
           </form>
-          <button class="btn" style="margin-top:12px" onclick="generateRecoveryCode()">Generate New Recovery Code</button>
+          <p class="muted small" style="margin-top:12px">Recovery codes are stored only as a hash. Copy the new value now; SPMT cannot display it again later.</p>
+          <button class="btn" style="margin-top:12px" onclick="generateRecoveryCode()">Generate + Show New Recovery Code</button>
+          <div id="recovery-code-output" class="hidden" style="margin-top:12px">
+            <textarea id="recovery-code-value" readonly style="min-height:76px"></textarea>
+            <button class="btn" onclick="copyRecoveryCode()">Copy recovery code</button>
+          </div>
           <div id="password-msg" class="notice"></div>
         </div>
       </section>
@@ -497,7 +508,7 @@
       });
       const data = await res.json();
       if (!res.ok) return setNotice('auth-msg', data.error || 'Registration failed', 'err');
-      if (data.recoveryCode) window.alert('Save this one-time SPMT recovery code somewhere safe. It will not be shown again unless you generate a new one:\n\n' + data.recoveryCode);
+      if (data.recoveryCode) window.alert('Save this one-time SPMT recovery code somewhere safe. It will not be shown again. If your exact Discord identity is linked, you can request a fresh code by DM later.\n\n' + data.recoveryCode);
       finishAuth(data);
     }
 
@@ -512,6 +523,19 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return setNotice('auth-msg', data.error || 'Username recovery failed', 'err');
       setNotice('auth-msg', 'Your SPMT username is ' + data.handle, 'ok');
+    }
+
+    async function handleRecoveryCodeRequest(event) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      const res = await fetch('/api/auth/request-recovery-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: form.get('username') })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setNotice('auth-msg', 'Recovery delivery is temporarily unavailable.', 'err');
+      setNotice('auth-msg', data.message || 'Check the linked Discord account for a recovery DM.', 'ok');
     }
 
     async function handlePasswordReset(event) {
@@ -534,6 +558,10 @@
       localStorage.removeItem('spmt_token');
       authToken = null;
       currentUser = null;
+      document.getElementById('developer-key-token').value = '';
+      document.getElementById('developer-new-key').classList.add('hidden');
+      document.getElementById('recovery-code-value').value = '';
+      document.getElementById('recovery-code-output').classList.add('hidden');
       document.getElementById('auth').classList.remove('hidden');
       document.getElementById('app').classList.add('hidden');
     }
@@ -924,7 +952,14 @@
       const res = await api('/api/auth/recovery-code', { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return setNotice('password-msg', data.error || 'Could not generate a recovery code', 'err');
-      setNotice('password-msg', 'Save this recovery code now: ' + data.recoveryCode, 'ok');
+      document.getElementById('recovery-code-value').value = data.recoveryCode;
+      document.getElementById('recovery-code-output').classList.remove('hidden');
+      setNotice('password-msg', 'New code generated. Copy it now and keep it private.', 'ok');
+    }
+
+    async function copyRecoveryCode() {
+      await navigator.clipboard.writeText(document.getElementById('recovery-code-value').value);
+      setNotice('password-msg', 'Recovery code copied.', 'ok');
     }
 
     async function refreshAll() {

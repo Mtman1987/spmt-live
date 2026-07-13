@@ -12,6 +12,8 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production' || Boolean(process.e
 const JWT_SECRET = process.env.JWT_SECRET || (IS_PRODUCTION ? '' : 'spmt-dev-secret-change-in-production');
 const APP_VERSION = '1.0.0';
 const BUILD_SHA = process.env.BUILD_SHA || 'development';
+const RECOVERY_DELIVERY_COOLDOWN_MS = 10 * 60 * 1000;
+const recoveryDeliveryAttempts = new Map<string, number>();
 const OAUTH_CLIENT_SECRET_NAMES = [
   'SPACEMOUNTAIN_CLIENT_SECRET',
   'DSH_CLIENT_SECRET',
@@ -236,16 +238,59 @@ function hashSecret(value: string) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
-function createRecoveryCode(userId: string) {
+function generateRecoveryCode() {
   const raw = crypto.randomBytes(9).toString('base64url').toUpperCase();
-  const code = `SPMT-${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
+  return `SPMT-${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
+}
+
+function saveRecoveryCode(userId: string, code: string) {
   const now = new Date().toISOString();
   db.prepare(`
     INSERT INTO account_recovery_codes (user_id, code_hash, created_at, used_at)
     VALUES (?, ?, ?, NULL)
     ON CONFLICT(user_id) DO UPDATE SET code_hash = excluded.code_hash, created_at = excluded.created_at, used_at = NULL
   `).run(userId, hashSecret(code), now);
+}
+
+function createRecoveryCode(userId: string) {
+  const code = generateRecoveryCode();
+  saveRecoveryCode(userId, code);
   return code;
+}
+
+async function sendRecoveryCodeToDiscord(user: any, code: string) {
+  const botToken = String(process.env.DISCORD_BOT_TOKEN || '');
+  const discordId = String(user?.discord_id || '').trim();
+  const linkedUsername = String(user?.discord_username || '').trim().replace(/^@/, '').toLowerCase();
+  if (!botToken || !discordId || !linkedUsername) return false;
+
+  const headers = { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' };
+  try {
+    const identityResponse = await fetch(`https://discord.com/api/v10/users/${encodeURIComponent(discordId)}`, { headers });
+    if (!identityResponse.ok) return false;
+    const discordUser = await identityResponse.json() as any;
+    if (String(discordUser?.username || '').trim().toLowerCase() !== linkedUsername) return false;
+
+    const channelResponse = await fetch('https://discord.com/api/v10/users/@me/channels', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ recipient_id: discordId }),
+    });
+    if (!channelResponse.ok) return false;
+    const channel = await channelResponse.json() as any;
+    if (!channel?.id) return false;
+
+    const messageResponse = await fetch(`https://discord.com/api/v10/channels/${encodeURIComponent(channel.id)}/messages`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        content: `Your new SPMT recovery code is **${code}**. Use it at https://spmt.live under Recover. Do not share this code. If you did not request it, you can ignore this message and your password remains unchanged.`,
+      }),
+    });
+    return messageResponse.ok;
+  } catch {
+    return false;
+  }
 }
 
 function normalizeScopes(value: unknown) {
@@ -1578,6 +1623,44 @@ app.post('/api/auth/recover-username', (req, res) => {
     : db.prepare(`SELECT username FROM users WHERE lower(twitch_username) = ? AND password_hash != 'SYSTEM_NO_LOGIN'`).get(twitchUsername) as any;
   if (!user) return res.status(404).json({ error: 'No SPMT account is linked to that username' });
   res.json({ username: user.username, handle: `${user.username}@spmt.live` });
+});
+
+app.post('/api/auth/request-recovery-code', async (req, res) => {
+  const startedAt = Date.now();
+  const username = String(req.body?.username || '').trim().toLowerCase().replace(/@spmt\.live$/, '');
+  const attemptKey = hashSecret(`${req.ip || 'unknown'}:${username || 'missing'}`);
+  const lastAttempt = recoveryDeliveryAttempts.get(attemptKey) || 0;
+  const now = Date.now();
+
+  if (now - lastAttempt >= RECOVERY_DELIVERY_COOLDOWN_MS) {
+    recoveryDeliveryAttempts.set(attemptKey, now);
+    if (recoveryDeliveryAttempts.size > 2_000) {
+      for (const [key, attemptedAt] of recoveryDeliveryAttempts) {
+        if (now - attemptedAt >= RECOVERY_DELIVERY_COOLDOWN_MS) recoveryDeliveryAttempts.delete(key);
+      }
+    }
+
+    const user = username
+      ? db.prepare(`
+          SELECT id, username, discord_username, discord_id
+          FROM users
+          WHERE username = ? AND password_hash != 'SYSTEM_NO_LOGIN'
+        `).get(username) as any
+      : null;
+    if (user) {
+      const code = generateRecoveryCode();
+      const delivered = await sendRecoveryCodeToDiscord(user, code);
+      if (delivered) saveRecoveryCode(user.id, code);
+    }
+  }
+
+  const minimumResponseMs = 250;
+  const remainingDelay = Math.max(0, minimumResponseMs - (Date.now() - startedAt));
+  if (remainingDelay) await new Promise((resolve) => setTimeout(resolve, remainingDelay));
+  res.status(202).json({
+    ok: true,
+    message: 'If that account has an exact linked Discord identity and DM delivery is available, a fresh recovery code has been sent.',
+  });
 });
 
 app.post('/api/auth/reset-password', async (req, res) => {

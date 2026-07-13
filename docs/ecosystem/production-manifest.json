@@ -21,6 +21,7 @@
           "readinessPath": "/api/health/ready",
           "compatibilityHealthPath": "/api/health",
           "baselineBuildSha": "abb4b480bf85ff68d5acc2cb10726fa63599145a",
+          "gate0ImplementationBuildSha": "f3371a43b7ed5840ca721a95444b3d1b954d3fe0",
           "process": "app",
           "region": "lax",
           "machineCount": 1,
@@ -40,6 +41,16 @@
             "engine": "SQLite",
             "path": "/data/spmt.db",
             "journalMode": "wal",
+            "logicalBackupEvidence": {
+              "createdAt": "2026-07-13T17:19:57.338Z",
+              "path": "/data/backups/spmt-2026-07-13T17-19-57-338Z.db",
+              "bytes": 2408448,
+              "sha256": "6c48422edc129e36fd2c0ffbc5e5d51554ab1036ad28ee07adb5753c44ee0f92",
+              "integrity": "ok",
+              "tableCount": 22,
+              "isolatedTemporaryRestoreVerified": true,
+              "temporaryRestoreRemoved": true
+            },
             "authoritativeState": [
               "identity",
               "sessions and OAuth clients",

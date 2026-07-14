@@ -1315,6 +1315,16 @@ app.get('/api/platform/apps', authenticate, (req: any, res) => {
   res.json({ submissions: listAppSubmissions(req.user.id) });
 });
 
+app.delete('/api/platform/apps/:submissionId', authenticate, (req: any, res) => {
+  const row = db.prepare('SELECT * FROM app_submissions WHERE id = ? AND user_id = ?')
+    .get(req.params.submissionId, req.user.id) as any;
+  if (!row) return res.status(404).json({ error: 'App submission not found' });
+
+  db.prepare('DELETE FROM app_submissions WHERE id = ? AND user_id = ?')
+    .run(row.id, req.user.id);
+  res.json({ ok: true, submission: serializeAppSubmission(row) });
+});
+
 app.get('/api/platform/apps/review', authenticate, requirePlatformAdmin, (req: any, res) => {
   const rows = db.prepare(`
     SELECT s.*, u.username AS submitter_username, u.display_name AS submitter_display_name

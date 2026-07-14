@@ -689,6 +689,7 @@
           <div class="small muted">${escapeHtml(submission.appId)} · v${escapeHtml(submission.version)} · ${escapeHtml(submission.launchUrl)}</div>
           <div class="small muted">${escapeHtml(submission.description)}</div>
           ${submission.reviewNotes ? `<div class="small err">Review: ${escapeHtml(submission.reviewNotes)}</div>` : ''}
+          <button class="btn danger" style="margin-top:10px" onclick="removeDeveloperApp('${escapeHtml(submission.id)}', '${escapeHtml(submission.name)}')">Remove</button>
         </div>`).join('') : '<div class="item muted">No app submissions yet.</div>';
 
       const reviewCard = document.getElementById('developer-review-card');
@@ -768,6 +769,15 @@
       if (!res.ok) return setNotice('developer-app-msg', data.error || 'Submission failed', 'err');
       setNotice('developer-app-msg', data.submission.name + ' submitted for review.', 'ok');
       await loadDeveloperPortal();
+    }
+
+    async function removeDeveloperApp(id, name) {
+      if (!window.confirm('Remove ' + name + ' from the SPMT app registry?')) return;
+      const res = await api('/api/platform/apps/' + encodeURIComponent(id), { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setNotice('developer-app-msg', data.error || 'Could not remove app', 'err');
+      setNotice('developer-app-msg', name + ' was removed.', 'ok');
+      await Promise.all([loadDeveloperPortal(), loadBridge()]);
     }
 
     async function reviewDeveloperApp(id, status) {

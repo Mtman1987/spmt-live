@@ -346,6 +346,27 @@ try {
   assert.equal(submissions.submissions.length, 1);
   assert.equal(submissions.submissions[0].appId, 'smoke-game');
 
+  const removableSubmissionResponse = await fetch(`${baseUrl}/api/platform/apps`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ ...submissionInput, appId: 'remove-game', name: 'Remove Game' }),
+  });
+  const removableSubmission = await removableSubmissionResponse.json();
+  assert.equal(removableSubmissionResponse.status, 201);
+  const deniedRemovalResponse = await fetch(`${baseUrl}/api/platform/apps/${removableSubmission.submission.id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${secondRegistration.token}` },
+  });
+  assert.equal(deniedRemovalResponse.status, 404);
+  const removalResponse = await fetch(`${baseUrl}/api/platform/apps/${removableSubmission.submission.id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const removal = await removalResponse.json();
+  assert.equal(removalResponse.status, 200);
+  assert.equal(removal.ok, true);
+  assert.equal(removal.submission.appId, 'remove-game');
+
   const eventResponse = await fetch(`${baseUrl}/api/platform/events`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.token}` },

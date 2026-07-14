@@ -1,7 +1,7 @@
 {
   "name": "@spmt/sdk",
   "version": "0.1.1",
-  "description": "SpaceMountain identity, app registry, and game-event SDK",
+  "description": "SPMT developer CLI and SpaceMountain identity, app registry, and game-event SDK",
   "type": "module",
   "exports": {
     ".": {
@@ -11,7 +11,7 @@
     }
   },
   "bin": {
-    "spmt": "./cli.mjs"
+    "spmt": "cli.mjs"
   },
   "files": [
     "dist",
@@ -20,6 +20,9 @@
   ],
   "engines": {
     "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "license": "UNLICENSED"
 }

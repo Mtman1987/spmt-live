@@ -1,6 +1,6 @@
 # SDK
 
-Current package: `@spmt/sdk` version `0.1.1`, distributed from `https://spmt.live/sdk/spmt-sdk.tgz` until npm publication.
+Current package: `@spmt/sdk` version `0.1.1`, published to npm with the `spmt` executable and mirrored at `https://spmt.live/sdk/spmt-sdk.tgz`.
 
 Cross-platform setup:
 

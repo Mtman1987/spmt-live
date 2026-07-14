@@ -1,9 +1,6 @@
 # SPMT SDK Specification
 
-Future package name options:
-
-- `@spmt/sdk`
-- `@spacemountain/sdk`
+Current package name: `@spmt/sdk` (with the `spmt` executable).
 
 ## Purpose
 

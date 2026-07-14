@@ -1117,10 +1117,10 @@ app.get('/api/platform', (req, res) => {
 app.get('/api/platform/sdk', (req, res) => {
   res.json({
     package: '@spmt/sdk',
-    version: '0.1.0',
-    npmPublished: false,
-    install: 'npm install https://spmt.live/sdk/spmt-sdk.tgz',
-    quickInstall: 'npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt install',
+    version: '0.1.1',
+    npmPublished: true,
+    install: 'npm install @spmt/sdk',
+    quickInstall: 'npm exec --yes --package=@spmt/sdk -- spmt install',
     download: 'https://spmt.live/sdk/spmt-sdk.tgz',
     starterZip: 'https://spmt.live/sdk/atherrea-spmt-starter.zip',
     example: "const spmt = new SpaceMountainClient({ apiKey: process.env.SPMT_API_KEY, appId: 'atherrea' }); await spmt.game.publish('session.started', { sessionId: 'demo' });",

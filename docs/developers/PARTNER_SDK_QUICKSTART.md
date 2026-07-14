@@ -7,16 +7,16 @@ This is the minimum production-shaped path for connecting a partner app such as 
 Install Node.js 18 or newer, open a terminal inside the app folder, and run:
 
 ```bash
-npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt install
+npm exec --yes --package=@spmt/sdk -- spmt install
 ```
 
-If npm reuses an old cached tarball, use the versioned package URL:
+If npm is unavailable or you need the SPMT-hosted mirror, use the versioned package URL:
 
 ```bash
 npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.1.1.tgz -- spmt install
 ```
 
-The command creates a public `spmt.app.json`, a working `spmt/publish-event.mjs`, `.env.example`, and a `.gitignore` entry for `.env`. In Node projects it also installs `@spmt/sdk` from the SPMT-hosted package.
+The command creates a public `spmt.app.json`, a working `spmt/publish-event.mjs`, `.env.example`, and a `.gitignore` entry for `.env`. In Node projects it also installs `@spmt/sdk`.
 
 ## Create the app key
 
@@ -73,10 +73,10 @@ For an existing server-status JSON file, keep the app's original shape and publi
 ```
 
 ```bash
-npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt event server.status --data-file status.json
+npx spmt event server.status --data-file status.json
 ```
 
-Cache-proof version:
+Hosted mirror fallback:
 
 ```bash
 npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.1.1.tgz -- spmt event server.status --data-file status.json

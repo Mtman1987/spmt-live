@@ -13,7 +13,7 @@ This folder is the framework-neutral fallback for integrating Atherrea with SPMT
 ## Fast path for a Node project
 
 ```powershell
-npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt install --app-id atherrea --name Atherrea
+npx spmt install --app-id atherrea --name Atherrea
 ```
 
 Sign into `https://spmt.live/?view=developers`, generate an app-bound key with `apps:read`, `apps:write`, and `events:write`, then copy `.env.example` to `.env` and paste the key there.
@@ -44,10 +44,10 @@ If your game already writes status JSON, keep that shape and publish it as the e
 Save it as `status.json`, then run:
 
 ```bash
-npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt event server.status --data-file status.json
+npx spmt event server.status --data-file status.json
 ```
 
-If npm reuses an old cached SDK, use the versioned package URL:
+If npm is unavailable or you need the SPMT-hosted mirror, use the versioned package URL:
 
 ```bash
 npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.1.1.tgz -- spmt event server.status --data-file status.json

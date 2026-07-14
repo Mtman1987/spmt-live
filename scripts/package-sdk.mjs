@@ -8,7 +8,7 @@ const destination = path.join(root, 'public', 'sdk');
 fs.mkdirSync(destination, { recursive: true });
 
 for (const filename of fs.readdirSync(destination)) {
-  if (/^(?:spmt-sdk(?:-\d+\.\d+\.\d+)?|sdk-\d+\.\d+\.\d+)\.tgz$/.test(filename)) {
+  if (/^(?:spmt(?:-\d+\.\d+\.\d+)?|spmt-sdk(?:-\d+\.\d+\.\d+)?|sdk-\d+\.\d+\.\d+)\.tgz$/.test(filename)) {
     fs.rmSync(path.join(destination, filename));
   }
 }

@@ -1,6 +1,6 @@
 # SDK Direction
 
-Future package: `@spmt/sdk` or `@spacemountain/sdk`.
+Current package: `@spmt/sdk` (with the `spmt` command).
 
 The first local implementation lives at `sdk/index.ts`.
 

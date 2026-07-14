@@ -1,14 +1,14 @@
 # SPMT SDK 0.1
 
-This is the installable partner SDK and `spmt` developer CLI. It is served directly by SPMT until the package is published to npm.
+This is the public `@spmt/sdk` partner SDK and `spmt` developer CLI. It is published on npm and mirrored directly by SPMT.
 
 ## One-command project setup
 
 ```powershell
-npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt install
+npm exec --yes --package=@spmt/sdk -- spmt install
 ```
 
-If npm reuses an old cached tarball, use the versioned package URL:
+If npm is unavailable or you need the SPMT-hosted mirror, use the versioned package URL:
 
 ```powershell
 npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.1.1.tgz -- spmt install
@@ -51,10 +51,10 @@ SPMT wraps app data in a platform event, but the nested `payload` object can kee
 Then publish it without renaming the fields:
 
 ```bash
-npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt event server.status --data-file status.json
+npx spmt event server.status --data-file status.json
 ```
 
-Cache-proof version:
+Hosted mirror fallback:
 
 ```bash
 npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.1.1.tgz -- spmt event server.status --data-file status.json

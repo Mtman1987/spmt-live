@@ -3,9 +3,6 @@ name: Deploy to Fly.io
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
 
 permissions:
   contents: read

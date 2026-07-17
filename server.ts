@@ -174,7 +174,7 @@ const PLATFORM_FEATURES = [
   'Documentation',
 ];
 
-const PLATFORM_SCOPES = ['identity:read', 'apps:read', 'apps:write', 'messages:read', 'messages:write', 'athena:write', 'events:write', 'webhooks:write'];
+const PLATFORM_SCOPES = ['identity:read', 'identity:write', 'apps:read', 'apps:write', 'messages:read', 'messages:write', 'athena:write', 'events:write', 'webhooks:write', 'xp:write'];
 
 const PROVIDER_GRANT_DEFINITIONS = [
   {
@@ -252,7 +252,7 @@ const PLUGIN_MARKETPLACE = [
   { id: 'crew-router', name: 'Crew Router', category: 'Community', description: 'Routes forum, notification, and Commlink events to creator workspace lanes.', scopes: ['messages:write'] },
 ];
 
-const USER_COLUMNS = 'id, username, email, display_name, discord_username, discord_id, twitch_username, twitch_id, is_admin, created_at';
+const USER_COLUMNS = 'id, username, email, display_name, password_hash, discord_username, discord_id, twitch_username, twitch_id, is_admin, created_at';
 
 function hashSecret(value: string) {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -473,6 +473,7 @@ function serializeUser(user: any) {
     twitch_id: user.twitch_id,
     isAdmin: Boolean(user.is_admin),
     is_admin: Boolean(user.is_admin),
+    credentialState: user.password_hash === 'SYSTEM_NO_LOGIN' ? 'provider-owned' : 'password-set',
     createdAt: user.created_at,
     created_at: user.created_at,
   };
@@ -685,6 +686,21 @@ function createNotification(userId: string, title: string, body: string, options
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(id, userId, options.type || 'message', title, body, options.sourceApp || null, options.linkUrl || null, new Date().toISOString());
   return id;
+}
+
+function importedUsername(provider: 'discord' | 'twitch', providerUserId: string, proposed: unknown) {
+  const proposedUsername = cleanHandle(proposed).slice(0, 30);
+  const base = proposedUsername.length >= 3 ? proposedUsername : `${provider}-user`;
+  if (!db.prepare('SELECT 1 FROM users WHERE username = ?').get(base)) return base;
+
+  // A display name collision is never proof that two identities are the same.
+  const stableSuffix = crypto.createHash('sha256').update(`${provider}:${providerUserId}`).digest('hex').slice(0, 8);
+  const suffixed = `${base.slice(0, 21)}-${stableSuffix}`;
+  if (!db.prepare('SELECT 1 FROM users WHERE username = ?').get(suffixed)) return suffixed;
+
+  let sequence = 2;
+  while (db.prepare('SELECT 1 FROM users WHERE username = ?').get(`${suffixed.slice(0, 27)}-${sequence}`)) sequence += 1;
+  return `${suffixed.slice(0, 27)}-${sequence}`;
 }
 
 function normalizeEventLinks(value: unknown) {
@@ -1221,6 +1237,77 @@ app.post('/api/platform/api-keys/verify', (req, res) => {
 app.get('/api/platform/me', authenticatePlatformKey('identity:read'), (req: any, res) => {
   const user = getUserById(req.platformKey.userId);
   res.json({ key: req.platformKey, user: user ? serializeUser(user) : null });
+});
+
+app.post('/api/platform/identity/grandfather', authenticatePlatformKey('identity:write'), (req: any, res) => {
+  const sourceApp = String(req.platformKey.appId || '').trim().toLowerCase();
+  if (!sourceApp) {
+    return res.status(403).json({ error: 'Grandfathering requires an app-bound platform key' });
+  }
+
+  const provider = String(req.body?.provider || '').trim().toLowerCase();
+  if (provider !== 'discord' && provider !== 'twitch') {
+    return res.status(400).json({ error: 'provider must be discord or twitch' });
+  }
+  const providerUserId = String(req.body?.providerUserId || req.body?.provider_user_id || '').trim();
+  if (!providerUserId || providerUserId.length > 128 || !/^[A-Za-z0-9:_-]+$/.test(providerUserId)) {
+    return res.status(400).json({ error: 'A valid immutable providerUserId is required' });
+  }
+
+  const idColumn = provider === 'discord' ? 'discord_id' : 'twitch_id';
+  const usernameColumn = provider === 'discord' ? 'discord_username' : 'twitch_username';
+  let user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE ${idColumn} = ? ORDER BY datetime(created_at) ASC LIMIT 1`).get(providerUserId) as any;
+  let created = false;
+  let linked = false;
+
+  if (!user) {
+    const providerUsername = cleanHandle(req.body?.providerUsername || req.body?.provider_username || req.body?.username).slice(0, 80) || null;
+    const username = importedUsername(provider, providerUserId, req.body?.username || providerUsername);
+    const displayName = compactText(req.body?.displayName || req.body?.display_name || providerUsername || username, 120) || username;
+    const id = uuidv4();
+    const email = `import-${provider}-${crypto.createHash('sha256').update(providerUserId).digest('hex').slice(0, 24)}@spmt.live`;
+    const now = new Date().toISOString();
+    db.prepare(`
+      INSERT INTO users (id, username, email, display_name, password_hash, ${usernameColumn}, ${idColumn}, created_at)
+      VALUES (?, ?, ?, ?, 'SYSTEM_NO_LOGIN', ?, ?, ?)
+    `).run(id, username, email, displayName, providerUsername, providerUserId, now);
+    user = getUserById(id);
+    created = true;
+  } else {
+    const providerUsername = cleanHandle(req.body?.providerUsername || req.body?.provider_username).slice(0, 80);
+    const displayName = compactText(req.body?.displayName || req.body?.display_name, 120);
+    if ((providerUsername && !user[usernameColumn]) || (displayName && user.password_hash === 'SYSTEM_NO_LOGIN')) {
+      const updates: string[] = [];
+      const values: string[] = [];
+      if (providerUsername && !user[usernameColumn]) {
+        updates.push(`${usernameColumn} = ?`);
+        values.push(providerUsername);
+      }
+      if (displayName && user.password_hash === 'SYSTEM_NO_LOGIN') {
+        updates.push('display_name = ?');
+        values.push(displayName);
+      }
+      if (updates.length) {
+        db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values, user.id);
+        user = getUserById(user.id);
+        linked = true;
+      }
+    }
+  }
+
+  const accessToken = req.body?.issueSession === true
+    ? jwt.sign({ id: user.id, username: user.username, email: user.email, sourceApp, grandfathered: true }, JWT_SECRET, { expiresIn: '7d' })
+    : undefined;
+
+  res.status(created ? 201 : 200).json({
+    created,
+    linked,
+    provider,
+    providerUserId,
+    sourceApp,
+    user: serializeUser(user),
+    ...(accessToken ? { accessToken, tokenType: 'Bearer', expiresIn: 7 * 24 * 3600 } : {}),
+  });
 });
 
 app.get('/api/platform/apps/public', authenticatePlatformKey('apps:read'), (req: any, res) => {
@@ -1789,6 +1876,23 @@ app.get('/api/session/bridge', authenticate, (req: any, res) => {
   });
 });
 
+app.post('/api/auth/claim-imported', authenticate, async (req: any, res) => {
+  const password = String(req.body?.password || '');
+  if (password.length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
+  const current = db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(req.user.id) as any;
+  if (!current) return res.status(404).json({ error: 'User not found' });
+  if (current.password_hash !== 'SYSTEM_NO_LOGIN') {
+    return res.status(409).json({ error: 'This SPMT account already has sign-in credentials' });
+  }
+  const passwordHash = await bcrypt.hash(password, 12);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?')
+    .run(passwordHash, req.user.id, 'SYSTEM_NO_LOGIN');
+  const user = getUserById(req.user.id);
+  const token = signSession(user);
+  setSessionCookie(res, token);
+  res.json({ claimed: true, token, user: serializeUser(user), recoveryCode: createRecoveryCode(user.id) });
+});
+
 app.get('/api/provider-grants', authenticate, (req: any, res) => {
   const user = getUserById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -2003,7 +2107,8 @@ app.get('/api/oauth/authorize', (req: any, res) => {
     .run(code, user.id, client_id, redirect_uri, new Date(Date.now() + 5 * 60 * 1000).toISOString());
 
   const bridgeToken = jwt.sign({ id: user.id, username: user.username, email: user.email, client_id, bridge: true }, JWT_SECRET, { expiresIn: '7d' });
-  const tokenParameter = client_id === 'mountainview' ? '' : `&token=${encodeURIComponent(bridgeToken)}`;
+  const codeOnlyClients = new Set(['mountainview', 'spacemountain-live', 'discord-stream-hub', 'hearmeout']);
+  const tokenParameter = codeOnlyClients.has(String(client_id)) ? '' : `&token=${encodeURIComponent(bridgeToken)}`;
   const url = `${redirect_uri}?code=${code}${tokenParameter}${state ? `&state=${encodeURIComponent(state as string)}` : ''}`;
   res.redirect(url);
 });
@@ -2439,6 +2544,172 @@ app.post('/api/workspace-profile/reset', authenticate, (req: any, res) => {
   if ('conflict' in result) return res.status(409).json({ error: 'Workspace profile revision conflict', profile: result.current });
   if ('invalid' in result) return res.status(500).json({ error: 'Default workspace profile failed validation', fields: result.fields });
   return sendWorkspaceProfile(res, { profile: result.profile, created: false }, { reset: true, changed: result.changed });
+});
+
+function validateRecordSlug(value: unknown, label: string) {
+  const slug = String(value || '').trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]{1,49}$/.test(slug)) {
+    throw Object.assign(new Error(`${label} must be a lowercase slug using letters, numbers, or hyphens`), { statusCode: 400 });
+  }
+  return slug;
+}
+
+function assertPublicAppState(value: unknown, path = 'data') {
+  if (value == null || typeof value === 'boolean' || typeof value === 'number') return;
+  if (typeof value === 'string') {
+    if (value.length > 20_000) throw Object.assign(new Error(`${path} is too large`), { statusCode: 400 });
+    try {
+      const url = new URL(value);
+      for (const key of url.searchParams.keys()) {
+        if (/(?:token|secret|password|session|api[_-]?key|authorization)/i.test(key)) {
+          throw Object.assign(new Error(`${path} contains a sensitive URL parameter`), { statusCode: 400 });
+        }
+      }
+    } catch (error: any) {
+      if (error?.statusCode) throw error;
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    if (value.length > 500) throw Object.assign(new Error(`${path} has too many items`), { statusCode: 400 });
+    value.forEach((item, index) => assertPublicAppState(item, `${path}.${index}`));
+    return;
+  }
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length > 250) throw Object.assign(new Error(`${path} has too many fields`), { statusCode: 400 });
+    for (const [key, child] of entries) {
+      const normalizedKey = key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+      if (/(^|[-_])(access-token|refresh-token|auth-token|authorization|password|secret|client-secret|api-key|session-token)([-_]|$)/.test(normalizedKey)) {
+        throw Object.assign(new Error(`${path}.${key} is a secret-bearing field and cannot be stored as app state`), { statusCode: 400 });
+      }
+      assertPublicAppState(child, `${path}.${key}`);
+    }
+    return;
+  }
+  throw Object.assign(new Error(`${path} contains an unsupported value`), { statusCode: 400 });
+}
+
+function appStateEtag(appId: string, namespace: string, revision: number) {
+  return `"app-state-${appId}-${namespace}-${revision}"`;
+}
+
+app.get('/api/app-state/:appId/:namespace', authenticate, (req: any, res) => {
+  try {
+    const appId = validateRecordSlug(req.params.appId, 'appId');
+    const namespace = validateRecordSlug(req.params.namespace, 'namespace');
+    const row = db.prepare(`
+      SELECT schema_version, revision, data_json, created_at, updated_at
+      FROM app_state_records WHERE user_id = ? AND app_id = ? AND namespace = ?
+    `).get(req.user.id, appId, namespace) as any;
+    if (!row) return res.status(404).json({ error: 'App state record not found', appId, namespace });
+    res.setHeader('ETag', appStateEtag(appId, namespace, row.revision));
+    res.json({ appId, namespace, schemaVersion: row.schema_version, revision: row.revision, data: JSON.parse(row.data_json), createdAt: row.created_at, updatedAt: row.updated_at });
+  } catch (error: any) {
+    res.status(error.statusCode || 500).json({ error: error.message || 'App state could not be loaded' });
+  }
+});
+
+app.put('/api/app-state/:appId/:namespace', authenticate, (req: any, res) => {
+  try {
+    const appId = validateRecordSlug(req.params.appId, 'appId');
+    const namespace = validateRecordSlug(req.params.namespace, 'namespace');
+    const data = req.body?.data ?? req.body;
+    assertPublicAppState(data);
+    const current = db.prepare('SELECT revision, created_at FROM app_state_records WHERE user_id = ? AND app_id = ? AND namespace = ?')
+      .get(req.user.id, appId, namespace) as any;
+    const expected = Number(req.headers['if-match']?.match(/(\d+)"?$/)?.[1] || req.body?.revision || 0);
+    if (current && (!expected || expected !== current.revision)) {
+      res.setHeader('ETag', appStateEtag(appId, namespace, current.revision));
+      return res.status(409).json({ error: 'App state changed on another device', revision: current.revision });
+    }
+    const now = new Date().toISOString();
+    const revision = current ? current.revision + 1 : 1;
+    const schemaVersion = Math.max(1, Number(req.body?.schemaVersion || 1));
+    db.prepare(`
+      INSERT INTO app_state_records (user_id, app_id, namespace, schema_version, revision, data_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, app_id, namespace) DO UPDATE SET
+        schema_version = excluded.schema_version, revision = excluded.revision,
+        data_json = excluded.data_json, updated_at = excluded.updated_at
+    `).run(req.user.id, appId, namespace, schemaVersion, revision, JSON.stringify(data), current?.created_at || now, now);
+    res.setHeader('ETag', appStateEtag(appId, namespace, revision));
+    res.json({ appId, namespace, schemaVersion, revision, data, createdAt: current?.created_at || now, updatedAt: now });
+  } catch (error: any) {
+    res.status(error.statusCode || 400).json({ error: error.message || 'App state could not be saved' });
+  }
+});
+
+function listVersionedWorkspaceRecords(table: 'workspace_overlay_scenes' | 'workspace_workflow_definitions', jsonColumn: 'scene_json' | 'workflow_json', userId: string) {
+  return (db.prepare(`SELECT id, revision, name, ${jsonColumn} AS data_json, created_at, updated_at FROM ${table} WHERE user_id = ? ORDER BY datetime(updated_at) DESC`).all(userId) as any[])
+    .map((row) => ({ id: row.id, revision: row.revision, name: row.name, data: JSON.parse(row.data_json), createdAt: row.created_at, updatedAt: row.updated_at }));
+}
+
+function saveVersionedWorkspaceRecord(table: 'workspace_overlay_scenes' | 'workspace_workflow_definitions', jsonColumn: 'scene_json' | 'workflow_json', userId: string, input: any) {
+  const id = validateRecordSlug(input?.id, 'id');
+  const name = String(input?.name || id).trim().slice(0, 120);
+  const data = input?.data ?? {};
+  assertPublicAppState(data);
+  const current = db.prepare(`SELECT revision, created_at FROM ${table} WHERE user_id = ? AND id = ?`).get(userId, id) as any;
+  const expected = Number(input?.revision || 0);
+  if (current && expected !== current.revision) throw Object.assign(new Error('Workspace record changed on another device'), { statusCode: 409, revision: current.revision });
+  const revision = current ? current.revision + 1 : 1;
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO ${table} (id, user_id, revision, name, ${jsonColumn}, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, id) DO UPDATE SET revision = excluded.revision, name = excluded.name,
+      ${jsonColumn} = excluded.${jsonColumn}, updated_at = excluded.updated_at
+  `).run(id, userId, revision, name, JSON.stringify(data), current?.created_at || now, now);
+  return { id, revision, name, data, createdAt: current?.created_at || now, updatedAt: now };
+}
+
+app.get('/api/workspace/overlay-scenes', authenticate, (req: any, res) => {
+  res.json({ scenes: listVersionedWorkspaceRecords('workspace_overlay_scenes', 'scene_json', req.user.id) });
+});
+app.put('/api/workspace/overlay-scenes/:id', authenticate, (req: any, res) => {
+  try { res.json({ scene: saveVersionedWorkspaceRecord('workspace_overlay_scenes', 'scene_json', req.user.id, { ...req.body, id: req.params.id }) }); }
+  catch (error: any) { res.status(error.statusCode || 400).json({ error: error.message, revision: error.revision }); }
+});
+app.get('/api/workspace/workflows', authenticate, (req: any, res) => {
+  res.json({ workflows: listVersionedWorkspaceRecords('workspace_workflow_definitions', 'workflow_json', req.user.id) });
+});
+app.put('/api/workspace/workflows/:id', authenticate, (req: any, res) => {
+  try { res.json({ workflow: saveVersionedWorkspaceRecord('workspace_workflow_definitions', 'workflow_json', req.user.id, { ...req.body, id: req.params.id }) }); }
+  catch (error: any) { res.status(error.statusCode || 400).json({ error: error.message, revision: error.revision }); }
+});
+
+app.get('/api/xp', authenticate, (req: any, res) => {
+  const balance = db.prepare('SELECT COALESCE(SUM(delta), 0) AS xp FROM xp_ledger WHERE user_id = ?').get(req.user.id) as any;
+  const entries = db.prepare('SELECT id, source_app, event_type, delta, metadata_json, created_at FROM xp_ledger WHERE user_id = ? ORDER BY datetime(created_at) DESC LIMIT 100').all(req.user.id) as any[];
+  const xp = Number(balance?.xp || 0);
+  res.json({ xp, level: Math.floor(Math.sqrt(Math.max(0, xp) / 100)) + 1, entries: entries.map((entry) => ({ id: entry.id, sourceApp: entry.source_app, eventType: entry.event_type, delta: entry.delta, metadata: JSON.parse(entry.metadata_json), createdAt: entry.created_at })) });
+});
+
+app.post('/api/platform/xp', authenticatePlatformKey('xp:write'), (req: any, res) => {
+  try {
+    const sourceApp = validateRecordSlug(req.body?.sourceApp || req.platformKey.appId, 'sourceApp');
+    if (req.platformKey.appId && sourceApp !== req.platformKey.appId) return res.status(403).json({ error: `This key may only award XP for ${req.platformKey.appId}` });
+    const userId = String(req.body?.userId || req.platformKey.userId || '').trim();
+    const eventType = validateRecordSlug(req.body?.eventType, 'eventType');
+    const idempotencyKey = String(req.body?.idempotencyKey || '').trim();
+    const delta = Number(req.body?.delta);
+    if (!userId || !idempotencyKey || idempotencyKey.length > 200 || !Number.isInteger(delta) || Math.abs(delta) > 10000) {
+      return res.status(400).json({ error: 'userId, bounded integer delta, and idempotencyKey are required' });
+    }
+    const metadata = req.body?.metadata ?? {};
+    assertPublicAppState(metadata, 'metadata');
+    const existing = db.prepare('SELECT id, user_id, source_app, event_type, delta, metadata_json, created_at FROM xp_ledger WHERE source_app = ? AND idempotency_key = ?').get(sourceApp, idempotencyKey) as any;
+    if (existing) return res.json({ awarded: false, duplicate: true, entry: { ...existing, metadata: JSON.parse(existing.metadata_json) } });
+    if (!getUserById(userId)) return res.status(404).json({ error: 'User not found' });
+    const id = uuidv4();
+    const createdAt = new Date().toISOString();
+    db.prepare('INSERT INTO xp_ledger (id, user_id, source_app, event_type, idempotency_key, delta, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, userId, sourceApp, eventType, idempotencyKey, delta, JSON.stringify(metadata), createdAt);
+    res.status(201).json({ awarded: true, duplicate: false, entry: { id, userId, sourceApp, eventType, delta, metadata, createdAt } });
+  } catch (error: any) {
+    res.status(error.statusCode || 400).json({ error: error.message || 'XP could not be awarded' });
+  }
 });
 
 app.get('/api/overlay-workspace', authenticate, (req: any, res) => {

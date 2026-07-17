@@ -1,6 +1,6 @@
 # SpaceMountain Ecosystem Production Roadmap
 
-Updated: 2026-07-16
+Updated: 2026-07-17
 
 Status: active engineering source of truth
 
@@ -45,7 +45,7 @@ The snapshot below was verified against local `main`, GitHub Actions, Fly state,
 | DiscordStreamHub | Live, health passing | Discord interactions, dashboards, community/live state, calendar, shoutout/moderation flows, SPMT event bridge | SPMT identity/session is not the only identity; community authority/spotlight contracts need completion; cross-app events and launch targets need full production verification |
 | HearMeOut + DJ worker | Both live with passing checks | Rooms, LiveKit configuration, watch/listen state, Discord Activity paths, overlays, voice/media event publishing | Media behavior still has multiple truth paths; active work is summarized in this roadmap and the route inventory remains evidence; player/source/Activity/OBS behavior needs contract consolidation and end-to-end tests |
 | ChatTag + bot | Both live with passing checks | Game UI/bot, health endpoint, event publishing, arena/game mechanics | SPMT player identity and linked accounts are incomplete; XP/level/reward authority is split across apps; app and bot event paths need a full two-user live test |
-| MountainView inside rotator | Live, health passing, status reports `phone-side` and `connected:false` | Authenticated command definitions, direct app calls, voice routing, media/vision routes, memory/log/device tables, Android/Expo bridge work | No SPMT device identity/pairing; no dedicated MountainView owner password or encryption secret; no MountainView SPMT API key; defaults fall back to rotator/Fly credentials; no cloud device socket; hardware access still depends on a phone-side Bluetooth bridge |
+| MountainView inside rotator | Live, health passing, status reports `phone-side` and `connected:false` | SPMT owner sign-in, authenticated command definitions, direct app calls, voice routing, media/vision routes, memory/log/device tables, Android/Expo bridge work | No SPMT device identity/pairing; token encryption still needs its dedicated secret; no MountainView SPMT API key; no cloud device socket; hardware access still depends on a phone-side Bluetooth bridge |
 | Fly machine rotator | Live, health passing | Machine rotation, log monitoring, MountainView host | Rotator reliability/security is coupled to experimental MountainView code; the boundary needs isolation even if both remain in one Fly app to avoid another bill |
 | Space Mountain dashboard | Retired duplicate launcher; GitHub repository archived, local history retained | Historical static launcher concept | Do not deploy; SpaceMountain is the canonical authenticated suite shell and launcher |
 | AETHERRA | Deferred external adopter; excluded from owned-suite gate certification | Coworker-owned application that may consume the stable SPMT SDK later | No source or operational work is in scope until the SDK and documentation are complete; it does not block Gates 0 through 2 or readiness for Gate 3 |
@@ -69,6 +69,12 @@ Current evidence for this slice is local type checking plus the StreamWeaver ten
 
 This is the current work queue. Items below supersede the former StreamWeaver and HearMeOut TODO files.
 
+### Existing-user grandfathering contract
+
+Identity adoption must not turn into a forced re-registration event. A first-party app may silently create or restore a canonical SPMT identity only after its backend has verified an existing signed app session against an immutable Twitch or Discord user ID. Usernames are display/handle candidates and never ownership proof. Name collisions create a stable suffixed handle instead of merging accounts.
+
+The trusted app uses an app-bound `identity:write` credential, receives the SPMT session server-to-server, and stores it only in an HttpOnly app cookie. Imported identities begin in `provider-owned` credential state, appear in the canonical user set immediately, and can later choose a password and recovery code from their verified session. Legacy app sessions remain usable if SPMT is unavailable; they cannot grant new admin authority or mint an SPMT session unless their provider proof is revalidated. ChatTag volume users are backfilled in bounded idempotent batches without issuing browser sessions.
+
 ### Gate 0 — safety and truth
 
 - [x] Keep the eight owned canonical repositories on `main` and aligned with `origin/main`.
@@ -77,7 +83,7 @@ This is the current work queue. Items below supersede the former StreamWeaver an
 - [x] Remove the nonexistent `streamweaver-work-test` deployment from the live manifest and delete its stale local Fly config/deploy script.
 - [x] Retire `space-mountain-dashboard` as a duplicate unauthenticated launcher; SpaceMountain is the canonical suite shell and launcher.
 - [x] Configure SPMT owner recovery and the five fixed app OAuth client secrets, rotate the existing database client rows, and make missing production credentials fail readiness.
-- [x] Configure dedicated MountainView owner-password and token-encryption secrets, remove rotator/Fly credential fallbacks, and reject production auth-disable mode.
+- [x] Replace MountainView's one-off owner password with SPMT OAuth, stage the dedicated token-encryption secret, remove rotator/Fly credential fallbacks, and reject production auth-disable mode.
 - [ ] Audit every app for production JWT/session/default credential fallbacks and make missing required secrets fail readiness.
 - [x] Add `npm run smoke:suite` as the reproducible owned-suite smoke command; it proves local/origin/Fly build-SHA parity plus health and one critical feature route for every app and worker.
 - [x] Add a Fly service health check to `dsh-clip-worker` using its existing `/health` route.
@@ -88,6 +94,7 @@ This is the current work queue. Items below supersede the former StreamWeaver an
 ### Gate 1 — identity, scopes, tenant isolation, and XP
 
 - [ ] Make SPMT session restore the primary identity in StreamWeaver, DSH, HearMeOut, ChatTag, MountainView, and SpaceMountain; provider OAuth remains a linked grant.
+- [x] Grandfather existing ChatTag and Discord community members by immutable provider ID, and provide native Discord modal onboarding without collecting a password or requiring an external redirect.
 - [ ] Verify direct and embedded login, logout, refresh, account switch, disconnect, export, and deletion with two accounts.
 - [ ] Issue one scoped, rotatable service credential per app/environment and add allowed/forbidden contract tests.
 - [ ] Finish StreamWeaver botshare isolation and foreign-chat mention rules; prove loose aliases cannot invoke another tenant's bot.
@@ -98,6 +105,10 @@ This is the current work queue. Items below supersede the former StreamWeaver an
 - [ ] Add the automated two-tenant isolation fixture covering chat, replies, botshare, TTS, voice, overlays, workflows, and reconnect.
 - [ ] Define the canonical SPMT XP/level/reward ledger, map ChatTag/DSH/arena/SpaceMountain events with idempotency keys, and make shared displays read it.
 
+Implemented foundation awaiting coordinated production verification: app-bound `identity:write` grandfathering, provider-ID collision safety, server-only session issuance, imported-account claim/recovery setup, `xp:write` with app binding and idempotency, and allowed/forbidden contract coverage in the 175-check SPMT smoke suite. SpaceMountain, MountainView, DSH, HearMeOut, and ChatTag now have server-session paths; DSH/HearMeOut/ChatTag retain a non-admin compatibility path for existing sessions so migration does not become an outage. ChatTag has a bounded durable-user backfill, and DSH has a bot-secret-protected paginated Discord-member backfill plus a signed native Discord modal that creates a provider-owned SPMT identity and optionally registers a public Twitch handle for shoutout tracking. Neither migration invents or transmits passwords. StreamWeaver identity adoption, cross-app XP producers/displays, and the two-account live matrix remain exit blockers.
+
+Production preparation evidence on 2026-07-17: the formerly shared unbound platform key was replaced with separately generated, app-bound, staged credentials for DSH, HearMeOut, ChatTag, and StreamWeaver using only `events:write` plus `identity:write` where grandfathering is implemented. The old key remains valid only through the coordinated deployment and must be revoked after every app verifies its new key. A pre-deploy SPMT SQLite copy was opened independently in read-only mode, passed `PRAGMA quick_check`, and contained 41 pre-backfill users. This proves the SPMT copy is readable; Gate 0 still requires equivalent isolated restore drills and RPO/RTO ownership for every authoritative store.
+
 Verified StreamWeaver work already removed from the active queue: tenant directory/API/WebSocket foundations, tenant-aware bot and TTS configuration APIs, tenant chat-mode storage, welcome tracker/memory paths, tenant metrics paths, tenant gamble overlay output, shared-chat token recovery, and tenant automation-variable persistence regression coverage. These still require the two-tenant suite before Gate 1 closes.
 
 Additional verified isolation work: the current Kick user API contract is used when resolving tenant broadcaster/chat identity; LTM condense routes now require a tenant session and pass the tenant through AI config, generation, and storage; automation bot-name matching accepts tenant context. Tenant provider access/refresh tokens remain app state and must migrate from legacy volume JSON into encrypted database records only after Gate 0 backup/restore proof; they must never be placed in Fly secrets.
@@ -106,24 +117,26 @@ Additional verified isolation work: the current Kick user API contract is used w
 
 - [x] Implement `WorkspaceProfileV1`, revision conflicts, validation, export/import/reset, and redacted update events.
 - [x] Move SpaceMountain appearance and three dock slots to the signed-in SPMT profile with one-time browser migration and offline cache semantics.
-- [ ] Split overlay scenes and workflow definitions out of the legacy `overlay_workspaces` blob into versioned owned records.
+- [x] Split overlay scenes and workflow definitions out of the legacy `overlay_workspaces` blob into versioned owned records.
 - [ ] Add `activeOverlaySceneId`, TTS subscriptions, and app theme mappings to real consumers with conflict/retry UI.
 - [ ] Publish one versioned SPMT workspace/theme client with background, surface, text, accent, radius, density, and motion tokens.
 - [ ] Adopt the shared client one app at a time in DSH, StreamWeaver, HearMeOut, and ChatTag, with an explicit “follow SpaceMountain theme” switch.
-- [ ] Keep device-only volume, audio unlock, replay cursors, and transient layout state local; keep account/app state server-authoritative.
+- [x] Keep device-only volume, audio unlock, replay cursors, and transient layout state local; keep account/app state server-authoritative.
 - [ ] Pass cross-device restore, second-account isolation, failed-save retry, embedded-app theme, and no-secret-in-profile tests.
 
-Browser-persistence audit snapshot for the remaining Gate 1–2 work:
+Browser-persistence audit snapshot after the 2026-07-17 hardening pass:
 
-- SpaceMountain still stores SPMT bearer tokens/identity and arena inventory/stats in `localStorage`; tokens must move behind an HttpOnly server session, while arena state must become account-backed app state.
-- DiscordStreamHub still uses browser identity/guild/admin flags and several selected channel IDs as operating authority or durable settings despite the new HttpOnly SPMT session bridge; identity must come from the server session and supported channel settings must be server-authoritative.
-- HearMeOut still keeps custom themes, active theme, popout layouts, and overlay visibility/hidden-user settings only in the browser. Voice volume/noise/PTT controls and TTS replay cursors may remain device-local; reusable themes/layouts and shared overlay choices belong in account/app state.
+- SpaceMountain now uses a same-origin HttpOnly SPMT session and account-backed arena state. A one-time server-validated upgrade converts a still-valid legacy browser token before deleting it.
+- DiscordStreamHub now derives current identity/admin state from the SPMT session. Existing validated legacy sessions remain regular-user compatible but cannot confer admin authority. Theme and operational channel settings use SPMT app state and retain a local compatibility shadow only until the account bridge succeeds.
+- HearMeOut now stores reusable themes and saved popout layouts in SPMT app state, and shared overlay visibility/hidden-user choices in room state. Voice volume/noise/PTT controls, live popout coordinates, audio unlock, and TTS replay cursors remain intentionally device-local. Legacy values are deleted only after an account-backed save succeeds.
 - StreamWeaver still has browser-only avatar files/display mode, shoutout-overlay mode, voice destination/autosend, and bot-name/personality fallbacks. Device-only audio/replay choices may remain local; tenant automation, overlay, bot, and workflow choices must be read from tenant-owned server state.
 - ChatTag browser username/avatar values are display caches only and are cleared when the server session is absent; they must never regain authentication authority.
 
 ### Deferred app-track work after Gate 3 opens
 
 StreamWeaver generation hardening remains an app track, not a Gate 0–2 blocker: typed generation controls, effective-config preview, DM response parity and lifecycle logs, provider health, image metadata/retention, registry previews/filtering, Perchance guardrails, and backup/debug tooling.
+
+The former StreamWeaver Kick broadcast TODO is folded here as deferred app-track work: cross-channel ChatTag broadcast slug resolution, non-tenant Kick listening, and Kick AI/TTS response parity must use the current Kick public API contract and tenant/provider grants. It is not a separate active queue and does not override Gates 0–3.
 
 HearMeOut media consolidation remains an app track, not a Gate 0–2 blocker: preserve the movie-style watch-session contract as the backbone; adapt music into the same accepted media contract; keep voice separate; align watch page, Discord Activity, rooms, and overlay players; add separate OBS media/voice outputs; add telemetry and playback smoke tests; deprecate old routes only after usage evidence. `hearmeout-main/docs/HEARMEOUT_MEDIA_ROUTE_INVENTORY.md` remains the evidence inventory, while this roadmap owns the queue.
 
@@ -318,7 +331,7 @@ Include the dashboard and all owned bot/worker apps. External adopters are added
 
 ### Step 0.3 — Remove credential fallbacks
 
-1. Set dedicated `MOUNTAINVIEW_OWNER_PASSWORD` and `MOUNTAINVIEW_TOKEN_ENCRYPTION_KEY` Fly secrets.
+1. Use SPMT OAuth for MountainView owner authentication and set the dedicated `MOUNTAINVIEW_TOKEN_ENCRYPTION_KEY` Fly secret; no app-specific owner password is required.
 2. Set a scoped MountainView SPMT service credential after Gate 1's device/service contract exists.
 3. Remove fallback to `mountainview-dev`, `mountainview-dev-key`, `FLY_API_TOKEN`, and the rotator action token.
 4. Fail startup or report not-ready when required production secrets are absent.
@@ -1044,7 +1057,7 @@ Do not work on later phases around an unresolved earlier safety/ownership depend
 1. Owned-suite production inventory manifest and dashboard decision owner; deferred external adopters are excluded.
 2. Error/log baseline and reproducible smoke scripts.
 3. Backup/restore proof.
-4. MountainView dedicated secrets and removal of fallbacks.
+4. MountainView SPMT authentication, dedicated encryption secret, and removal of fallbacks.
 5. Configure owner recovery and recover the locked-out tenant.
 6. Truthful Athena/MountainView capability UI and APIs.
 7. Rate limits, auth validation, and correlation IDs on critical routes.
@@ -1124,8 +1137,8 @@ These are the next concrete tasks, in dependency order:
 1. Add `PRODUCTION_INVENTORY.md` with every paid runtime, source, commit, owner, URL, volume, secret names, health, and decision.
 2. Add feature smoke scripts for all public health and critical routes.
 3. Capture and classify 24–48 hours of production errors.
-5. Configure dedicated MountainView owner/encryption secrets.
-6. Remove MountainView development and rotator/Fly credential fallbacks.
+5. Verify MountainView SPMT owner authentication and its dedicated encryption secret.
+6. Verify MountainView development and rotator/Fly credential fallbacks remain removed.
 7. Configure SPMT owner recovery, recover the locked-out account, and test rotation.
 8. Make Athena capability/status responses reflect real adapters.
 9. Replace SpaceMountain's simulated Athena prompt with a clearly unavailable state until jobs exist.

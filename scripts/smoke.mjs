@@ -249,6 +249,51 @@ try {
   assert.equal(secondWorkspace.profile.appearance.themeId, 'solar-flare');
   assert.notEqual(secondWorkspace.profile.dockSlots[0].title, 'Smoke Overlay');
 
+  const appStateCreateResponse = await fetch(`${baseUrl}/api/app-state/hearmeout/preferences`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ schemaVersion: 1, data: { activeTheme: 'nebula-purple', hiddenUsers: ['noise-bot'] } }),
+  });
+  const appStateCreate = await appStateCreateResponse.json();
+  assert.equal(appStateCreateResponse.status, 200);
+  assert.equal(appStateCreate.revision, 1);
+  assert.equal(appStateCreate.data.activeTheme, 'nebula-purple');
+
+  const appStateConflictResponse = await fetch(`${baseUrl}/api/app-state/hearmeout/preferences`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ data: { activeTheme: 'solar-flare' } }),
+  });
+  assert.equal(appStateConflictResponse.status, 409);
+
+  const secretStateResponse = await fetch(`${baseUrl}/api/app-state/hearmeout/preferences`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ revision: 1, data: { accessToken: 'must-not-persist' } }),
+  });
+  assert.equal(secretStateResponse.status, 400);
+
+  const isolatedAppStateResponse = await fetch(`${baseUrl}/api/app-state/hearmeout/preferences`, {
+    headers: { Authorization: `Bearer ${secondRegistration.token}` },
+  });
+  assert.equal(isolatedAppStateResponse.status, 404);
+
+  const overlaySceneResponse = await fetch(`${baseUrl}/api/workspace/overlay-scenes/main-scene`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ name: 'Main scene', data: { layers: [{ type: 'chat', appId: 'streamweaver' }] } }),
+  });
+  const overlayScene = await overlaySceneResponse.json();
+  assert.equal(overlaySceneResponse.status, 200);
+  assert.equal(overlayScene.scene.revision, 1);
+
+  const workflowResponse = await fetch(`${baseUrl}/api/workspace/workflows/live-start`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ name: 'Live start', data: { steps: [{ appId: 'streamweaver', action: 'announce' }] } }),
+  });
+  assert.equal(workflowResponse.status, 200);
+
   const resetWorkspaceResponse = await fetch(`${baseUrl}/api/workspace-profile/reset`, {
     method: 'POST',
     headers: {
@@ -294,7 +339,7 @@ try {
     body: JSON.stringify({
       appId: 'smoke-game',
       name: 'Smoke game key',
-      scopes: ['identity:read', 'apps:read', 'apps:write', 'events:write'],
+      scopes: ['identity:read', 'identity:write', 'apps:read', 'apps:write', 'events:write', 'xp:write'],
     }),
   });
   const key = await keyResponse.json();
@@ -310,6 +355,72 @@ try {
   assert.equal(keyVerificationResponse.status, 200);
   assert.equal(keyVerification.valid, true);
   assert.equal(keyVerification.key.appId, 'smoke-game');
+
+  const grandfatherResponse = await fetch(`${baseUrl}/api/platform/identity/grandfather`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.token}` },
+    body: JSON.stringify({
+      provider: 'twitch',
+      providerUserId: 'twitch-smoke-1001',
+      providerUsername: 'smoke-user',
+      username: 'smoke-user',
+      displayName: 'Grandfathered Smoke User',
+      issueSession: true,
+    }),
+  });
+  const grandfather = await grandfatherResponse.json();
+  assert.equal(grandfatherResponse.status, 201);
+  assert.equal(grandfather.created, true);
+  assert.equal(grandfather.user.twitchId, 'twitch-smoke-1001');
+  assert.notEqual(grandfather.user.id, registration.user.id);
+  assert.notEqual(grandfather.user.username, registration.user.username);
+  assert.ok(grandfather.accessToken);
+
+  const grandfatheredMeResponse = await fetch(`${baseUrl}/api/me`, {
+    headers: { Authorization: `Bearer ${grandfather.accessToken}` },
+  });
+  const grandfatheredMe = await grandfatheredMeResponse.json();
+  assert.equal(grandfatheredMeResponse.status, 200);
+  assert.equal(grandfatheredMe.user.id, grandfather.user.id);
+
+  const claimGrandfatheredResponse = await fetch(`${baseUrl}/api/auth/claim-imported`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${grandfather.accessToken}` },
+    body: JSON.stringify({ password: 'grandfathered-smoke-password-123' }),
+  });
+  const claimedGrandfather = await claimGrandfatheredResponse.json();
+  assert.equal(claimGrandfatheredResponse.status, 200);
+  assert.equal(claimedGrandfather.claimed, true);
+  assert.ok(claimedGrandfather.recoveryCode);
+  const claimedLoginResponse = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: grandfather.user.username, password: 'grandfathered-smoke-password-123' }),
+  });
+  assert.equal(claimedLoginResponse.status, 200);
+
+  const repeatGrandfatherResponse = await fetch(`${baseUrl}/api/platform/identity/grandfather`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.token}` },
+    body: JSON.stringify({ provider: 'twitch', providerUserId: 'twitch-smoke-1001', username: 'different-name' }),
+  });
+  const repeatGrandfather = await repeatGrandfatherResponse.json();
+  assert.equal(repeatGrandfatherResponse.status, 200);
+  assert.equal(repeatGrandfather.created, false);
+  assert.equal(repeatGrandfather.user.id, grandfather.user.id);
+
+  const unboundKeyResponse = await fetch(`${baseUrl}/api/platform/api-keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ name: 'Unbound migration key', scopes: ['identity:write'] }),
+  });
+  const unboundKey = await unboundKeyResponse.json();
+  assert.equal(unboundKeyResponse.status, 201);
+  const unboundGrandfatherResponse = await fetch(`${baseUrl}/api/platform/identity/grandfather`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${unboundKey.token}` },
+    body: JSON.stringify({ provider: 'discord', providerUserId: 'discord-smoke-1001', username: 'unsafe-user' }),
+  });
+  assert.equal(unboundGrandfatherResponse.status, 403);
 
   const submissionInput = {
     appId: 'smoke-game',
@@ -396,6 +507,32 @@ try {
   assert.equal(eventListResponse.status, 200);
   assert.equal(eventList.events.length, 1);
   assert.equal(eventList.events[0].payload.sessionId, 'smoke-session');
+
+  const xpAwardResponse = await fetch(`${baseUrl}/api/platform/xp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.token}` },
+    body: JSON.stringify({ userId: registration.user.id, sourceApp: 'smoke-game', eventType: 'session-win', idempotencyKey: 'smoke-session-win-1', delta: 125, metadata: { sessionId: 'smoke-session' } }),
+  });
+  assert.equal(xpAwardResponse.status, 201);
+  const duplicateXpResponse = await fetch(`${baseUrl}/api/platform/xp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.token}` },
+    body: JSON.stringify({ userId: registration.user.id, sourceApp: 'smoke-game', eventType: 'session-win', idempotencyKey: 'smoke-session-win-1', delta: 125 }),
+  });
+  const duplicateXp = await duplicateXpResponse.json();
+  assert.equal(duplicateXpResponse.status, 200);
+  assert.equal(duplicateXp.duplicate, true);
+  const mismatchedXpResponse = await fetch(`${baseUrl}/api/platform/xp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.token}` },
+    body: JSON.stringify({ userId: registration.user.id, sourceApp: 'another-game', eventType: 'session-win', idempotencyKey: 'wrong-app', delta: 10 }),
+  });
+  assert.equal(mismatchedXpResponse.status, 403);
+  const xpBalanceResponse = await fetch(`${baseUrl}/api/xp`, { headers: { Authorization: `Bearer ${registration.token}` } });
+  const xpBalance = await xpBalanceResponse.json();
+  assert.equal(xpBalanceResponse.status, 200);
+  assert.equal(xpBalance.xp, 125);
+  assert.equal(xpBalance.entries.length, 1);
 
   const cliProject = path.join(tempRoot, 'cli-project');
   fs.mkdirSync(cliProject, { recursive: true });
@@ -540,7 +677,7 @@ try {
   assert.equal(conversation.stored, true);
   assert.equal(conversation.routed, false);
 
-  console.log(JSON.stringify({ status: 'passed', checks: 144 }));
+  console.log(JSON.stringify({ status: 'passed', checks: 175 }));
 } catch (error) {
   throw new Error(`SPMT smoke failed: ${error instanceof Error ? error.message : error}\n${output}`);
 } finally {

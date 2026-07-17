@@ -277,6 +277,56 @@ export function initDb() {
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS app_state_records (
+      user_id TEXT NOT NULL,
+      app_id TEXT NOT NULL,
+      namespace TEXT NOT NULL,
+      schema_version INTEGER NOT NULL DEFAULT 1,
+      revision INTEGER NOT NULL DEFAULT 1,
+      data_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id, app_id, namespace),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS workspace_overlay_scenes (
+      id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      name TEXT NOT NULL,
+      scene_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id, id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS workspace_workflow_definitions (
+      id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      name TEXT NOT NULL,
+      workflow_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id, id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS xp_ledger (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      source_app TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      delta INTEGER NOT NULL,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      UNIQUE(source_app, idempotency_key),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS account_recovery_codes (
       user_id TEXT PRIMARY KEY,
       code_hash TEXT NOT NULL,
@@ -451,7 +501,7 @@ export function initDb() {
     process.env.HEARMEOUT_CLIENT_SECRET,
     'hearmeout_spmt_secret_2026',
     'HearMeOut',
-    'https://hearmeout-main.fly.dev/auth/spmt/callback,https://hearmeout-main.fly.dev'
+    'https://hearmeout-main.fly.dev/api/auth/spmt/callback,https://hearmeout-main.fly.dev/auth/spmt/callback,https://hearmeout-main.fly.dev'
   );
   seedOauthClient(
     'mountainview',

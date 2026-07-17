@@ -73,6 +73,30 @@ export type GameEventOptions = {
   timestamp?: string;
 };
 
+export type AppStateInput = {
+  schemaVersion?: number;
+  revision?: number;
+  data: Record<string, unknown>;
+};
+
+export type XpAwardInput = {
+  userId: string;
+  eventType: string;
+  idempotencyKey: string;
+  delta: number;
+  sourceApp?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type GrandfatherIdentityInput = {
+  provider: 'discord' | 'twitch';
+  providerUserId: string;
+  providerUsername?: string;
+  username?: string;
+  displayName?: string;
+  issueSession?: boolean;
+};
+
 export class SpaceMountainApiError extends Error {
   status: number;
   data: unknown;
@@ -104,6 +128,8 @@ export class SpaceMountainClient {
     me: () => this.request('/api/me'),
     platformMe: () => this.request('/api/platform/me', { authMode: 'apiKey' }),
     refresh: () => this.request('/api/auth/refresh', { method: 'POST' }),
+    claimImported: (password: string) => this.request('/api/auth/claim-imported', { method: 'POST', body: { password } }),
+    grandfather: (input: GrandfatherIdentityInput) => this.request('/api/platform/identity/grandfather', { method: 'POST', authMode: 'apiKey', body: input }),
   };
 
   apps = {
@@ -163,6 +189,28 @@ export class SpaceMountainClient {
       });
     },
     list: (limit = 50) => this.events.list(limit),
+  };
+
+  workspace = {
+    profile: () => this.request('/api/workspace-profile'),
+    overlayScenes: () => this.request('/api/workspace/overlay-scenes'),
+    workflows: () => this.request('/api/workspace/workflows'),
+    saveOverlayScene: (id: string, input: { name: string; revision?: number; data: Record<string, unknown> }) => this.request(`/api/workspace/overlay-scenes/${encodeURIComponent(id)}`, { method: 'PUT', body: input }),
+    saveWorkflow: (id: string, input: { name: string; revision?: number; data: Record<string, unknown> }) => this.request(`/api/workspace/workflows/${encodeURIComponent(id)}`, { method: 'PUT', body: input }),
+  };
+
+  appState = {
+    get: (appId: string, namespace: string) => this.request(`/api/app-state/${encodeURIComponent(appId)}/${encodeURIComponent(namespace)}`),
+    put: (appId: string, namespace: string, input: AppStateInput) => this.request(`/api/app-state/${encodeURIComponent(appId)}/${encodeURIComponent(namespace)}`, { method: 'PUT', body: input }),
+  };
+
+  experience = {
+    balance: () => this.request('/api/xp'),
+    award: (input: XpAwardInput) => this.request('/api/platform/xp', {
+      method: 'POST',
+      authMode: 'apiKey',
+      body: { sourceApp: input.sourceApp || this.appId, ...input },
+    }),
   };
 
   commlink = {

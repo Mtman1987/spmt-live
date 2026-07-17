@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "capturedAt": "2026-07-16",
+  "capturedAt": "2026-07-17T04:31:43.997Z",
   "classification": "documentation-only inventory; not consumed as runtime configuration",
   "workspace": "C:/Users/mtman/Desktop/finished/codex-environment",
   "repositories": [
@@ -68,16 +68,15 @@
             "DISCORD_BOT_TOKEN",
             "DISCORD_GUILD_ID",
             "TWITCH_CLIENT_ID",
-            "TWITCH_CLIENT_SECRET"
-          ],
-          "missingProductionSecretNamesAtCapture": [
+            "TWITCH_CLIENT_SECRET",
             "SPMT_ADMIN_RECOVERY_KEY",
             "SPACEMOUNTAIN_CLIENT_SECRET",
             "DSH_CLIENT_SECRET",
             "STREAMWEAVER_CLIENT_SECRET",
             "CHAT_TAG_CLIENT_SECRET",
             "HEARMEOUT_CLIENT_SECRET"
-          ]
+          ],
+          "missingProductionSecretNamesAtCapture": []
         }
       ]
     },
@@ -129,7 +128,7 @@
           "app": "dsh-clip-worker",
           "config": "clip-worker/fly.toml",
           "publicUrl": "https://dsh-clip-worker.fly.dev",
-          "healthPath": null
+          "healthPath": "/health"
         }
       ]
     },
@@ -199,7 +198,7 @@
       "github": "Mtman1987/space-mountain-dashboard",
       "role": "retired duplicate launcher; SpaceMountain is the canonical suite shell and launcher",
       "deployments": [],
-      "status": "retire/archive repository after preserving history; do not deploy"
+      "status": "GitHub repository archived; clean local history retained; do not deploy"
     }
   ],
   "inactiveDeploymentConfigs": [],

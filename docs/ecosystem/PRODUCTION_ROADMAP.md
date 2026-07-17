@@ -41,13 +41,13 @@ The snapshot below was verified against local `main`, GitHub Actions, Fly state,
 | --- | --- | --- | --- |
 | SPMT (`spmt.live`) | Live, health passing, 12 real users at the latest slice | Identity, sessions, account recovery, partner SDK/app review, apps, Commlink messages/conversations, notifications, events, `WorkspaceProfileV1`, overlay workspace JSON, Athena memory/routes | Owner recovery operations still need a durable admin audit path; app identity adoption is incomplete; event authorization and retention need hardening; legacy overlay/builder storage remains unversioned; Athena reports capabilities it does not execute |
 | SpaceMountain (`spacemountain.live`) | Live, health passing | Suite shell, launcher, rocket arena easter egg, SPMT mail/notifications/events, account-backed appearance and three URL slots, personal overlay canvas, builder definitions, MountainView surface | Other apps do not consume shared theme tokens yet; overlay has no clean output URL; builder test buttons only show notifications; inbox is not a combined live-chat dock; `App.tsx` remains too large and its production bundle still needs code splitting |
-| StreamWeaver | Live, health passing | Bot/AI runtime, chat processing, TTS, public overlays/listeners, shared TTS mixer, partial multi-tenant storage | Its own active TODO documents global botshare, AI, TTS, chat, metrics, welcome, gamble, voice, and other tenant-state leaks; these block feeding every bot the shared chat safely |
+| StreamWeaver | Live, health passing | Bot/AI runtime, chat processing, TTS, public overlays/listeners, shared TTS mixer, partial multi-tenant storage | Remaining botshare, stats, translation, gamble, voice, API-context, and token-store isolation work is consolidated in this roadmap; app-local TODO queues were removed |
 | DiscordStreamHub | Live, health passing | Discord interactions, dashboards, community/live state, calendar, shoutout/moderation flows, SPMT event bridge | SPMT identity/session is not the only identity; community authority/spotlight contracts need completion; cross-app events and launch targets need full production verification |
-| HearMeOut + DJ worker | Both live with passing checks | Rooms, LiveKit configuration, watch/listen state, Discord Activity paths, overlays, voice/media event publishing | Media behavior still has multiple truth paths; production media roadmap has 510 unchecked documentation tasks; player/source/Activity/OBS behavior needs contract consolidation and end-to-end tests |
+| HearMeOut + DJ worker | Both live with passing checks | Rooms, LiveKit configuration, watch/listen state, Discord Activity paths, overlays, voice/media event publishing | Media behavior still has multiple truth paths; active work is summarized in this roadmap and the route inventory remains evidence; player/source/Activity/OBS behavior needs contract consolidation and end-to-end tests |
 | ChatTag + bot | Both live with passing checks | Game UI/bot, health endpoint, event publishing, arena/game mechanics | SPMT player identity and linked accounts are incomplete; XP/level/reward authority is split across apps; app and bot event paths need a full two-user live test |
 | MountainView inside rotator | Live, health passing, status reports `phone-side` and `connected:false` | Authenticated command definitions, direct app calls, voice routing, media/vision routes, memory/log/device tables, Android/Expo bridge work | No SPMT device identity/pairing; no dedicated MountainView owner password or encryption secret; no MountainView SPMT API key; defaults fall back to rotator/Fly credentials; no cloud device socket; hardware access still depends on a phone-side Bluetooth bridge |
 | Fly machine rotator | Live, health passing | Machine rotation, log monitoring, MountainView host | Rotator reliability/security is coupled to experimental MountainView code; the boundary needs isolation even if both remain in one Fly app to avoid another bill |
-| Space Mountain dashboard | Retired duplicate launcher; local/GitHub history retained temporarily | Historical static launcher concept | Do not deploy; SpaceMountain is the canonical authenticated suite shell and launcher |
+| Space Mountain dashboard | Retired duplicate launcher; GitHub repository archived, local history retained | Historical static launcher concept | Do not deploy; SpaceMountain is the canonical authenticated suite shell and launcher |
 | AETHERRA | Deferred external adopter; excluded from owned-suite gate certification | Coworker-owned application that may consume the stable SPMT SDK later | No source or operational work is in scope until the SDK and documentation are complete; it does not block Gates 0 through 2 or readiness for Gate 3 |
 
 All listed Fly-backed repositories had a successful latest GitHub deployment at this snapshot. That proves deployability, not complete product behavior.
@@ -76,11 +76,11 @@ This is the current work queue. Items below supersede the former StreamWeaver an
 - [x] Remove accidental workspace shell artifacts and duplicate extracted SDK output.
 - [x] Remove the nonexistent `streamweaver-work-test` deployment from the live manifest and delete its stale local Fly config/deploy script.
 - [x] Retire `space-mountain-dashboard` as a duplicate unauthenticated launcher; SpaceMountain is the canonical suite shell and launcher.
-- [ ] Configure SPMT owner recovery and the five app OAuth client secrets; readiness currently reports both as degraded.
-- [ ] Configure dedicated MountainView owner-password and token-encryption secrets, then remove rotator/Fly credential fallbacks.
+- [x] Configure SPMT owner recovery and the five fixed app OAuth client secrets, rotate the existing database client rows, and make missing production credentials fail readiness.
+- [x] Configure dedicated MountainView owner-password and token-encryption secrets, remove rotator/Fly credential fallbacks, and reject production auth-disable mode.
 - [ ] Audit every app for production JWT/session/default credential fallbacks and make missing required secrets fail readiness.
-- [ ] Add a reproducible smoke command for every owned app and worker, including build SHA and one critical feature route.
-- [ ] Add a Fly service health check to `dsh-clip-worker`; its `/health` route works but Fly does not monitor it.
+- [x] Add `npm run smoke:suite` as the reproducible owned-suite smoke command; it proves local/origin/Fly build-SHA parity plus health and one critical feature route for every app and worker.
+- [x] Add a Fly service health check to `dsh-clip-worker` using its existing `/health` route.
 - [ ] Capture and classify 24–48 hours of current errors after the persistence deployments.
 - [ ] Prove backup plus isolated restore for each owned database/volume and document RPO, RTO, operator, and rollback release.
 - [ ] Make Athena/MountainView capability output and every simulated UI action report configured, degraded, unavailable, or a real accepted job truthfully.
@@ -99,6 +99,8 @@ This is the current work queue. Items below supersede the former StreamWeaver an
 - [ ] Define the canonical SPMT XP/level/reward ledger, map ChatTag/DSH/arena/SpaceMountain events with idempotency keys, and make shared displays read it.
 
 Verified StreamWeaver work already removed from the active queue: tenant directory/API/WebSocket foundations, tenant-aware bot and TTS configuration APIs, tenant chat-mode storage, welcome tracker/memory paths, tenant metrics paths, tenant gamble overlay output, shared-chat token recovery, and tenant automation-variable persistence regression coverage. These still require the two-tenant suite before Gate 1 closes.
+
+Additional verified isolation work: the current Kick user API contract is used when resolving tenant broadcaster/chat identity; LTM condense routes now require a tenant session and pass the tenant through AI config, generation, and storage; automation bot-name matching accepts tenant context. Tenant provider access/refresh tokens remain app state and must migrate from legacy volume JSON into encrypted database records only after Gate 0 backup/restore proof; they must never be placed in Fly secrets.
 
 ### Gate 2 — portable workspace and supported app settings
 
@@ -897,7 +899,7 @@ Use the consolidated HearMeOut app track in this roadmap and the route inventory
 
 ### Dashboard decision — retire
 
-Retire `space-mountain-dashboard`. It is an unauthenticated static launcher without a unique user or operational contract, while SpaceMountain already owns the authenticated suite-shell and launcher role. Preserve Git history, archive the repository, and do not deploy it.
+`space-mountain-dashboard` is retired and its GitHub repository is archived. It is an unauthenticated static launcher without a unique user or operational contract, while SpaceMountain already owns the authenticated suite-shell and launcher role. Preserve its clean local/Git history and do not deploy it.
 
 ### AETHERRA — deferred external SPMT SDK adopter
 

@@ -11,6 +11,7 @@
     "sdk:package": "npm run sdk:build && node scripts/package-sdk.mjs",
     "start": "node dist/server.cjs",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:suite": "node scripts/operations/suite-smoke.mjs",
     "test": "npm run typecheck && npm run build && npm run sdk:package && npm run smoke"
   },
   "dependencies": {

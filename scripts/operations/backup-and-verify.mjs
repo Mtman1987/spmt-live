@@ -31,7 +31,14 @@ const counts = {
 restored.close();
 
 const bytes = fs.statSync(backupPath).size;
-const sha256 = crypto.createHash('sha256').update(fs.readFileSync(backupPath)).digest('hex');
+const hash = crypto.createHash('sha256');
+await new Promise((resolve, reject) => {
+  const stream = fs.createReadStream(backupPath);
+  stream.on('data', (chunk) => hash.update(chunk));
+  stream.on('end', resolve);
+  stream.on('error', reject);
+});
+const sha256 = hash.digest('hex');
 fs.rmSync(restorePath, { force: true });
 
 if (integrity !== 'ok') {

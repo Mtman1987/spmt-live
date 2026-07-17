@@ -79,6 +79,65 @@ export type AppStateInput = {
   data: Record<string, unknown>;
 };
 
+export type WorkspaceAppearanceV1 = {
+  themeId: string;
+  glowIntensity: number;
+  starDensity: number;
+  glassOpacity: number;
+  blurStrength: number;
+  borderStrength: number;
+  cornerRadius: string;
+  density: string;
+  animation: { enabled: boolean; speed: number; particles: boolean };
+};
+
+export type WorkspaceProfileV1 = {
+  schemaVersion: 1;
+  revision: number;
+  appearance: WorkspaceAppearanceV1;
+  dockSlots: Array<{ id: 1 | 2 | 3; title: string; url: string; collapsed: boolean; volume: number; muted: boolean }>;
+  activeOverlaySceneId: string | null;
+  ttsSubscriptions: string[];
+  appThemeMappings: Record<string, string>;
+  updatedAt: string;
+};
+
+export type WorkspaceThemeTokensV1 = {
+  schemaVersion: 1;
+  followWorkspace: boolean;
+  themeId: string;
+  background: string;
+  surface: string;
+  text: string;
+  accent: string;
+  radius: string;
+  density: string;
+  motion: { enabled: boolean; speed: number; particles: boolean };
+};
+
+const THEME_PALETTES: Record<string, Pick<WorkspaceThemeTokensV1, 'background' | 'surface' | 'text' | 'accent'>> = {
+  'solar-flare': { background: '#080b14', surface: '#171321', text: '#f8fafc', accent: '#ff8a3d' },
+  'nebula-purple': { background: '#090712', surface: '#1d1530', text: '#f8f4ff', accent: '#a855f7' },
+  'oceanic-blue': { background: '#06111a', surface: '#0c2535', text: '#effaff', accent: '#22d3ee' },
+  'forest-green': { background: '#07110d', surface: '#10291e', text: '#f0fdf4', accent: '#34d399' },
+};
+
+export function workspaceThemeTokens(profile: WorkspaceProfileV1, appId: string): WorkspaceThemeTokensV1 {
+  const mapping = String(profile.appThemeMappings?.[appId] || 'follow-workspace');
+  const followWorkspace = mapping === 'follow-workspace';
+  const themeId = followWorkspace ? profile.appearance.themeId : mapping;
+  const palette = THEME_PALETTES[themeId] || THEME_PALETTES['solar-flare'];
+  return {
+    schemaVersion: 1,
+    followWorkspace,
+    themeId,
+    ...palette,
+    radius: profile.appearance.cornerRadius,
+    density: profile.appearance.density,
+    motion: { ...profile.appearance.animation },
+  };
+}
+
 export type XpAwardInput = {
   userId: string;
   eventType: string;
@@ -192,7 +251,15 @@ export class SpaceMountainClient {
   };
 
   workspace = {
-    profile: () => this.request('/api/workspace-profile'),
+    profile: () => this.request('/api/workspace-profile') as Promise<{ profile: WorkspaceProfileV1 }>,
+    patchProfile: (profile: Partial<WorkspaceProfileV1>, revision: number) => this.request('/api/workspace-profile', { method: 'PATCH', body: { profile, revision } }) as Promise<{ profile: WorkspaceProfileV1 }>,
+    replaceProfile: (profile: WorkspaceProfileV1, revision: number) => this.request('/api/workspace-profile', { method: 'PUT', body: { profile, revision } }) as Promise<{ profile: WorkspaceProfileV1 }>,
+    resetProfile: (revision: number) => this.request('/api/workspace-profile/reset', { method: 'POST', body: { revision } }) as Promise<{ profile: WorkspaceProfileV1 }>,
+    themeTokens: async (appId = this.appId || '') => {
+      if (!appId) throw new Error('appId is required to derive workspace theme tokens');
+      const response = await this.request('/api/workspace-profile') as { profile: WorkspaceProfileV1 };
+      return workspaceThemeTokens(response.profile, appId);
+    },
     overlayScenes: () => this.request('/api/workspace/overlay-scenes'),
     workflows: () => this.request('/api/workspace/workflows'),
     saveOverlayScene: (id: string, input: { name: string; revision?: number; data: Record<string, unknown> }) => this.request(`/api/workspace/overlay-scenes/${encodeURIComponent(id)}`, { method: 'PUT', body: input }),

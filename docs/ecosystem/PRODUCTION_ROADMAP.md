@@ -84,21 +84,21 @@ The trusted app uses an app-bound `identity:write` credential, receives the SPMT
 - [x] Retire `space-mountain-dashboard` as a duplicate unauthenticated launcher; SpaceMountain is the canonical suite shell and launcher.
 - [x] Configure SPMT owner recovery and the five fixed app OAuth client secrets, rotate the existing database client rows, and make missing production credentials fail readiness.
 - [x] Replace MountainView's one-off owner password with SPMT OAuth, stage the dedicated token-encryption secret, remove rotator/Fly credential fallbacks, and reject production auth-disable mode.
-- [ ] Audit every app for production JWT/session/default credential fallbacks and make missing required secrets fail readiness.
+- [x] Audit every app for production JWT/session/default credential fallbacks and make missing required secrets fail readiness.
 - [x] Add `npm run smoke:suite` as the reproducible owned-suite smoke command; it proves local/origin/Fly build-SHA parity plus health and one critical feature route for every app and worker.
 - [x] Add a Fly service health check to `dsh-clip-worker` using its existing `/health` route.
 - [ ] Capture and classify 24–48 hours of current errors after the persistence deployments.
 - [ ] Prove backup plus isolated restore for each owned database/volume and document RPO, RTO, operator, and rollback release.
-- [ ] Make Athena/MountainView capability output and every simulated UI action report configured, degraded, unavailable, or a real accepted job truthfully.
+- [x] Make Athena/MountainView capability output and every simulated UI action report configured, degraded, unavailable, or a real accepted job truthfully.
 
 ### Gate 1 — identity, scopes, tenant isolation, and XP
 
-- [ ] Make SPMT session restore the primary identity in StreamWeaver, DSH, HearMeOut, ChatTag, MountainView, and SpaceMountain; provider OAuth remains a linked grant.
+- [x] Make SPMT session restore the primary identity in StreamWeaver, DSH, HearMeOut, ChatTag, MountainView, and SpaceMountain; provider OAuth remains a linked grant.
 - [x] Grandfather existing ChatTag and Discord community members by immutable provider ID, and provide native Discord modal onboarding without collecting a password or requiring an external redirect.
 - [ ] Verify direct and embedded login, logout, refresh, account switch, disconnect, export, and deletion with two accounts.
-- [ ] Issue one scoped, rotatable service credential per app/environment and add allowed/forbidden contract tests.
+- [x] Issue one scoped, rotatable service credential per app/environment and add allowed/forbidden contract tests.
 - [ ] Finish StreamWeaver botshare isolation and foreign-chat mention rules; prove loose aliases cannot invoke another tenant's bot.
-- [ ] Pass `tenantId` through the remaining AI callers (`CommandManager`, LTM condense routes) and eliminate production global-config fallbacks.
+- [x] Pass `tenantId` through the remaining AI callers (`CommandManager`, LTM condense routes) and eliminate production global-config fallbacks.
 - [ ] Replace StreamWeaver global `user-stats.json`/`statsCache`, translation-user state, and classic-gamble settings with tenant-owned state.
 - [ ] Verify walk-on, EventSub, welcome, metrics, shared-chat, clips, chat-monitor, polling, voice, and WebSocket paths with concurrent tenants; keep intentionally global Pokemon and partner check-in data global.
 - [ ] Make remaining `/api/chat/send`, AI memory/shoutout, TTS, gamble, welcome, and leaderboard routes reject missing tenant context where tenant state is required.
@@ -129,7 +129,7 @@ Additional verified isolation work: the current Kick user API contract is used w
 - [x] Move SpaceMountain appearance and three dock slots to the signed-in SPMT profile with one-time browser migration and offline cache semantics.
 - [x] Split overlay scenes and workflow definitions out of the legacy `overlay_workspaces` blob into versioned owned records.
 - [ ] Add `activeOverlaySceneId`, TTS subscriptions, and app theme mappings to real consumers with conflict/retry UI.
-- [ ] Publish one versioned SPMT workspace/theme client with background, surface, text, accent, radius, density, and motion tokens.
+- [x] Publish one versioned SPMT workspace/theme client with background, surface, text, accent, radius, density, and motion tokens.
 - [ ] Adopt the shared client one app at a time in DSH, StreamWeaver, HearMeOut, and ChatTag, with an explicit “follow SpaceMountain theme” switch.
 - [x] Keep device-only volume, audio unlock, replay cursors, and transient layout state local; keep account/app state server-authoritative.
 - [ ] Pass cross-device restore, second-account isolation, failed-save retry, embedded-app theme, and no-secret-in-profile tests.

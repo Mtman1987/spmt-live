@@ -113,6 +113,14 @@ Additional verified isolation work: the current Kick user API contract is used w
 - [ ] Keep device-only volume, audio unlock, replay cursors, and transient layout state local; keep account/app state server-authoritative.
 - [ ] Pass cross-device restore, second-account isolation, failed-save retry, embedded-app theme, and no-secret-in-profile tests.
 
+Browser-persistence audit snapshot for the remaining Gate 1–2 work:
+
+- SpaceMountain still stores SPMT bearer tokens/identity and arena inventory/stats in `localStorage`; tokens must move behind an HttpOnly server session, while arena state must become account-backed app state.
+- DiscordStreamHub still uses browser identity/guild/admin flags and several selected channel IDs as operating authority or durable settings despite the new HttpOnly SPMT session bridge; identity must come from the server session and supported channel settings must be server-authoritative.
+- HearMeOut still keeps custom themes, active theme, popout layouts, and overlay visibility/hidden-user settings only in the browser. Voice volume/noise/PTT controls and TTS replay cursors may remain device-local; reusable themes/layouts and shared overlay choices belong in account/app state.
+- StreamWeaver still has browser-only avatar files/display mode, shoutout-overlay mode, voice destination/autosend, and bot-name/personality fallbacks. Device-only audio/replay choices may remain local; tenant automation, overlay, bot, and workflow choices must be read from tenant-owned server state.
+- ChatTag browser username/avatar values are display caches only and are cleared when the server session is absent; they must never regain authentication authority.
+
 ### Deferred app-track work after Gate 3 opens
 
 StreamWeaver generation hardening remains an app track, not a Gate 0–2 blocker: typed generation controls, effective-config preview, DM response parity and lifecycle logs, provider health, image metadata/retention, registry previews/filtering, Perchance guardrails, and backup/debug tooling.

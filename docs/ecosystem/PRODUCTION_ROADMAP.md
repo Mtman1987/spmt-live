@@ -35,7 +35,7 @@ The immediate goal is not to make every idea large. It is to make the current id
 
 ## Verified Production Snapshot
 
-The snapshot below was verified against local `main`, GitHub Actions, Fly state, live health endpoints, and current source on 2026-07-13.
+The snapshot below was re-verified against local `main`, GitHub Actions, Fly state, live health endpoints, and current source on 2026-07-17.
 
 | Product | Current production state | What is real now | What prevents production-ready status |
 | --- | --- | --- | --- |
@@ -107,7 +107,17 @@ The trusted app uses an app-bound `identity:write` credential, receives the SPMT
 
 Implemented foundation awaiting coordinated production verification: app-bound `identity:write` grandfathering, provider-ID collision safety, server-only session issuance, imported-account claim/recovery setup, `xp:write` with app binding and idempotency, and allowed/forbidden contract coverage in the 175-check SPMT smoke suite. SpaceMountain, MountainView, DSH, HearMeOut, and ChatTag now have server-session paths; DSH/HearMeOut/ChatTag retain a non-admin compatibility path for existing sessions so migration does not become an outage. ChatTag has a bounded durable-user backfill, and DSH has a bot-secret-protected paginated Discord-member backfill plus a signed native Discord modal that creates a provider-owned SPMT identity and optionally registers a public Twitch handle for shoutout tracking. Neither migration invents or transmits passwords. StreamWeaver identity adoption, cross-app XP producers/displays, and the two-account live matrix remain exit blockers.
 
-Production preparation evidence on 2026-07-17: the formerly shared unbound platform key was replaced with separately generated, app-bound, staged credentials for DSH, HearMeOut, ChatTag, and StreamWeaver using only `events:write` plus `identity:write` where grandfathering is implemented. The old key remains valid only through the coordinated deployment and must be revoked after every app verifies its new key. A pre-deploy SPMT SQLite copy was opened independently in read-only mode, passed `PRAGMA quick_check`, and contained 41 pre-backfill users. This proves the SPMT copy is readable; Gate 0 still requires equivalent isolated restore drills and RPO/RTO ownership for every authoritative store.
+Production preparation evidence on 2026-07-17: the formerly shared unbound platform key was replaced with separately generated, deployed, app-bound credentials for DSH, HearMeOut, ChatTag, and StreamWeaver using only `events:write` plus `identity:write` where grandfathering is implemented. Each live app verified its own app ID and scopes, and the old shared key was revoked. A pre-deploy SPMT SQLite copy was opened independently in read-only mode, passed `PRAGMA quick_check`, and contained 41 pre-backfill users. This proves the SPMT copy is readable; Gate 0 still requires equivalent isolated restore drills and RPO/RTO ownership for every authoritative store.
+
+### 2026-07-17 Gate 0–2 handoff evidence
+
+- All seven affected repository workflows completed successfully. `npm run smoke:suite` then verified exact local `HEAD` = `origin/main` = deployed Fly image SHA, HTTP health, and a critical feature route for all ten owned app/worker deployments in the manifest.
+- Discord backfill scanned 363 guild members, skipped bots, processed all 349 eligible people, created 343 new provider-owned SPMT identities, reused six existing identities, and had zero failures.
+- ChatTag backfill processed all 119 durable Twitch identities with zero failures. Provider records are never merged by display name; a cross-provider merge remains pending until the suite has proof that both immutable provider accounts belong to the same person.
+- SPMT now contains 503 users: 349 Discord-linked, 119 Twitch-linked, and 490 provider-owned identities that can later choose credentials from a verified session without losing their current app access.
+- Rotator's 24-hour actionable error list is clear at zero. Forty-eight unsafe historical ignore rules were removed from the volume-backed rule file with a recoverable pre-prune copy, leaving 25 rules limited to expected lifecycle/user-state noise. New actionable incidents are blocked from entering the ignore list and classified for code, auth/config, or external retry handling.
+- Local worktrees for every canonical workspace repository are clean and match `origin/main`. The duplicate retired dashboard repository is also clean; AETHERRA and reference-only sources remain excluded by policy.
+- Gates 0–2 are not falsely closed: Gate 0 still needs the 24–48 hour post-deploy observation and isolated restore/RPO/RTO proof for every remaining authoritative store; Gate 1 still needs StreamWeaver identity adoption, the two-account/two-tenant matrix, and XP producer/display adoption; Gate 2 still needs the shared theme client/consumer rollout and cross-device/conflict/isolation matrix.
 
 Verified StreamWeaver work already removed from the active queue: tenant directory/API/WebSocket foundations, tenant-aware bot and TTS configuration APIs, tenant chat-mode storage, welcome tracker/memory paths, tenant metrics paths, tenant gamble overlay output, shared-chat token recovery, and tenant automation-variable persistence regression coverage. These still require the two-tenant suite before Gate 1 closes.
 

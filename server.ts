@@ -26,6 +26,7 @@ const OAUTH_CLIENT_SECRET_NAMES = [
   'STREAMWEAVER_CLIENT_SECRET',
   'CHAT_TAG_CLIENT_SECRET',
   'HEARMEOUT_CLIENT_SECRET',
+  'MOUNTAINVIEW_CLIENT_SECRET',
 ] as const;
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || [
   'https://spacemountain.live',
@@ -34,6 +35,7 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || [
   'https://streamweaver-new.fly.dev',
   'https://chat-tag-new.fly.dev',
   'https://hearmeout-main.fly.dev',
+  'https://mtman-machine-rotator.fly.dev',
 ].join(',')).split(',');
 
 type EcosystemAppRecord = {
@@ -114,6 +116,18 @@ const SUITE_APPS: EcosystemAppRecord[] = [
     latestVersion: '0.1.7',
     updatedAt: '2026-07-01',
     releaseNotes: ['Registered launcher and SPMT app catalog metadata.'],
+  },
+  {
+    id: 'mountainview',
+    name: 'MountainView AI',
+    url: 'https://mtman-machine-rotator.fly.dev/mountainview',
+    authUrl: 'https://mtman-machine-rotator.fly.dev/mountainview/auth/login',
+    description: 'SPMT-authenticated command bridge for MountainView mobile, glasses, and operator surfaces.',
+    status: 'connected',
+    version: '0.2.0',
+    latestVersion: '0.2.0',
+    updatedAt: '2026-07-17',
+    releaseNotes: ['Replaced the standalone owner password with SPMT OAuth and server-backed sessions.'],
   },
 ];
 
@@ -483,6 +497,7 @@ function appPermissionsFor(appId: string) {
     streamweaver: ['identity:read', 'linked_accounts:read', 'messages:write'],
     'chat-tag': ['identity:read', 'apps:launch'],
     hearmeout: ['identity:read', 'apps:launch'],
+    mountainview: ['identity:read', 'linked_accounts:read', 'apps:launch'],
   };
   return base[appId] || ['identity:read'];
 }
@@ -1988,7 +2003,8 @@ app.get('/api/oauth/authorize', (req: any, res) => {
     .run(code, user.id, client_id, redirect_uri, new Date(Date.now() + 5 * 60 * 1000).toISOString());
 
   const bridgeToken = jwt.sign({ id: user.id, username: user.username, email: user.email, client_id, bridge: true }, JWT_SECRET, { expiresIn: '7d' });
-  const url = `${redirect_uri}?code=${code}&token=${encodeURIComponent(bridgeToken)}${state ? `&state=${encodeURIComponent(state as string)}` : ''}`;
+  const tokenParameter = client_id === 'mountainview' ? '' : `&token=${encodeURIComponent(bridgeToken)}`;
+  const url = `${redirect_uri}?code=${code}${tokenParameter}${state ? `&state=${encodeURIComponent(state as string)}` : ''}`;
   res.redirect(url);
 });
 
@@ -2007,17 +2023,17 @@ app.post('/api/oauth/token', (req, res) => {
   // Delete used code
   db.prepare('DELETE FROM oauth_codes WHERE code = ?').run(code);
 
-  const user = db.prepare('SELECT id, username, email, display_name FROM users WHERE id = ?').get(authCode.user_id) as any;
-  const access_token = jwt.sign({ id: user.id, username: user.username, email: user.email, client_id }, JWT_SECRET, { expiresIn: '7d' });
+  const user = db.prepare('SELECT id, username, email, display_name, is_admin FROM users WHERE id = ?').get(authCode.user_id) as any;
+  const access_token = jwt.sign({ id: user.id, username: user.username, email: user.email, client_id, is_admin: Boolean(user.is_admin) }, JWT_SECRET, { expiresIn: '7d' });
 
-  res.json({ access_token, token_type: 'Bearer', expires_in: 7 * 24 * 3600, user });
+  res.json({ access_token, token_type: 'Bearer', expires_in: 7 * 24 * 3600, user: serializeUser(user) });
 });
 
 // ─── OAuth2: User info (for apps to verify tokens) ───
 app.get('/api/oauth/userinfo', authenticate, (req: any, res) => {
-  const user = db.prepare('SELECT id, username, email, display_name, created_at FROM users WHERE id = ?').get(req.user.id) as any;
+  const user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(req.user.id) as any;
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json(user);
+  res.json(serializeUser(user));
 });
 
 // ─── Messaging: Send ───

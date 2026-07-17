@@ -453,6 +453,13 @@ export function initDb() {
     'HearMeOut',
     'https://hearmeout-main.fly.dev/auth/spmt/callback,https://hearmeout-main.fly.dev'
   );
+  seedOauthClient(
+    'mountainview',
+    process.env.MOUNTAINVIEW_CLIENT_SECRET,
+    'mountainview_spmt_secret_dev_only',
+    'MountainView AI',
+    'https://mtman-machine-rotator.fly.dev/mountainview/auth/callback'
+  );
 
   console.log('spmt.live database initialized');
 }

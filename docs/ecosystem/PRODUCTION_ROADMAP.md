@@ -1,6 +1,6 @@
 # SpaceMountain Ecosystem Production Roadmap
 
-Updated: 2026-07-13
+Updated: 2026-07-16
 
 Status: active engineering source of truth
 
@@ -47,6 +47,19 @@ The snapshot below was verified against local `main`, GitHub Actions, Fly state,
 | AETHERRA | Partner-owned live Fly app, health passing, 1 GB VM, GameVerse UI | Intended first external adopter and conformance test for the future SPMT SDK; its product data, billing, rooms/queue/cards, and release decisions remain partner-owned | No matching source repository is present in this workspace; the SPMT SDK integration is not implemented; its ownership/source/deploy boundary must be documented; the health response reported its latest backup as 2026-06-30 and restore proof is still required; it is not Athena OS |
 
 All listed Fly-backed repositories had a successful latest GitHub deployment at this snapshot. That proves deployability, not complete product behavior.
+
+## Persistence Hardening Ledger — 2026-07-16
+
+This pass applies the workspace storage policy without changing database schemas before backup/restore proof. Browser storage remains acceptable only for device preferences, replay cursors, and disposable startup caches; it is not authentication or tenant app-state authority.
+
+| App | Value classification | Durable authority | Hardened in this slice | Remaining gate |
+| --- | --- | --- | --- | --- |
+| StreamWeaver | Tenant automation variables are app state | Existing tenant-scoped volume store pending the Gate 8 database migration | Runtime handlers now load, cache, and write by tenant; legacy browser persistence was removed; an isolation/durability regression check was added | Complete the documented global botshare, AI/TTS, welcome, metrics, gamble, shared-chat, and voice tenant-state work, then migrate authoritative JSON only after backup/restore proof |
+| DiscordStreamHub | SPMT token is session credential; profile fields are cache; community settings are app state | SPMT-validated HttpOnly DSH session plus DSH database/runtime | SPMT exchange/refresh moved server-side; browser token storage removed; logout clears the server cookie; embedded auth re-establishes the validated session | Replace remaining page-level local identity reads with one current-session client and move calendar/leaderboard/setup/theme settings to their explicit owners |
+| HearMeOut | Shared watch queue/playback/progress are app state; listener volume/TTS replay state are device preferences | Existing `/data/watch-state.json` volume state pending the detailed media/database track | Watch state now saves through atomic replacement with a last-known-good backup and fallback; duplicate browser-only Discord identity was removed | Prove restart/restore on Fly, then consolidate media truth paths and migrate app state only after backup/restore evidence |
+| ChatTag | Signed login token is session credential; displayed Twitch profile is cache | HttpOnly signed session cookie plus ChatTag volume state | Session token was removed from redirect URLs/local storage; profile hydration is server-authoritative; logout now clears the HttpOnly cookie through a server route | Adopt canonical SPMT identity/XP contracts and run the required two-user app/bot test |
+
+Current evidence for this slice is local type checking plus the StreamWeaver tenant persistence regression check. Deployment, Fly restart survival, browser/device tests, and the common production smoke matrix remain required before marking the rows production-complete.
 
 ## Direct Answers To The Current Questions
 

@@ -93,12 +93,19 @@ export function getDatabaseReadiness() {
   }
 }
 
-function seedOauthClient(clientId: string, clientSecret: string, name: string, redirectUris: string) {
+function seedOauthClient(clientId: string, configuredSecret: string | undefined, developmentSecret: string, name: string, redirectUris: string) {
   const existing = db.prepare('SELECT client_id FROM oauth_clients WHERE client_id = ?').get(clientId);
+  const clientSecret = configuredSecret || developmentSecret;
   if (!existing) {
+    if (IS_PRODUCTION && !configuredSecret) {
+      throw new Error(`OAuth client secret is required for ${clientId} in production.`);
+    }
     db.prepare('INSERT INTO oauth_clients (client_id, client_secret, name, redirect_uris, created_at) VALUES (?, ?, ?, ?, ?)')
       .run(clientId, clientSecret, name, redirectUris, new Date().toISOString());
     console.log(`Seeded OAuth client for ${name}`);
+  } else if (configuredSecret) {
+    db.prepare('UPDATE oauth_clients SET client_secret = ?, name = ?, redirect_uris = ? WHERE client_id = ?')
+      .run(configuredSecret, name, redirectUris, clientId);
   } else {
     db.prepare('UPDATE oauth_clients SET name = ?, redirect_uris = ? WHERE client_id = ?')
       .run(name, redirectUris, clientId);
@@ -413,31 +420,36 @@ export function initDb() {
 
   seedOauthClient(
     'spacemountain-live',
-    process.env.SPACEMOUNTAIN_CLIENT_SECRET || 'spmt_secret_spacemountain_first_party',
+    process.env.SPACEMOUNTAIN_CLIENT_SECRET,
+    'spmt_secret_spacemountain_first_party',
     'SpaceMountain.live',
     'https://spacemountain.live/auth/callback,https://spacemountain-live.fly.dev/auth/callback,http://spacemountain-live.fly.dev/auth/callback'
   );
   seedOauthClient(
     'discord-stream-hub',
-    process.env.DSH_CLIENT_SECRET || 'dsh_spmt_secret_2026',
+    process.env.DSH_CLIENT_SECRET,
+    'dsh_spmt_secret_2026',
     'Discord Stream Hub',
     'https://discord-stream-hub-new.fly.dev/auth/callback,https://spacemountain.live/discordstreamhub/auth/callback'
   );
   seedOauthClient(
     'streamweaver',
-    process.env.STREAMWEAVER_CLIENT_SECRET || 'streamweaver_spmt_secret_2026',
+    process.env.STREAMWEAVER_CLIENT_SECRET,
+    'streamweaver_spmt_secret_2026',
     'StreamWeaver',
     'https://streamweaver-new.fly.dev/auth/spmt/callback,https://streamweaver-new.fly.dev/login'
   );
   seedOauthClient(
     'chat-tag',
-    process.env.CHAT_TAG_CLIENT_SECRET || 'chat_tag_spmt_secret_2026',
+    process.env.CHAT_TAG_CLIENT_SECRET,
+    'chat_tag_spmt_secret_2026',
     'ChatTag + Quackverse',
     'https://chat-tag-new.fly.dev/auth/spmt/callback,https://chat-tag-new.fly.dev/auth/callback'
   );
   seedOauthClient(
     'hearmeout',
-    process.env.HEARMEOUT_CLIENT_SECRET || 'hearmeout_spmt_secret_2026',
+    process.env.HEARMEOUT_CLIENT_SECRET,
+    'hearmeout_spmt_secret_2026',
     'HearMeOut',
     'https://hearmeout-main.fly.dev/auth/spmt/callback,https://hearmeout-main.fly.dev'
   );

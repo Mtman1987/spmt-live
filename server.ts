@@ -919,7 +919,12 @@ function authenticatePlatformKey(requiredScope: string) {
 function getRuntimeReadiness() {
   const database = getDatabaseReadiness();
   const missingOauthSecrets = OAUTH_CLIENT_SECRET_NAMES.filter((name) => !process.env[name]);
-  const requiredReady = database.status === 'ready' && Boolean(JWT_SECRET);
+  const requiredOperationalSecretsReady = !IS_PRODUCTION || (
+    Boolean(process.env.SPMT_ADMIN_RECOVERY_KEY) && missingOauthSecrets.length === 0
+  );
+  const requiredReady = database.status === 'ready'
+    && Boolean(JWT_SECRET)
+    && requiredOperationalSecretsReady;
   const degradedReasons = [
     ...(missingOauthSecrets.length ? ['oauth_client_rotation_required'] : []),
     ...(!process.env.SPMT_ADMIN_RECOVERY_KEY ? ['owner_recovery_unconfigured'] : []),

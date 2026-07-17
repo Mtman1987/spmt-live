@@ -6,6 +6,10 @@ Status: active engineering source of truth
 
 Owner: SPMT repository (`docs/ecosystem`)
 
+Backlog authority: this file is the only active cross-suite execution queue. App-local TODO and roadmap files may remain only as historical release evidence; they do not own current priorities.
+
+External adopter boundary: AETHERRA is a coworker-owned application and is intentionally deferred until the SPMT SDK and documentation are stable. Its product code, deploy, backup, and billing remain with its owner and do not block Gates 0 through 2 for the owned suite.
+
 ## Mission
 
 Finish, harden, test, document, and either ship or deliberately retire everything already started in the SpaceMountain ecosystem before adding another major product surface.
@@ -43,8 +47,8 @@ The snapshot below was verified against local `main`, GitHub Actions, Fly state,
 | ChatTag + bot | Both live with passing checks | Game UI/bot, health endpoint, event publishing, arena/game mechanics | SPMT player identity and linked accounts are incomplete; XP/level/reward authority is split across apps; app and bot event paths need a full two-user live test |
 | MountainView inside rotator | Live, health passing, status reports `phone-side` and `connected:false` | Authenticated command definitions, direct app calls, voice routing, media/vision routes, memory/log/device tables, Android/Expo bridge work | No SPMT device identity/pairing; no dedicated MountainView owner password or encryption secret; no MountainView SPMT API key; defaults fall back to rotator/Fly credentials; no cloud device socket; hardware access still depends on a phone-side Bluetooth bridge |
 | Fly machine rotator | Live, health passing | Machine rotation, log monitoring, MountainView host | Rotator reliability/security is coupled to experimental MountainView code; the boundary needs isolation even if both remain in one Fly app to avoid another bill |
-| Space Mountain dashboard | Local/GitHub project, no latest GitHub Actions deploy | Dashboard concept/site source | No defined production owner or deployment; must be merged into SpaceMountain, deployed with a purpose, or retired |
-| AETHERRA | Partner-owned live Fly app, health passing, 1 GB VM, GameVerse UI | Intended first external adopter and conformance test for the future SPMT SDK; its product data, billing, rooms/queue/cards, and release decisions remain partner-owned | No matching source repository is present in this workspace; the SPMT SDK integration is not implemented; its ownership/source/deploy boundary must be documented; the health response reported its latest backup as 2026-06-30 and restore proof is still required; it is not Athena OS |
+| Space Mountain dashboard | Retired duplicate launcher; local/GitHub history retained temporarily | Historical static launcher concept | Do not deploy; SpaceMountain is the canonical authenticated suite shell and launcher |
+| AETHERRA | Deferred external adopter; excluded from owned-suite gate certification | Coworker-owned application that may consume the stable SPMT SDK later | No source or operational work is in scope until the SDK and documentation are complete; it does not block Gates 0 through 2 or readiness for Gate 3 |
 
 All listed Fly-backed repositories had a successful latest GitHub deployment at this snapshot. That proves deployability, not complete product behavior.
 
@@ -60,6 +64,58 @@ This pass applies the workspace storage policy without changing database schemas
 | ChatTag | Signed login token is session credential; displayed Twitch profile is cache | HttpOnly signed session cookie plus ChatTag volume state | Session token was removed from redirect URLs/local storage; profile hydration is server-authoritative; logout now clears the HttpOnly cookie through a server route | Adopt canonical SPMT identity/XP contracts and run the required two-user app/bot test |
 
 Current evidence for this slice is local type checking plus the StreamWeaver tenant persistence regression check. Deployment, Fly restart survival, browser/device tests, and the common production smoke matrix remain required before marking the rows production-complete.
+
+## Active Gate 0–2 Execution Queue
+
+This is the current work queue. Items below supersede the former StreamWeaver and HearMeOut TODO files.
+
+### Gate 0 — safety and truth
+
+- [x] Keep the eight owned canonical repositories on `main` and aligned with `origin/main`.
+- [x] Record the owned Fly apps, workers, health paths, repositories, and deployed commit labels in `production-manifest.json`.
+- [x] Remove accidental workspace shell artifacts and duplicate extracted SDK output.
+- [x] Remove the nonexistent `streamweaver-work-test` deployment from the live manifest and delete its stale local Fly config/deploy script.
+- [x] Retire `space-mountain-dashboard` as a duplicate unauthenticated launcher; SpaceMountain is the canonical suite shell and launcher.
+- [ ] Configure SPMT owner recovery and the five app OAuth client secrets; readiness currently reports both as degraded.
+- [ ] Configure dedicated MountainView owner-password and token-encryption secrets, then remove rotator/Fly credential fallbacks.
+- [ ] Audit every app for production JWT/session/default credential fallbacks and make missing required secrets fail readiness.
+- [ ] Add a reproducible smoke command for every owned app and worker, including build SHA and one critical feature route.
+- [ ] Add a Fly service health check to `dsh-clip-worker`; its `/health` route works but Fly does not monitor it.
+- [ ] Capture and classify 24–48 hours of current errors after the persistence deployments.
+- [ ] Prove backup plus isolated restore for each owned database/volume and document RPO, RTO, operator, and rollback release.
+- [ ] Make Athena/MountainView capability output and every simulated UI action report configured, degraded, unavailable, or a real accepted job truthfully.
+
+### Gate 1 — identity, scopes, tenant isolation, and XP
+
+- [ ] Make SPMT session restore the primary identity in StreamWeaver, DSH, HearMeOut, ChatTag, MountainView, and SpaceMountain; provider OAuth remains a linked grant.
+- [ ] Verify direct and embedded login, logout, refresh, account switch, disconnect, export, and deletion with two accounts.
+- [ ] Issue one scoped, rotatable service credential per app/environment and add allowed/forbidden contract tests.
+- [ ] Finish StreamWeaver botshare isolation and foreign-chat mention rules; prove loose aliases cannot invoke another tenant's bot.
+- [ ] Pass `tenantId` through the remaining AI callers (`CommandManager`, LTM condense routes) and eliminate production global-config fallbacks.
+- [ ] Replace StreamWeaver global `user-stats.json`/`statsCache`, translation-user state, and classic-gamble settings with tenant-owned state.
+- [ ] Verify walk-on, EventSub, welcome, metrics, shared-chat, clips, chat-monitor, polling, voice, and WebSocket paths with concurrent tenants; keep intentionally global Pokemon and partner check-in data global.
+- [ ] Make remaining `/api/chat/send`, AI memory/shoutout, TTS, gamble, welcome, and leaderboard routes reject missing tenant context where tenant state is required.
+- [ ] Add the automated two-tenant isolation fixture covering chat, replies, botshare, TTS, voice, overlays, workflows, and reconnect.
+- [ ] Define the canonical SPMT XP/level/reward ledger, map ChatTag/DSH/arena/SpaceMountain events with idempotency keys, and make shared displays read it.
+
+Verified StreamWeaver work already removed from the active queue: tenant directory/API/WebSocket foundations, tenant-aware bot and TTS configuration APIs, tenant chat-mode storage, welcome tracker/memory paths, tenant metrics paths, tenant gamble overlay output, shared-chat token recovery, and tenant automation-variable persistence regression coverage. These still require the two-tenant suite before Gate 1 closes.
+
+### Gate 2 — portable workspace and supported app settings
+
+- [x] Implement `WorkspaceProfileV1`, revision conflicts, validation, export/import/reset, and redacted update events.
+- [x] Move SpaceMountain appearance and three dock slots to the signed-in SPMT profile with one-time browser migration and offline cache semantics.
+- [ ] Split overlay scenes and workflow definitions out of the legacy `overlay_workspaces` blob into versioned owned records.
+- [ ] Add `activeOverlaySceneId`, TTS subscriptions, and app theme mappings to real consumers with conflict/retry UI.
+- [ ] Publish one versioned SPMT workspace/theme client with background, surface, text, accent, radius, density, and motion tokens.
+- [ ] Adopt the shared client one app at a time in DSH, StreamWeaver, HearMeOut, and ChatTag, with an explicit “follow SpaceMountain theme” switch.
+- [ ] Keep device-only volume, audio unlock, replay cursors, and transient layout state local; keep account/app state server-authoritative.
+- [ ] Pass cross-device restore, second-account isolation, failed-save retry, embedded-app theme, and no-secret-in-profile tests.
+
+### Deferred app-track work after Gate 3 opens
+
+StreamWeaver generation hardening remains an app track, not a Gate 0–2 blocker: typed generation controls, effective-config preview, DM response parity and lifecycle logs, provider health, image metadata/retention, registry previews/filtering, Perchance guardrails, and backup/debug tooling.
+
+HearMeOut media consolidation remains an app track, not a Gate 0–2 blocker: preserve the movie-style watch-session contract as the backbone; adapt music into the same accepted media contract; keep voice separate; align watch page, Discord Activity, rooms, and overlay players; add separate OBS media/voice outputs; add telemetry and playback smoke tests; deprecate old routes only after usage evidence. `hearmeout-main/docs/HEARMEOUT_MEDIA_ROUTE_INVENTORY.md` remains the evidence inventory, while this roadmap owns the queue.
 
 ## Direct Answers To The Current Questions
 
@@ -238,7 +294,7 @@ For every Fly app, domain, repository, process, volume, worker, OAuth applicatio
 - Upstream/downstream dependencies.
 - Monthly keep/retire/consolidate decision.
 
-Include `aetherra`, the dashboard, all bot/worker apps, and any app outside this workspace. A partner-owned app can remain outside this monorepo, but its owner, source-of-truth repository, deployment responsibility, integration contract, support contact, and recovery evidence must be explicit.
+Include the dashboard and all owned bot/worker apps. External adopters are added only when their owners begin a formal SPMT integration; AETHERRA is deferred and excluded from the current certification inventory.
 
 ### Step 0.2 — Capture a reproducible live baseline
 
@@ -266,8 +322,7 @@ Include `aetherra`, the dashboard, all bot/worker apps, and any app outside this
 2. Create a backup now.
 3. Restore each database into an isolated temporary app or local fixture.
 4. Verify account, configuration, messages, workflows, overlays, room/game state, and device records as applicable.
-5. Ask the AETHERRA owner to prove a current backup and isolated restore under the partner boundary; SPMT integration must not assume ownership of AETHERRA's database or billing state.
-6. Document RPO/RTO and who can perform recovery.
+5. Document RPO/RTO and who can perform recovery.
 
 ### Step 0.5 — Make health truthful
 
@@ -794,7 +849,7 @@ These tracks can run after shared contracts stabilize, but each must pass the co
 
 ### HearMeOut
 
-Use `docs/HEARMEOUT_PROD_READY_MEDIA_ROADMAP.md` as the detailed track:
+Use the consolidated HearMeOut app track in this roadmap and the route inventory as evidence:
 
 1. Baseline known-good and known-bad movie/music flows.
 2. Freeze one media contract and routing source of truth.
@@ -840,15 +895,15 @@ Use `docs/HEARMEOUT_PROD_READY_MEDIA_ROADMAP.md` as the detailed track:
 4. Add admin support tools with audit and least privilege.
 5. Add user export/delete and app grant/revocation controls.
 
-### Dashboard decision
+### Dashboard decision — retire
 
-Decide whether `space-mountain-dashboard` becomes a real operations view inside SpaceMountain or is retired; do not maintain a second shell without a distinct user.
+Retire `space-mountain-dashboard`. It is an unauthenticated static launcher without a unique user or operational contract, while SpaceMountain already owns the authenticated suite-shell and launcher role. Preserve Git history, archive the repository, and do not deploy it.
 
-### AETHERRA — first external SPMT SDK adopter
+### AETHERRA — deferred external SPMT SDK adopter
 
-AETHERRA remains the partner's app and its product state, billing, source, deploys, and roadmap remain partner-owned. Its role in this ecosystem is the first real proof that an independently owned application can adopt SPMT without being absorbed into this monorepo.
+AETHERRA remains the coworker's app and its product state, billing, source, deploys, backups, and roadmap remain partner-owned. No AETHERRA work is part of the owned-suite Gate 0 through Gate 2 plan. Revisit this section only after the SPMT SDK and documentation are stable and the owner chooses to begin integration.
 
-1. Record the partner owner, source-of-truth repository, deploy target, test environment, support path, and data-controller boundary; importing the source here is not required.
+1. After reactivation, record the partner owner, source-of-truth repository, deploy target, test environment, support path, and data-controller boundary; importing the source here is not required.
 2. Finish and version the minimal SPMT SDK/client contract before claiming integration: authorize/login, callback/session validation, `/api/me`, scoped grants, refresh/logout, event publish, webhook verification, and grant revocation.
 3. Define the least scopes AETHERRA needs and keep AETHERRA database, billing, rooms, cards, queues, and game rules outside SPMT.
 4. Map portable SPMT profile/theme tokens into AETHERRA without letting either app overwrite the other's product settings.
@@ -948,9 +1003,9 @@ For every tracked Markdown file, record:
 ### Step 10.3 — Merge active roadmaps
 
 1. This file is the cross-ecosystem source of truth.
-2. HearMeOut's production media roadmap remains the detailed app track.
-3. StreamWeaver's multi-tenant TODO remains until every item is closed or migrated here.
-4. App TODOs that say complete move to release notes/history.
+2. HearMeOut's active media work is consolidated into this roadmap; route inventories remain app-owned evidence.
+3. StreamWeaver's active multi-tenant and generation work is consolidated into this roadmap.
+4. App TODOs that say complete move to release notes/history and duplicate queues are removed.
 5. Stale SPMT ecosystem handoff/roadmap files link to this roadmap instead of maintaining contradictory queues.
 
 ### Step 10.4 — Validate before deleting
@@ -976,7 +1031,7 @@ Do not work on later phases around an unresolved earlier safety/ownership depend
 
 ### Release 1 — Safety and truth
 
-1. Production inventory manifest, including AETHERRA and dashboard decision owners.
+1. Owned-suite production inventory manifest and dashboard decision owner; deferred external adopters are excluded.
 2. Error/log baseline and reproducible smoke scripts.
 3. Backup/restore proof.
 4. MountainView dedicated secrets and removal of fallbacks.
@@ -1041,7 +1096,7 @@ Do not work on later phases around an unresolved earlier safety/ownership depend
 2. DSH community/identity/worker completion.
 3. ChatTag identity/XP/overlay completion.
 4. SpaceMountain component/performance/accessibility cleanup.
-5. Dashboard merge/retire decision and AETHERRA partner-owned SPMT SDK conformance release.
+5. Dashboard merge/retire decision. AETHERRA conformance is a later partner-scheduled release after the SDK and documentation stabilize.
 
 ### Release 9 — Production certification and docs
 
@@ -1057,9 +1112,8 @@ Do not work on later phases around an unresolved earlier safety/ownership depend
 These are the next concrete tasks, in dependency order:
 
 1. Add `PRODUCTION_INVENTORY.md` with every paid runtime, source, commit, owner, URL, volume, secret names, health, and decision.
-2. Record AETHERRA's partner/source/deploy/data boundary and coordinate a current backup plus isolated restore proof without taking ownership of its product state.
-3. Add feature smoke scripts for all public health and critical routes.
-4. Capture and classify 24–48 hours of production errors.
+2. Add feature smoke scripts for all public health and critical routes.
+3. Capture and classify 24–48 hours of production errors.
 5. Configure dedicated MountainView owner/encryption secrets.
 6. Remove MountainView development and rotator/Fly credential fallbacks.
 7. Configure SPMT owner recovery, recover the locked-out account, and test rotation.
@@ -1103,5 +1157,5 @@ The current ecosystem is considered production-ready when:
 6. Athena performs real permissioned app jobs and reports real results.
 7. MountainView uses one secure host-neutral relay protocol; a proven browser/PWA or extension can replace the primary phone, while native fallbacks cover unsupported/background hardware paths and exact constraints are documented honestly.
 8. HearMeOut media, DSH community workflows, ChatTag identity/XP, StreamWeaver chat/TTS, and workers pass their app test matrices.
-9. Every paid app has a recorded source owner, operational owner, health, backups, alerts, and keep decision; AETHERRA also passes the external SPMT SDK conformance contract without surrendering partner ownership.
+9. Every owned paid app has a recorded source owner, operational owner, health, backups, alerts, and keep decision. External adopter certification is separate and nonblocking.
 10. A clean docs registry and release manifest let another developer operate and recover the system without relying on chat history.

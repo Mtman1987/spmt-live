@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "capturedAt": "2026-07-13",
+  "capturedAt": "2026-07-16",
   "classification": "documentation-only inventory; not consumed as runtime configuration",
   "workspace": "C:/Users/mtman/Desktop/finished/codex-environment",
   "repositories": [
@@ -108,14 +108,6 @@
           "config": "fly.toml",
           "publicUrl": "https://streamweaver-new.fly.dev",
           "healthPath": "/api/health"
-        },
-        {
-          "provider": "fly",
-          "app": "streamweaver-work-test",
-          "config": "fly.work-test.toml",
-          "publicUrl": "https://streamweaver-work-test.fly.dev",
-          "healthPath": "/api/health",
-          "environment": "test"
         }
       ]
     },
@@ -205,15 +197,17 @@
       "id": "space-mountain-dashboard",
       "path": "space-mountain-dashboard",
       "github": "Mtman1987/space-mountain-dashboard",
-      "role": "unresolved dashboard surface; keep, merge, or retire decision required",
-      "deployments": []
+      "role": "retired duplicate launcher; SpaceMountain is the canonical suite shell and launcher",
+      "deployments": [],
+      "status": "retire/archive repository after preserving history; do not deploy"
     }
   ],
+  "inactiveDeploymentConfigs": [],
   "plannedComponents": [
     {
       "id": "aetherra",
       "ownership": "partner-owned",
-      "status": "planned first external SPMT SDK canary; no repository in this workspace manifest"
+      "status": "deferred external SPMT SDK adopter; coworker-owned source, deploy, data, backup, and billing do not block owned-suite Gates 0 through 2"
     },
     {
       "id": "athena-os",

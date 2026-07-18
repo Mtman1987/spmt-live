@@ -1,6 +1,6 @@
 # SpaceMountain Ecosystem Production Roadmap
 
-Updated: 2026-07-17
+Updated: 2026-07-18
 
 Status: active engineering source of truth
 
@@ -120,6 +120,15 @@ Production preparation evidence on 2026-07-17: the formerly shared unbound platf
 - Gates 0–2 are not falsely closed: Gate 0 still needs the 24–48 hour post-deploy observation and isolated restore/RPO/RTO proof for every remaining authoritative store; Gate 1 still needs the two-account/two-tenant live matrix, the full concurrent StreamWeaver path matrix, and XP producer/display adoption; Gate 2 still needs the shared theme client/consumer rollout and cross-device/conflict/isolation matrix.
 
 Verified StreamWeaver work already removed from the active queue: tenant directory/API/WebSocket foundations, tenant-aware bot and TTS configuration APIs, tenant chat-mode storage, welcome tracker/memory paths, tenant metrics paths, tenant gamble overlay output, shared-chat token recovery, and tenant automation-variable persistence regression coverage. These still require the two-tenant suite before Gate 1 closes.
+
+### 2026-07-18 Gate 0 observation evidence
+
+- The initial 24-hour review station contained 28 stored fingerprints representing a smaller set of incident families. Current Fly logs proved Rotator's permanent fingerprint set could hide a recurring failure after its history record aged out. Rotator now uses a one-hour repeat cooldown and timestamped dedupe records so unresolved incidents return to the current picture without per-line alert spam.
+- No ignore rule was added. The live volume-backed list remains at 25 narrow lifecycle/user-state rules.
+- Narrow fixes were prepared for DiscordStreamHub's forum-forward request-body double read and Chat Tag's bot-to-app Kick broadcast authentication boundary. The latter preserves separate bot-to-app and app-to-StreamWeaver service credentials.
+- StreamWeaver's tenant-metrics exception is fixed with no observed recurrence. Its `ladyheidi` Kick connection remains a tenant reauthorization/config issue. HearMeOut's DJ worker continues to encounter YouTube bot challenges and unresolved-source failures despite the browser upload/cache mitigation; that remains a visible external/auth dependency.
+- Gate 0 is intentionally not checked complete: corrective deployments require a fresh observation slice, HearMeOut media extraction remains degraded, and isolated restore proof is still missing for every authoritative store except SPMT.
+- The all-app log pass also found SPMT readiness intermittently exceeding Fly's five-second timeout because every 30-second probe ran a full `PRAGMA quick_check` over the growing production database and briefly acquired a write lock. Readiness is now lightweight; deep integrity remains mandatory in the isolated backup/restore workflow. Additional open auth/config evidence is HearMeOut's rejected Gemini key and a StreamWeaver broadcaster grant with no access/refresh token.
 
 Additional verified isolation work: the current Kick user API contract is used when resolving tenant broadcaster/chat identity; LTM condense routes now require a tenant session and pass the tenant through AI config, generation, and storage; automation bot-name matching accepts tenant context. Tenant provider access/refresh tokens remain app state and must migrate from legacy volume JSON into encrypted database records only after Gate 0 backup/restore proof; they must never be placed in Fly secrets.
 

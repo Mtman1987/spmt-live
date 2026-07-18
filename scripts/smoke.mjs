@@ -94,7 +94,7 @@ try {
 
   const compatibilityHealth = await waitForJson(`${baseUrl}/api/health`);
   assert.equal(compatibilityHealth.response.status, 200);
-  assert.equal(compatibilityHealth.body.database.integrity, 'ok');
+  assert.equal(compatibilityHealth.body.database.integrity, 'verified_by_backup_restore_drill');
 
   const homeResponse = await fetch(baseUrl);
   const home = await homeResponse.text();

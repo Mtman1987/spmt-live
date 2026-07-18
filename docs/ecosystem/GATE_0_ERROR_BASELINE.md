@@ -9,3 +9,27 @@
 - SPMT backup verification initially exceeded the SSH wrapper timeout while hashing a large backup in memory. The backup itself passed isolated `quick_check`; the runbook now hashes with a stream to avoid recurrence.
 
 The required 24–48-hour observation window starts after the coordinated deployment in this release. It cannot be marked complete from a same-session snapshot. New incidents must be classified as code, auth/config, external retry, expected lifecycle, or user action before any ignore rule is proposed.
+
+## 2026-07-18 production observation
+
+The first post-hardening day exposed a Rotator observability defect: the 24-hour history expired records, but `/data/error-fingerprints.json` permanently suppressed any fingerprint that had ever been reported. Rotator could therefore show a clear queue while the same incident was still recurring in current Fly logs. The fix replaces permanent suppression with a one-hour reporting cooldown, migrates legacy string fingerprints as expired, and keeps the review-station removal path compatible with both file formats. The history still groups duplicate events so recurring failures stay visible without alerting on every line.
+
+The volume-backed ignore list remains exactly 25 narrow rules. No new rule was added and no broad application, status-code, authentication, media-provider, or exception pattern was accepted.
+
+| Incident | Classification | Disposition |
+| --- | --- | --- |
+| StreamWeaver metrics load/update lacked tenant context | Real code fix | Fixed in the 2026-07-17 hardening deployment; no recurrence appeared in the current logs |
+| DiscordStreamHub forum-forward fallback read the request body twice | Real code fix | Parse one captured body for both normal and control-character-cleaned JSON paths |
+| Chat Tag bot received `401` from `/api/kick/broadcast` | Auth/config contract implemented as a code fix | Authenticate bot-to-app with `BOT_SECRET_KEY`, then use the distinct `STREAMWEAVER_SECRET` only for app-to-StreamWeaver delivery; deployed secret digests confirm both intended trust boundaries |
+| StreamWeaver could not resolve the Kick chatroom for `ladyheidi` | Auth/config | Tenant must re-authorize Kick Broadcaster; keep visible and never ignore |
+| HearMeOut DJ worker received YouTube bot challenges | Auth/config/external dependency | Keep visible; use or refresh the authorized extractor path and browser-resolved upload/cache handoff |
+| HearMeOut DJ worker resolved no playable YouTube stream for several IDs | External retry | Keep visible until bounded source fallbacks succeed; do not ignore the whole provider or route |
+| Chat Tag Twitch IRC join returned no response once | Transient external | Retry and observe; no ignore rule required |
+| Fly proxy EOF/lifecycle lines around machine replacement | Expected lifecycle | Existing narrow lifecycle handling is sufficient |
+| SPMT readiness repeatedly exceeded its five-second Fly timeout | Real code fix | Removed full-database `PRAGMA quick_check` and write-lock acquisition from the 30-second request path; readiness now verifies a live query, WAL mode, persistent path, and file access, while deep integrity remains in the isolated backup/restore drill |
+| SpaceMountain timed out reading DSH community routes during one cluster | External retry | Current DSH health recovered; retain bounded timeout/retry behavior and observe for recurrence |
+| HearMeOut Gemini returned `API_KEY_INVALID` | Auth/config | Rotate the invalid provider key; do not hide or retry an invalid credential indefinitely |
+| StreamWeaver reported a missing Twitch broadcaster access/refresh token | Auth/config | Re-authorize the affected broadcaster grant; do not place tenant OAuth grants in Fly secrets |
+| Fly health, lease, rate-limit, and `502` lines during the 2026-07-18 replacement deployments | Transient lifecycle/external retry | Checks recovered after replacement; observe but do not create a broad ignore rule |
+
+Gate 0 remains open. The 2026-07-18 DSH, Chat Tag, and Rotator corrective deployments start a fresh observation slice for those components, while HearMeOut still has an unresolved external media dependency. Backup/restore closure is also independently blocked because only SPMT has isolated restore evidence; the remaining authoritative stores still require the drills listed in `GATE_0_BACKUP_RESTORE.md`.

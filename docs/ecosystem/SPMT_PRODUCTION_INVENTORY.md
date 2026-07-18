@@ -102,7 +102,7 @@ Identity, grants, messages, installs, workspace settings, platform records, and 
 ## Health Contract Introduced By This Slice
 
 - `GET /api/health/live`: process liveness only.
-- `GET /api/health/ready`: database integrity, persistent-storage expectation, write-lock ability, required configuration, dependency detail, version, and build SHA.
+- `GET /api/health/ready`: lightweight live query, persistent-storage and file-access expectations, journal mode, required configuration, dependency detail, version, and build SHA. Full `PRAGMA quick_check` is intentionally reserved for the isolated backup/restore drill so the 30-second Fly probe cannot block the production event loop as the database grows.
 - `GET /api/health`: backward-compatible readiness payload.
 - Fly checks `/api/health/ready` after deployment.
 - Production startup fails instead of switching to a local database when `/data/spmt.db` cannot open.

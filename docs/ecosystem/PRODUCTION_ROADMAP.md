@@ -1,6 +1,6 @@
 # SpaceMountain Ecosystem Production Roadmap
 
-Updated: 2026-07-18
+Updated: 2026-07-19
 
 Status: active engineering source of truth
 
@@ -129,6 +129,14 @@ Verified StreamWeaver work already removed from the active queue: tenant directo
 - StreamWeaver's tenant-metrics exception is fixed with no observed recurrence. Its `ladyheidi` Kick connection remains a tenant reauthorization/config issue. HearMeOut's DJ worker continues to encounter YouTube bot challenges and unresolved-source failures despite the browser upload/cache mitigation; that remains a visible external/auth dependency.
 - Gate 0 is intentionally not checked complete: corrective deployments require a fresh observation slice, HearMeOut media extraction remains degraded, and isolated restore proof is still missing for every authoritative store except SPMT.
 - The all-app log pass also found SPMT readiness intermittently exceeding Fly's five-second timeout because every 30-second probe ran a full `PRAGMA quick_check` over the growing production database and briefly acquired a write lock. Readiness is now lightweight; deep integrity remains mandatory in the isolated backup/restore workflow. Additional open auth/config evidence is HearMeOut's rejected Gemini key and a StreamWeaver broadcaster grant with no access/refresh token.
+
+### 2026-07-19 Rotator learning and fresh observation baseline
+
+- The protected pre-reset review covered 141 raw events, 103 stored proposal records, and 45 final grouped targets. Its final live cycle produced 45 classifications with zero provider failures, zero file changes, and zero `ready` or `verified` automatic fixes. Unsafe model drafts were never applied.
+- Rotator now redacts credentials before storage/model/report use, protects the raw log export with the operator action token, excludes unverified historical repairs from model context, labels bounded source excerpts, discards excerpt-based patches, caps review concurrency, and requires a `ready` or `verified` quality verdict for automatic application.
+- Exact deterministic lessons were added for Fly `PU02` HTTP/2 client cancellations and the shared Discord-chat malformed-JSON field signature. These remain visible classifications and did not broaden the ignore list, which remains at 25 rules.
+- StreamWeaver, HearMeOut, DiscordStreamHub, and Rotator corrective commits passed local tests/builds, GitHub Actions, Fly health checks, and public feature/health verification. Chat Tag's reported null `players` failure was historical and its deployed guard was already present.
+- The protected reset archived the redacted evidence, cleared 141 events plus 103 proposals and all fingerprints, refreshed the report, and established a verified dashboard/export count of zero at `2026-07-19T05:09:57.304Z`. The 24-hour observation item remains unchecked until at least `2026-07-20T05:09:57.304Z`; backup/restore evidence remains an independent Gate 0 blocker.
 
 Additional verified isolation work: the current Kick user API contract is used when resolving tenant broadcaster/chat identity; LTM condense routes now require a tenant session and pass the tenant through AI config, generation, and storage; automation bot-name matching accepts tenant context. Tenant provider access/refresh tokens remain app state and must migrate from legacy volume JSON into encrypted database records only after Gate 0 backup/restore proof; they must never be placed in Fly secrets.
 

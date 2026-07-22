@@ -1,6 +1,6 @@
 # SpaceMountain Ecosystem Production Roadmap
 
-Updated: 2026-07-19
+Updated: 2026-07-22
 
 Status: active engineering source of truth
 
@@ -87,7 +87,7 @@ The trusted app uses an app-bound `identity:write` credential, receives the SPMT
 - [x] Audit every app for production JWT/session/default credential fallbacks and make missing required secrets fail readiness.
 - [x] Add `npm run smoke:suite` as the reproducible owned-suite smoke command; it proves local/origin/Fly build-SHA parity plus health and one critical feature route for every app and worker.
 - [x] Add a Fly service health check to `dsh-clip-worker` using its existing `/health` route.
-- [ ] Capture and classify 24–48 hours of current errors after the persistence deployments.
+- [x] Capture and classify 24–48 hours of current errors after the persistence deployments.
 - [ ] Prove backup plus isolated restore for each owned database/volume and document RPO, RTO, operator, and rollback release.
 - [x] Make Athena/MountainView capability output and every simulated UI action report configured, degraded, unavailable, or a real accepted job truthfully.
 
@@ -138,6 +138,16 @@ Verified StreamWeaver work already removed from the active queue: tenant directo
 - StreamWeaver, HearMeOut, DiscordStreamHub, and Rotator corrective commits passed local tests/builds, GitHub Actions, Fly health checks, and public feature/health verification. Chat Tag's reported null `players` failure was historical and its deployed guard was already present.
 - The first reset exposed one additional Rotator defect: clearing volume files did not clear the running monitor's in-memory history and cooldown map, so a delayed NATS write restored retained pre-baseline events after an apparent zero. Rotator now filters by the persisted baseline timestamp and resets both in-memory stores when that timestamp changes.
 - The authoritative protected reset archived the replayed evidence, cleared 173 active replay events, refreshed the report, and established `/data/error-baseline.json` at `2026-07-20T10:17:44.582Z`. Protected export and stored history remained at zero through the delayed replay interval that had failed twice. The 24-hour observation item remains unchecked until at least `2026-07-21T10:17:44.582Z`; backup/restore evidence remains an independent Gate 0 blocker.
+
+### 2026-07-21–22 completed error observation and classifier hardening
+
+- The protected post-baseline window ran for more than 48 hours and produced 61 stored records across the owned app/worker set. A full production review created 40 proposal records; all remained `review`, none reached `ready` or `verified`, and no automatic code change was applied.
+- Three provider drafts demonstrated the remaining model-context risk: a generic Twitch ping timeout was attributed to HearMeOut Discord routes, another was attributed to StreamWeaver TTS timeouts, and a successful Pokémon pack message containing the card name `Computer Error` was attributed to Unicode/TTS. Existing quality gates blocked all three. Rotator now excludes that exact successful-send echo and deterministically classifies the observed Twitch IRC transport/authentication, EventSub ping, stale Server Action, Fly EOF/broken-pipe, LiveKit VoiceBridge, Discord cleanup, banned-channel, invalid Gemini-key, and unknown-channel families before model invocation.
+- Expected user-state and successful fallback echoes are filtered only by exact signatures. Authentication/configuration and provider failures remain visible. The volume-backed ignore list remains at 25; no rule was added and no broad error, status-code, provider, or authentication suppression was introduced.
+- Current operator-owned blockers are a ChatTag `channel:bot`/moderator authorization failure, invalid HearMeOut Gemini credential, YouTube extractor bot challenges, an invalid Discord voice-channel mapping, a StreamWeaver Twitch IRC credential failure, and a Twitch channel where the shared-chat bot is banned. LiveKit `429`, Fly transport, deployment-version, and Twitch ping events are classified as transient/external and require bounded recovery evidence rather than guessed patches.
+- Rotator commit `0da1206` passed 109 tests, typecheck, build, GitHub deployment, and Fly health. The same pass found and repaired StreamWeaver's failed GitHub build by adding its declared `@google/genai` dependency; the pending compatibility/persistence batches for StreamWeaver (`9fe7036`), ChatTag (`e0bd6ba`), and DiscordStreamHub (`ee22a26`) passed their app-specific typecheck/build or isolation suites and were pushed as one deployment per affected app.
+- All coordinated GitHub workflows completed successfully. `npm run smoke:suite` at `2026-07-22T14:34:33.618Z` passed all ten owned app/worker health and feature routes with exact local `HEAD` = `origin/main` = deployed Fly image SHA. The protected reset then archived the reviewed state at `/data/error-archives/2026-07-22T14-34-42-143Z`, cleared 70 final events plus 40 proposals, wrote the new baseline at `2026-07-22T14:34:42.174Z`, and remained at zero through the delayed replay check; the ignore list stayed at 25 and unauthenticated raw-log access stayed `401`.
+- The 24–48-hour capture/classification item is complete. Gate 0 itself remains open because the non-SPMT isolated restore/RPO/RTO drills are still missing and the listed auth/config dependencies require operator credentials or channel actions. A new protected zero baseline may begin only after the current coordinated deployments pass Actions, Fly health, and the suite smoke matrix; recurring unresolved auth/config events must re-enter the queue.
 
 Additional verified isolation work: the current Kick user API contract is used when resolving tenant broadcaster/chat identity; LTM condense routes now require a tenant session and pass the tenant through AI config, generation, and storage; automation bot-name matching accepts tenant context. Tenant provider access/refresh tokens remain app state and must migrate from legacy volume JSON into encrypted database records only after Gate 0 backup/restore proof; they must never be placed in Fly secrets.
 

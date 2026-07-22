@@ -47,3 +47,30 @@ Rotator's raw error export is now operator-authenticated, no-store, and redacted
 The monitor now reads the observation baseline for each error candidate, rejects retained Fly log envelopes at or before the baseline, and resets its in-memory history and dedupe stores whenever the dashboard writes a new baseline timestamp. The authoritative protected reset archived the replayed evidence at `/data/error-archives/2026-07-20T10-17-44-524Z`, cleared 173 active replay events, and wrote `/data/error-baseline.json` with `startedAt=2026-07-20T10:17:44.582Z`. The protected export and stored history both remained at zero through the same delayed replay interval that had failed twice; unauthenticated export remains `401`.
 
 This starts the valid new observation window. The error-observation checkbox must remain open until at least `2026-07-21T10:17:44.582Z` and until every genuinely post-baseline event is classified from current evidence. Gate 0 also remains independently blocked by the outstanding non-SPMT isolated restore/RPO/RTO drills.
+
+## 2026-07-21–22 observation result
+
+The required observation window completed with 61 stored post-baseline records and 40 review proposals. No proposal was automatically applied, none passed the `ready` or `verified` quality gate, and the three proposals that included file changes were unsafe cross-component guesses. This is positive safety evidence but also proved that exact deterministic routing still needed another learning pass.
+
+| Incident family | Classification | Disposition |
+| --- | --- | --- |
+| Successful StreamWeaver pack-send line containing the card name `Computer Error` | Expected/success echo | Exact outbound-success signature is no longer eligible for error review |
+| Generic Twitch IRC ping timeout and reconnect lines | Transient external | Group as Twitch chat transport; verify reconnect instead of guessing Discord or TTS source code |
+| Twitch IRC `Login authentication failed` | Auth/config | Refresh the affected account grant; never invent or suppress credentials |
+| ChatTag `channel:bot` rejection | Auth/config | Broadcaster must authorize the scope or make the bot a moderator; recurring events remain actionable |
+| Blacklisted ChatTag channel rejoin | Expected user state | Exact `400` and bot result echoes are controlled rejections |
+| StreamWeaver shared-chat `msg_banned` | Auth/config | Target channel must unban the bot or remove the mapping |
+| Discord cleanup `404 Unknown Message` | Expected lifecycle | Cleanup target was already absent; exact idempotent result is filtered |
+| Next.js Server Action from older/newer deployment | Transient lifecycle | Refresh stale clients and observe recurrence |
+| Fly proxy reset, broken pipe, and completed-request EOF | Transient external | Keep bounded retry/recovery evidence; do not patch unrelated app code |
+| LiveKit signalling/VoiceBridge `429` | Transient external | Back off and retry only after the provider accepts a new connection |
+| HearMeOut Discord voice `Unknown Channel` | Auth/config | Replace the invalid/inaccessible stored voice-channel mapping |
+| HearMeOut Gemini `API key not valid` | Auth/config | Rotate the deployed provider credential |
+| HearMeOut YouTube bot challenge/unresolved stream | Auth/config/external dependency | Refresh the authorized extraction path or use the browser upload/cache handoff |
+| Twitch EventSub `4002 failed ping pong` | Transient external | Reconnect with bounded backoff and group the websocket lifecycle event |
+
+Rotator commit `0da1206` adds these exact lessons and passed 109 tests, typecheck, build, GitHub Actions, and Fly health. The ignore list remains exactly 25 narrow rules. StreamWeaver commit `9fe7036` also repairs the independently discovered failed GitHub build by declaring `@google/genai`; its 58-test isolation/persistence suite passed. ChatTag `e0bd6ba` and DiscordStreamHub `ee22a26` passed full typecheck and production builds before their coordinated deployments.
+
+All coordinated GitHub deployments completed successfully, followed by a passing ten-app `npm run smoke:suite` at `2026-07-22T14:34:33.618Z` with exact local/GitHub/Fly SHA parity. The protected reset archived 70 final events and 40 proposals at `/data/error-archives/2026-07-22T14-34-42-143Z`, wrote `startedAt=2026-07-22T14:34:42.174Z`, and remained at zero events and zero proposals through the delayed replay check. The ignore list remained 25 and unauthenticated raw-log export remained `401`.
+
+The capture/classification requirement is complete and the new zero baseline is active, but Gate 0 remains open for the non-SPMT restore/RPO/RTO drills and the operator-owned auth/config items above. Do not add ignore rules for recurring credential, permission, or provider failures; they must reappear if unresolved.

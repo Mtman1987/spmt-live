@@ -252,7 +252,7 @@ const PLUGIN_MARKETPLACE = [
   { id: 'crew-router', name: 'Crew Router', category: 'Community', description: 'Routes forum, notification, and Commlink events to creator workspace lanes.', scopes: ['messages:write'] },
 ];
 
-const USER_COLUMNS = 'id, username, email, display_name, password_hash, discord_username, discord_id, twitch_username, twitch_id, is_admin, created_at';
+const USER_COLUMNS = 'id, username, email, display_name, password_hash, discord_username, discord_id, twitch_username, twitch_id, avatar_url, is_admin, created_at';
 
 function hashSecret(value: string) {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -456,6 +456,29 @@ function submitAppForUser(userId: string, input: any) {
 }
 
 function serializeUser(user: any) {
+  const linkedAccounts = [
+    user.discord_id || user.discord_username
+      ? {
+          provider: 'discord',
+          providerUserId: user.discord_id || null,
+          username: user.discord_username || null,
+          displayName: user.discord_username || null,
+          avatarUrl: user.avatar_url || null,
+          connectedAt: user.created_at,
+        }
+      : null,
+    user.twitch_id || user.twitch_username
+      ? {
+          provider: 'twitch',
+          providerUserId: user.twitch_id || null,
+          username: user.twitch_username || null,
+          displayName: user.twitch_username || null,
+          avatarUrl: user.avatar_url || null,
+          connectedAt: user.created_at,
+        }
+      : null,
+  ].filter(Boolean);
+
   return {
     id: user.id,
     username: user.username,
@@ -471,6 +494,10 @@ function serializeUser(user: any) {
     twitch_username: user.twitch_username,
     twitchId: user.twitch_id,
     twitch_id: user.twitch_id,
+    avatarUrl: user.avatar_url || null,
+    avatar_url: user.avatar_url || null,
+    linkedAccounts,
+    linked_accounts: linkedAccounts,
     isAdmin: Boolean(user.is_admin),
     is_admin: Boolean(user.is_admin),
     credentialState: user.password_hash === 'SYSTEM_NO_LOGIN' ? 'provider-owned' : 'password-set',
@@ -1262,21 +1289,23 @@ app.post('/api/platform/identity/grandfather', authenticatePlatformKey('identity
 
   if (!user) {
     const providerUsername = cleanHandle(req.body?.providerUsername || req.body?.provider_username || req.body?.username).slice(0, 80) || null;
+    const providerAvatarUrl = compactText(req.body?.avatarUrl || req.body?.avatar_url || req.body?.providerAvatarUrl || req.body?.provider_avatar_url, 2048) || null;
     const username = importedUsername(provider, providerUserId, req.body?.username || providerUsername);
     const displayName = compactText(req.body?.displayName || req.body?.display_name || providerUsername || username, 120) || username;
     const id = uuidv4();
     const email = `import-${provider}-${crypto.createHash('sha256').update(providerUserId).digest('hex').slice(0, 24)}@spmt.live`;
     const now = new Date().toISOString();
     db.prepare(`
-      INSERT INTO users (id, username, email, display_name, password_hash, ${usernameColumn}, ${idColumn}, created_at)
-      VALUES (?, ?, ?, ?, 'SYSTEM_NO_LOGIN', ?, ?, ?)
-    `).run(id, username, email, displayName, providerUsername, providerUserId, now);
+      INSERT INTO users (id, username, email, display_name, password_hash, ${usernameColumn}, ${idColumn}, avatar_url, created_at)
+      VALUES (?, ?, ?, ?, 'SYSTEM_NO_LOGIN', ?, ?, ?, ?)
+    `).run(id, username, email, displayName, providerUsername, providerUserId, providerAvatarUrl, now);
     user = getUserById(id);
     created = true;
   } else {
     const providerUsername = cleanHandle(req.body?.providerUsername || req.body?.provider_username).slice(0, 80);
     const displayName = compactText(req.body?.displayName || req.body?.display_name, 120);
-    if ((providerUsername && !user[usernameColumn]) || (displayName && user.password_hash === 'SYSTEM_NO_LOGIN')) {
+    const providerAvatarUrl = compactText(req.body?.avatarUrl || req.body?.avatar_url || req.body?.providerAvatarUrl || req.body?.provider_avatar_url, 2048);
+    if ((providerUsername && !user[usernameColumn]) || (displayName && user.password_hash === 'SYSTEM_NO_LOGIN') || (providerAvatarUrl && !user.avatar_url)) {
       const updates: string[] = [];
       const values: string[] = [];
       if (providerUsername && !user[usernameColumn]) {
@@ -1286,6 +1315,10 @@ app.post('/api/platform/identity/grandfather', authenticatePlatformKey('identity
       if (displayName && user.password_hash === 'SYSTEM_NO_LOGIN') {
         updates.push('display_name = ?');
         values.push(displayName);
+      }
+      if (providerAvatarUrl && !user.avatar_url) {
+        updates.push('avatar_url = ?');
+        values.push(providerAvatarUrl);
       }
       if (updates.length) {
         db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values, user.id);
@@ -1669,6 +1702,7 @@ app.post('/api/auth/register', async (req, res) => {
 
   // Resolve Discord ID from username if provided
   let discordId: string | null = null;
+  let avatarUrl: string | null = null;
   const cleanDiscord = (discordUsername || '').trim().replace(/^@/, '');
   if (cleanDiscord && process.env.DISCORD_BOT_TOKEN) {
     try {
@@ -1681,6 +1715,11 @@ app.post('/api/auth/register', async (req, res) => {
           const members = await searchRes.json();
           if (members.length > 0 && members[0].user) {
             discordId = members[0].user.id;
+            const discordAvatar = String(members[0].user.avatar || '');
+            if (discordAvatar) {
+              const ext = discordAvatar.startsWith('a_') ? 'gif' : 'png';
+              avatarUrl = `https://cdn.discordapp.com/avatars/${discordId}/${discordAvatar}.${ext}`;
+            }
           }
         }
       }
@@ -1702,6 +1741,7 @@ app.post('/api/auth/register', async (req, res) => {
         const data = await twitchRes.json();
         if (data.data?.length > 0) {
           twitchId = data.data[0].id;
+          if (!avatarUrl) avatarUrl = data.data[0].profile_image_url || null;
         }
       }
     } catch (e) { console.warn('Twitch lookup failed:', e); }
@@ -1711,8 +1751,8 @@ app.post('/api/auth/register', async (req, res) => {
   const hash = await bcrypt.hash(password, 12);
   const email = `${clean}@spmt.live`;
 
-  db.prepare(`INSERT INTO users (id, username, email, display_name, password_hash, discord_username, discord_id, twitch_username, twitch_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(id, clean, email, displayName || clean, hash, cleanDiscord || null, discordId, cleanTwitch || null, twitchId, new Date().toISOString());
+  db.prepare(`INSERT INTO users (id, username, email, display_name, password_hash, discord_username, discord_id, twitch_username, twitch_id, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, clean, email, displayName || clean, hash, cleanDiscord || null, discordId, cleanTwitch || null, twitchId, avatarUrl, new Date().toISOString());
 
   const user = getUserById(id);
   const token = signSession(user);
@@ -1930,6 +1970,7 @@ app.post('/api/user/link', authenticate, async (req: any, res) => {
 
   const existingLinks = db.prepare('SELECT discord_username, discord_id FROM users WHERE id = ?').get(req.user.id) as any;
   let resolvedDiscordId: string | null = null;
+  let resolvedAvatarUrl: string | null = null;
   let discordVerification = 'not_requested';
   const cleanDiscord = (discordUsername || '').trim().replace(/^@/, '');
   if (cleanDiscord) discordVerification = 'unavailable';
@@ -1944,6 +1985,11 @@ app.post('/api/user/link', authenticate, async (req: any, res) => {
           ? members.find((member) => String(member?.user?.username || '').trim().toLowerCase() === cleanDiscord.toLowerCase())
           : null;
         resolvedDiscordId = exactMember?.user?.id ? String(exactMember.user.id) : null;
+        const discordAvatar = String(exactMember?.user?.avatar || '');
+        if (resolvedDiscordId && discordAvatar) {
+          const ext = discordAvatar.startsWith('a_') ? 'gif' : 'png';
+          resolvedAvatarUrl = `https://cdn.discordapp.com/avatars/${resolvedDiscordId}/${discordAvatar}.${ext}`;
+        }
         discordVerification = resolvedDiscordId ? 'verified' : 'not_found';
       }
     } catch {}
@@ -1966,7 +2012,10 @@ app.post('/api/user/link', authenticate, async (req: any, res) => {
       });
       if (twitchRes.ok) {
         const data = await twitchRes.json();
-        if (data.data?.length > 0) twitchId = data.data[0].id;
+        if (data.data?.length > 0) {
+          twitchId = data.data[0].id;
+          if (!resolvedAvatarUrl) resolvedAvatarUrl = data.data[0].profile_image_url || null;
+        }
       }
     } catch {}
   }
@@ -1979,6 +2028,7 @@ app.post('/api/user/link', authenticate, async (req: any, res) => {
   }
   if (cleanTwitch) { updates.push('twitch_username = ?'); params.push(cleanTwitch); }
   if (twitchId) { updates.push('twitch_id = ?'); params.push(twitchId); }
+  if (resolvedAvatarUrl) { updates.push('avatar_url = ?'); params.push(resolvedAvatarUrl); }
 
   if (updates.length > 0) {
     params.push(req.user.id);
@@ -2128,7 +2178,7 @@ app.post('/api/oauth/token', (req, res) => {
   // Delete used code
   db.prepare('DELETE FROM oauth_codes WHERE code = ?').run(code);
 
-  const user = db.prepare('SELECT id, username, email, display_name, is_admin FROM users WHERE id = ?').get(authCode.user_id) as any;
+  const user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(authCode.user_id) as any;
   const access_token = jwt.sign({ id: user.id, username: user.username, email: user.email, client_id, is_admin: Boolean(user.is_admin) }, JWT_SECRET, { expiresIn: '7d' });
 
   res.json({ access_token, token_type: 'Bearer', expires_in: 7 * 24 * 3600, user: serializeUser(user) });

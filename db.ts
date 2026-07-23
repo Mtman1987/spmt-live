@@ -113,6 +113,7 @@ export function initDb() {
       discord_id TEXT,
       twitch_username TEXT,
       twitch_id TEXT,
+      avatar_url TEXT,
       is_admin INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     );
@@ -434,6 +435,7 @@ export function initDb() {
   try { db.exec('ALTER TABLE users ADD COLUMN twitch_username TEXT'); } catch {}
   try { db.exec('ALTER TABLE users ADD COLUMN twitch_id TEXT'); } catch {}
   try { db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0'); } catch {}
+  try { db.exec('ALTER TABLE users ADD COLUMN avatar_url TEXT'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN read_at TEXT'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN channel TEXT DEFAULT "direct"'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN conversation_id TEXT'); } catch {}

@@ -74,3 +74,21 @@ Rotator commit `0da1206` adds these exact lessons and passed 109 tests, typechec
 All coordinated GitHub deployments completed successfully, followed by a passing ten-app `npm run smoke:suite` at `2026-07-22T14:34:33.618Z` with exact local/GitHub/Fly SHA parity. The protected reset archived 70 final events and 40 proposals at `/data/error-archives/2026-07-22T14-34-42-143Z`, wrote `startedAt=2026-07-22T14:34:42.174Z`, and remained at zero events and zero proposals through the delayed replay check. The ignore list remained 25 and unauthenticated raw-log export remained `401`.
 
 The capture/classification requirement is complete and the new zero baseline is active, but Gate 0 remains open for the non-SPMT restore/RPO/RTO drills and the operator-owned auth/config items above. Do not add ignore rules for recurring credential, permission, or provider failures; they must reappear if unresolved.
+
+## 2026-07-23 first post-reset slice
+
+The current protected baseline is `startedAt=2026-07-22T14:41:22.444Z`. At the audit, `/data/error-history.json` held 145 records and `/data/fix-proposals.json` remained empty. The ignore list remained exactly 25 rules.
+
+| Classification | Records | Evidence and disposition |
+| --- | ---: | --- |
+| Exact handled/context echoes | 27 | JSON quota children, shared-chat walk-on recovery cascades, and optional metadata fallback lines; filtered only by exact signatures in source, not new volume ignore rules |
+| Auth/config | 68 | Gemini leaked/revoked key and quota, OpenAI quota, ChatTag `channel:bot`, shared-chat broadcaster `401`, bot ban, missing broadcaster grant, and Discord history mapping; credentials and permissions remain visible |
+| Real code fix | 31 | 27 legacy TTS fallback `401` records plus four malformed Twitch-login echoes; repaired in StreamWeaver `b3a53d8` |
+| Transient/external | 19 | Fly health transitions, Twitch transport/rate limit, upstream `5xx`, and two recovered DSH leaderboard renderer timeouts |
+| Unknown | 0 | Every stored record routes deterministically after Rotator `8f0af4f` |
+
+StreamWeaver passed all 61 isolation/persistence tests. Rotator passed 116 tests, typecheck, and build, including MountainView SQLite response-lifecycle coverage. DSH produced a later successful leaderboard update, so its renderer timeouts are recovery evidence rather than a speculative code patch.
+
+GitHub contains the two repair batches, but both Fly Actions failed before image creation: the remote builder returned `403` for overdue invoices on the `mtman-new` organization. The production images therefore remain on their prior healthy SHAs. Do not clear this queue or start a new zero baseline until billing is repaired, both current commits deploy, Actions/Fly feature routes and full SHA parity pass, and the unresolved credential/permission items are retained as actionable evidence.
+
+The post-failure suite smoke at `2026-07-23T14:07:36.214Z` still returned `200` for every health and feature route across all ten app/worker entries. Eight entries had exact SHA parity; only StreamWeaver (`b3a53d8` expected, `9fe7036` deployed) and Rotator (`8f0af4f` expected, `8a23c65` deployed) failed parity because the builder never created their images.

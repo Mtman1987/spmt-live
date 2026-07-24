@@ -91,6 +91,8 @@ The trusted app uses an app-bound `identity:write` credential, receives the SPMT
 - [ ] Prove backup plus isolated restore for each owned database/volume and document RPO, RTO, operator, and rollback release.
 - [x] Make Athena/MountainView capability output and every simulated UI action report configured, degraded, unavailable, or a real accepted job truthfully.
 
+2026-07-24 progress: live Fly volume IDs for every owned stateful runtime are recorded in `GATE_0_BACKUP_RESTORE.md`, and `npm run backup:verify-restore -- --profile <profile> --root <restored-volume-root>` now validates isolated restored copies without exposing records or secrets. The checkbox remains open until approved isolated recovery volumes/copies are created, validated, timed, and either promoted or destroyed.
+
 ### Gate 1 — identity, scopes, tenant isolation, and XP
 
 - [x] Make SPMT session restore the primary identity in StreamWeaver, DSH, HearMeOut, ChatTag, MountainView, and SpaceMountain; provider OAuth remains a linked grant.

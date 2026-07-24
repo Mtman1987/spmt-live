@@ -572,6 +572,8 @@ StreamWeaver owns a tenant-scoped `SharedChatEventV1` with:
 - `meta` for provider-specific extensions.
 - Deduplication, reflection, and routing markers.
 
+2026-07-24 progress: StreamWeaver now has a typed `SharedChatEventV1` contract and parser covering supported platforms, sender identity, badges/roles, message/media/link/monetization/reply context, timestamps, provider metadata, app-scoped dedupe keys, and explicit tenant isolation/routing markers. The first tests prove valid live-message and donation payloads parse and tenant isolation is mandatory. Ingestion is intentionally not switched yet; existing source listeners can adopt the contract one source at a time.
+
 ### Step 3.2 — Finish ingestion
 
 1. Treat Social Stream Ninja as a supported bridge/reference, not copied code.

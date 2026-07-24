@@ -145,9 +145,9 @@ try {
     metadata: { tenantId: 'tenant-smoke', channelId: 'channel-smoke' },
   });
   assert.equal(mappedXpAward.sourceApp, 'chat-tag');
-  assert.equal(mappedXpAward.eventType, 'chat-tag.tag');
+  assert.equal(mappedXpAward.eventType, 'chat-tag-tag');
   assert.equal(mappedXpAward.delta, 100);
-  assert.equal(mappedXpAward.idempotencyKey, 'chat-tag:chat-tag.tag:tag-msg-1:viewer-smoke');
+  assert.equal(mappedXpAward.idempotencyKey, 'chat-tag:chat-tag-tag:tag-msg-1:viewer-smoke');
   assert.equal(sdk.validateXpAwardV1(mappedXpAward).ok, true);
   assert.equal(sdk.validateXpAwardV1({ ...mappedXpAward, idempotencyKey: '' }).ok, false);
   const starterZipResponse = await fetch(`${baseUrl}/sdk/atherrea-spmt-starter.zip`);

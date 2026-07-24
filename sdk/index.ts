@@ -115,6 +115,161 @@ export type WorkspaceThemeTokensV1 = {
   motion: { enabled: boolean; speed: number; particles: boolean };
 };
 
+export type SharedChatPlatformV1 = 'twitch' | 'discord' | 'kick' | 'youtube' | 'social-stream' | 'spmt' | 'app' | 'unknown';
+
+export type SharedChatEventTypeV1 =
+  | 'message'
+  | 'reply'
+  | 'donation'
+  | 'membership'
+  | 'reward'
+  | 'follow'
+  | 'raid'
+  | 'system'
+  | 'edit'
+  | 'delete';
+
+export type SharedChatSenderV1 = {
+  id: string;
+  username?: string;
+  displayName?: string;
+  avatarUrl?: string;
+  badges?: string[];
+  roles?: string[];
+};
+
+export type SharedChatMediaV1 = {
+  type: 'image' | 'video' | 'audio' | 'sticker' | 'emote' | 'link';
+  url: string;
+  label?: string;
+  mimeType?: string;
+};
+
+export type SharedChatMoneyV1 = {
+  amount: number;
+  currency: string;
+  label?: string;
+};
+
+export type SharedChatReplyContextV1 = {
+  eventId?: string;
+  upstreamId?: string;
+  senderId?: string;
+  textPreview?: string;
+};
+
+export type SharedChatRoutingV1 = {
+  reflected?: boolean;
+  replayed?: boolean;
+  canReply?: boolean;
+  replyTargetId?: string;
+  botReadable?: boolean;
+  botCanReply?: boolean;
+};
+
+export type SharedChatEventV1 = {
+  schemaVersion: 1;
+  eventId: string;
+  upstreamId: string;
+  tenantId: string;
+  platform: SharedChatPlatformV1;
+  sourceId: string;
+  sourceName?: string;
+  channelId: string;
+  channelName?: string;
+  type: SharedChatEventTypeV1;
+  sender: SharedChatSenderV1;
+  text: string;
+  sanitizedHtml?: string;
+  media?: SharedChatMediaV1[];
+  links?: Array<{ url: string; label?: string }>;
+  donation?: SharedChatMoneyV1;
+  membership?: { tier?: string; months?: number; label?: string };
+  reward?: { id?: string; title: string; cost?: number };
+  replyTo?: SharedChatReplyContextV1;
+  originalTimestamp: string;
+  receivedTimestamp: string;
+  editedTimestamp?: string;
+  deletedTimestamp?: string;
+  meta?: Record<string, unknown>;
+  dedupeKey?: string;
+  routing?: SharedChatRoutingV1;
+};
+
+export type SharedChatEventValidationResult =
+  | { ok: true; event: SharedChatEventV1 }
+  | { ok: false; errors: string[] };
+
+const SHARED_CHAT_PLATFORMS: SharedChatPlatformV1[] = ['twitch', 'discord', 'kick', 'youtube', 'social-stream', 'spmt', 'app', 'unknown'];
+const SHARED_CHAT_EVENT_TYPES: SharedChatEventTypeV1[] = ['message', 'reply', 'donation', 'membership', 'reward', 'follow', 'raid', 'system', 'edit', 'delete'];
+
+export function validateSharedChatEventV1(input: unknown): SharedChatEventValidationResult {
+  const errors: string[] = [];
+  const event = input as Partial<SharedChatEventV1> | null | undefined;
+  if (!event || typeof event !== 'object') {
+    return { ok: false, errors: ['event must be an object'] };
+  }
+
+  requireLiteral(event.schemaVersion, 1, 'schemaVersion', errors);
+  requireString(event.eventId, 'eventId', errors);
+  requireString(event.upstreamId, 'upstreamId', errors);
+  requireString(event.tenantId, 'tenantId', errors);
+  requireString(event.sourceId, 'sourceId', errors);
+  requireString(event.channelId, 'channelId', errors);
+  requireString(event.text, 'text', errors);
+  requireIsoTimestamp(event.originalTimestamp, 'originalTimestamp', errors);
+  requireIsoTimestamp(event.receivedTimestamp, 'receivedTimestamp', errors);
+  if (!SHARED_CHAT_PLATFORMS.includes(event.platform as SharedChatPlatformV1)) errors.push('platform is not supported');
+  if (!SHARED_CHAT_EVENT_TYPES.includes(event.type as SharedChatEventTypeV1)) errors.push('type is not supported');
+
+  if (!event.sender || typeof event.sender !== 'object') {
+    errors.push('sender must be an object');
+  } else {
+    requireString(event.sender.id, 'sender.id', errors);
+    if (event.sender.badges && !isStringArray(event.sender.badges)) errors.push('sender.badges must be strings');
+    if (event.sender.roles && !isStringArray(event.sender.roles)) errors.push('sender.roles must be strings');
+  }
+
+  if (event.media && (!Array.isArray(event.media) || event.media.some((item) => !item || typeof item !== 'object' || !isNonEmptyString(item.url)))) {
+    errors.push('media items must include url');
+  }
+  if (event.links && (!Array.isArray(event.links) || event.links.some((item) => !item || typeof item !== 'object' || !isNonEmptyString(item.url)))) {
+    errors.push('links items must include url');
+  }
+  if (event.donation && (!Number.isFinite(event.donation.amount) || !isNonEmptyString(event.donation.currency))) {
+    errors.push('donation requires finite amount and currency');
+  }
+  if (event.reward && !isNonEmptyString(event.reward.title)) {
+    errors.push('reward.title is required when reward is present');
+  }
+
+  return errors.length ? { ok: false, errors } : { ok: true, event: event as SharedChatEventV1 };
+}
+
+export function isSharedChatEventV1(input: unknown): input is SharedChatEventV1 {
+  return validateSharedChatEventV1(input).ok;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function requireString(value: unknown, field: string, errors: string[]): void {
+  if (!isNonEmptyString(value)) errors.push(`${field} is required`);
+}
+
+function requireLiteral(value: unknown, expected: unknown, field: string, errors: string[]): void {
+  if (value !== expected) errors.push(`${field} must equal ${String(expected)}`);
+}
+
+function requireIsoTimestamp(value: unknown, field: string, errors: string[]): void {
+  if (!isNonEmptyString(value) || Number.isNaN(Date.parse(value))) errors.push(`${field} must be an ISO timestamp`);
+}
+
 const THEME_PALETTES: Record<string, Pick<WorkspaceThemeTokensV1, 'background' | 'surface' | 'text' | 'accent'>> = {
   'solar-flare': { background: '#080b14', surface: '#171321', text: '#f8fafc', accent: '#ff8a3d' },
   'nebula-purple': { background: '#090712', surface: '#1d1530', text: '#f8f4ff', accent: '#a855f7' },

@@ -115,6 +115,28 @@ try {
   const sdkPackageResponse = await fetch(`${baseUrl}/sdk/spmt-sdk.tgz`);
   assert.equal(sdkPackageResponse.status, 200);
   assert.ok((await sdkPackageResponse.arrayBuffer()).byteLength > 1_000);
+  const sdk = await import('../sdk/dist/index.js');
+  const sharedChatEvent = {
+    schemaVersion: 1,
+    eventId: 'evt_smoke_1',
+    upstreamId: 'twitch:msg:abc',
+    tenantId: 'tenant-smoke',
+    platform: 'twitch',
+    sourceId: 'stream-smoke',
+    sourceName: 'Smoke Stream',
+    channelId: 'channel-smoke',
+    channelName: 'smokechannel',
+    type: 'message',
+    sender: { id: 'viewer-smoke', username: 'viewer', displayName: 'Viewer', badges: ['subscriber'], roles: ['viewer'] },
+    text: 'hello from smoke',
+    sanitizedHtml: 'hello from smoke',
+    originalTimestamp: new Date().toISOString(),
+    receivedTimestamp: new Date().toISOString(),
+    dedupeKey: 'twitch:msg:abc',
+    routing: { canReply: true, botReadable: true, botCanReply: false },
+  };
+  assert.equal(sdk.validateSharedChatEventV1(sharedChatEvent).ok, true);
+  assert.equal(sdk.isSharedChatEventV1({ ...sharedChatEvent, tenantId: '' }), false);
   const starterZipResponse = await fetch(`${baseUrl}/sdk/atherrea-spmt-starter.zip`);
   assert.equal(starterZipResponse.status, 200);
   assert.ok((await starterZipResponse.arrayBuffer()).byteLength > 1_000);

@@ -50,6 +50,36 @@ client.commlink.notify({
 })
 ```
 
+### Shared live chat
+
+Gate 3 begins with the exported `SharedChatEventV1` contract and validator. StreamWeaver remains the high-volume chat owner, but apps should normalize live Twitch, Discord, Kick, YouTube, Social Stream bridge, and app chat into this shape before SPMT indexes or displays it.
+
+```ts
+import { validateSharedChatEventV1 } from "@spmt/sdk";
+
+const result = validateSharedChatEventV1({
+  schemaVersion: 1,
+  eventId: "evt_...",
+  upstreamId: "twitch:message:...",
+  tenantId: "tenant_...",
+  platform: "twitch",
+  sourceId: "stream_...",
+  channelId: "channel_...",
+  type: "message",
+  sender: { id: "viewer_...", displayName: "Viewer" },
+  text: "hello chat",
+  originalTimestamp: new Date().toISOString(),
+  receivedTimestamp: new Date().toISOString()
+});
+```
+
+Required ownership boundaries:
+
+- `tenantId`, `sourceId`, and `channelId` are routing identifiers, not display names.
+- `eventId` is the SPMT/StreamWeaver stable ID; `upstreamId` is the provider message/event ID.
+- `routing.canReply`, `routing.botReadable`, and `routing.botCanReply` must be explicit before UI or bots expose reply controls.
+- Mail/direct messages and live chat remain different data types even when shown in the same Commlink workspace.
+
 ### Athena
 
 ```ts

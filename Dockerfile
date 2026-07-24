@@ -10,6 +10,10 @@ FROM node:20-slim
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ARG BUILD_SHA=unknown
+ARG GITHUB_SHA=unknown
+ARG GH_SHA=$GITHUB_SHA
+LABEL GITHUB_SHA=$GITHUB_SHA
+LABEL GH_SHA=$GH_SHA
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist

@@ -33,9 +33,20 @@ function joinUrl(base, pathname) {
 
 async function checkUrl(url) {
   const startedAt = Date.now();
-  const response = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(30_000) });
-  const body = await response.text();
-  return { url, status: response.status, ok: response.ok, bytes: Buffer.byteLength(body), durationMs: Date.now() - startedAt };
+  try {
+    const response = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(60_000) });
+    const body = await response.text();
+    return { url, status: response.status, ok: response.ok, bytes: Buffer.byteLength(body), durationMs: Date.now() - startedAt };
+  } catch (error) {
+    return {
+      url,
+      status: 0,
+      ok: false,
+      bytes: 0,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+    };
+  }
 }
 
 const results = [];

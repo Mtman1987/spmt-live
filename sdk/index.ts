@@ -296,16 +296,16 @@ export function workspaceThemeTokens(profile: WorkspaceProfileV1, appId: string)
 export const SPMT_XP_LEDGER_SCHEMA_VERSION = 1 as const;
 
 export const SPMT_XP_EVENT_MAP_V1 = {
-  'chat-tag.tag': { sourceApp: 'chat-tag', eventType: 'chat-tag.tag', defaultDelta: 100 },
-  'chat-tag.pass': { sourceApp: 'chat-tag', eventType: 'chat-tag.pass', defaultDelta: 200 },
-  'chat-tag.bingo.square': { sourceApp: 'chat-tag', eventType: 'chat-tag.bingo.square', defaultDelta: 10 },
-  'chat-tag.bingo.win': { sourceApp: 'chat-tag', eventType: 'chat-tag.bingo.win', defaultDelta: 250 },
-  'dsh.discord.message': { sourceApp: 'discord-stream-hub', eventType: 'dsh.discord.message', defaultDelta: 1 },
-  'dsh.twitch.follow': { sourceApp: 'discord-stream-hub', eventType: 'dsh.twitch.follow', defaultDelta: 25 },
-  'dsh.twitch.raid': { sourceApp: 'discord-stream-hub', eventType: 'dsh.twitch.raid', defaultDelta: 50 },
-  'dsh.twitch.sub': { sourceApp: 'discord-stream-hub', eventType: 'dsh.twitch.sub', defaultDelta: 100 },
-  'spacemountain.tool.trigger': { sourceApp: 'spacemountain', eventType: 'spacemountain.tool.trigger', defaultDelta: 5 },
-  'spacemountain.arena.kill': { sourceApp: 'spacemountain', eventType: 'spacemountain.arena.kill', defaultDelta: 1 },
+  'chat-tag.tag': { sourceApp: 'chat-tag', eventType: 'chat-tag-tag', defaultDelta: 100 },
+  'chat-tag.pass': { sourceApp: 'chat-tag', eventType: 'chat-tag-pass', defaultDelta: 200 },
+  'chat-tag.bingo.square': { sourceApp: 'chat-tag', eventType: 'chat-tag-bingo-square', defaultDelta: 10 },
+  'chat-tag.bingo.win': { sourceApp: 'chat-tag', eventType: 'chat-tag-bingo-win', defaultDelta: 250 },
+  'dsh.discord.message': { sourceApp: 'discord-stream-hub', eventType: 'dsh-discord-message', defaultDelta: 1 },
+  'dsh.twitch.follow': { sourceApp: 'discord-stream-hub', eventType: 'dsh-twitch-follow', defaultDelta: 25 },
+  'dsh.twitch.raid': { sourceApp: 'discord-stream-hub', eventType: 'dsh-twitch-raid', defaultDelta: 50 },
+  'dsh.twitch.sub': { sourceApp: 'discord-stream-hub', eventType: 'dsh-twitch-sub', defaultDelta: 100 },
+  'spacemountain.tool.trigger': { sourceApp: 'spacemountain', eventType: 'spacemountain-tool-trigger', defaultDelta: 5 },
+  'spacemountain.arena.kill': { sourceApp: 'spacemountain', eventType: 'spacemountain-arena-kill', defaultDelta: 1 },
 } as const;
 
 export type XpMappedEventTypeV1 = keyof typeof SPMT_XP_EVENT_MAP_V1;

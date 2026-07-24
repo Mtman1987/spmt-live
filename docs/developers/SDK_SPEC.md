@@ -101,16 +101,16 @@ if (validateXpAwardV1(award).ok) {
 
 Current canonical mappings:
 
-- `chat-tag.tag` -> `chat-tag`, +100 XP
-- `chat-tag.pass` -> `chat-tag`, +200 XP
-- `chat-tag.bingo.square` -> `chat-tag`, +10 XP
-- `chat-tag.bingo.win` -> `chat-tag`, +250 XP
-- `dsh.discord.message` -> `discord-stream-hub`, +1 XP
-- `dsh.twitch.follow` -> `discord-stream-hub`, +25 XP
-- `dsh.twitch.raid` -> `discord-stream-hub`, +50 XP
-- `dsh.twitch.sub` -> `discord-stream-hub`, +100 XP
-- `spacemountain.tool.trigger` -> `spacemountain`, +5 XP
-- `spacemountain.arena.kill` -> `spacemountain`, +1 XP
+- `chat-tag.tag` -> `chat-tag` / `chat-tag-tag`, +100 XP
+- `chat-tag.pass` -> `chat-tag` / `chat-tag-pass`, +200 XP
+- `chat-tag.bingo.square` -> `chat-tag` / `chat-tag-bingo-square`, +10 XP
+- `chat-tag.bingo.win` -> `chat-tag` / `chat-tag-bingo-win`, +250 XP
+- `dsh.discord.message` -> `discord-stream-hub` / `dsh-discord-message`, +1 XP
+- `dsh.twitch.follow` -> `discord-stream-hub` / `dsh-twitch-follow`, +25 XP
+- `dsh.twitch.raid` -> `discord-stream-hub` / `dsh-twitch-raid`, +50 XP
+- `dsh.twitch.sub` -> `discord-stream-hub` / `dsh-twitch-sub`, +100 XP
+- `spacemountain.tool.trigger` -> `spacemountain` / `spacemountain-tool-trigger`, +5 XP
+- `spacemountain.arena.kill` -> `spacemountain` / `spacemountain-arena-kill`, +1 XP
 
 Every producer must supply the immutable SPMT `userId`, a stable upstream event/message ID, and metadata that identifies tenant/source/channel without storing secrets. Retries must reuse the same idempotency key so points cannot be awarded twice.
 

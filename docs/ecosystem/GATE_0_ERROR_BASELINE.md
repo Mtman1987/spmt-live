@@ -94,3 +94,23 @@ GitHub contains the two repair batches, but both Fly Actions failed before image
 The post-failure suite smoke at `2026-07-23T14:07:36.214Z` still returned `200` for every health and feature route across all ten app/worker entries. Eight entries had exact SHA parity; only StreamWeaver (`b3a53d8` expected, `9fe7036` deployed) and Rotator (`8f0af4f` expected, `8a23c65` deployed) failed parity because the builder never created their images.
 
 The evidence commit itself passed SPMT production-contract validation but encountered the same Fly billing `403`, leaving docs-only SPMT commit `6e4e92e` ahead of deployed `652d105`. A final smoke at `2026-07-23T14:11:11.817Z` again found every route healthy and three expected parity blockers: SPMT docs, StreamWeaver, and Rotator. The final evidence correction is committed with CI skipped to avoid repeating a deployment known to be impossible until billing is repaired.
+
+## 2026-07-24 recovered deployment and protected reset
+
+Billing recovery allowed every queued hardening release to deploy. The final pre-reset suite smoke at `2026-07-24T14:24:12.887Z` returned `200` from all ten health and feature routes and proved exact local, GitHub, and Fly SHA parity. The authoritative queue then contained 148 records, zero proposals, and the unchanged 25-rule ignore list.
+
+| Classification | Records | Evidence and disposition |
+| --- | ---: | --- |
+| Exact handled/context echoes | 77 | Exact Twitch reconnect/join lifecycle fragments, Undici child frames, and the obsolete multiline XP log header; filtered in source by exact signatures, not added to the volume ignore list |
+| Transient/external | 58 | One recovered Twitch/outbound connection interruption, bounded upstream `5xx`, DSH-to-SpaceMountain abort, and completed-request Fly EOF; recovery plus current feature health rules out speculative app patches |
+| Auth/config | 12 | Eight Twitch IRC login rejections, two missing StreamWeaver broadcaster grants, and two pre-repair DSH `xp:write` rejections; credentials/grants remain visible, while the DSH key was repaired narrowly in place |
+| Real code fix | 1 | DSH sent dotted XP event types after authorization succeeded; `bde2142` now sends stable lowercase-hyphen slugs |
+| Unknown | 0 | Rotator `6aba6c6` deterministically routes every archived record |
+
+The outbound cluster ran approximately from `2026-07-24T10:57Z` through `11:58Z` and included Twitch IRC reconnects plus Undici connection timeouts across StreamWeaver, ChatTag, DSH, and the clip worker. These records are grouped as one recovered transport window. No broad network, provider, status-code, authentication, or exception ignore was added.
+
+The existing DSH app-bound key received only `xp:write` and verified live with `events:write`, `identity:write`, and `xp:write`. The pre-change SPMT database and WAL were copied off-platform; `PRAGMA quick_check` returned `ok`, with database SHA-256 `7D6EE2427C8E9DB9A5F9B424CFDB082332608B0F7497F15A4D2F1998A40EA96C` and WAL SHA-256 `4A38A291FC2E134B9C49BB6E42BE43CFA73DB7C354ABCCB0DE31C51ED94B28B6`. Attempted online volume backups exceeded the bounded SSH window and their incomplete files were removed. This does not close the isolated restore/RPO/RTO requirement.
+
+Rotator passed 130 tests, typecheck, build, Actions, and Fly deployment. DSH passed typecheck plus its web and clip-worker deployment jobs. The authenticated reset archived the final state at `/data/error-archives/2026-07-24T14-25-30-497Z`, cleared 148 events and zero proposals, and wrote `startedAt=2026-07-24T14:25:30.536Z`. The fresh queue remained at zero events and zero proposals with the same 25 ignore rules through the delayed replay check at `2026-07-24T14:27:09Z`.
+
+The error-capture/classification requirement remains complete. Gate 0 remains open for the isolated restore/RPO/RTO/operator/rollback drills. Twitch login and missing-broadcaster grants remain operator-owned auth/config work and must re-enter the fresh queue if they recur.

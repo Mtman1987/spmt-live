@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SPMT Docs</title>
+  <style>
+    :root { color-scheme: dark; --bg:#07090d; --panel:#10141c; --line:rgba(255,255,255,.12); --text:#f8fafc; --muted:#94a3b8; --accent:#f97316; --blue:#38bdf8; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; background:radial-gradient(circle at 16% 0%, rgba(249,115,22,.22), transparent 26%), var(--bg); color:var(--text); }
+    .layout { display:grid; grid-template-columns:310px minmax(0,1fr); min-height:100vh; }
+    aside { position:sticky; top:0; height:100vh; overflow:auto; border-right:1px solid var(--line); background:rgba(8,11,17,.88); padding:22px; }
+    main { max-width:980px; padding:40px min(6vw,72px); }
+    h1,h2,h3 { line-height:1.15; }
+    h1 { font-size:42px; margin-top:0; }
+    h2 { margin-top:38px; border-top:1px solid var(--line); padding-top:26px; }
+    p,li { color:#d4d4d8; line-height:1.7; }
+    a { color:#fdba74; text-decoration:none; }
+    code,pre { background:#05080d; border:1px solid #23283a; border-radius:10px; }
+    code { padding:2px 6px; }
+    pre { padding:16px; overflow:auto; }
+    .brand { font-weight:900; letter-spacing:.08em; text-transform:uppercase; margin-bottom:8px; }
+    .tag { color:var(--muted); margin-bottom:18px; }
+    .toplinks { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 18px; }
+    .btn { border:1px solid var(--line); border-radius:10px; padding:8px 10px; color:var(--text); background:rgba(255,255,255,.04); font-size:12px; font-weight:800; }
+    .btn.primary { background:var(--accent); border-color:var(--accent); color:#111; }
+    .search { width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:#090d14; color:white; margin:16px 0; }
+    .section-title { color:#fff; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.12em; margin:20px 0 8px; }
+    button.nav { display:block; width:100%; text-align:left; background:transparent; border:0; color:#cbd5e1; padding:8px 10px; border-radius:10px; cursor:pointer; font:inherit; }
+    button.nav:hover, button.nav.active { background:rgba(249,115,22,.16); color:white; }
+    .note { border:1px solid rgba(249,115,22,.35); background:rgba(249,115,22,.09); padding:14px 16px; border-radius:16px; color:#fed7aa; }
+    @media (max-width:860px) { .layout { grid-template-columns:1fr; } aside { position:relative; height:auto; } main { padding:28px; } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <div class="brand">SPMT Docs</div>
+      <div class="tag">Identity • App Registry • Commlink • Athena • SDK</div>
+      <div class="toplinks">
+        <a class="btn primary" href="/">SPMT Home</a>
+        <a class="btn" href="https://spacemountain.live/docs.html">SpaceMountain Docs</a>
+        <a class="btn" href="/api/platform/docs">API JSON</a>
+      </div>
+      <input id="search" class="search" placeholder="Filter docs..." />
+      <nav id="nav"></nav>
+    </aside>
+    <main>
+      <article id="content">
+        <h1>Loading docs...</h1>
+      </article>
+    </main>
+  </div>
+  <script>
+    const fallbackNav = {
+      sections: [
+        { title: "Start Here", items: [
+          { title: "Docs Home", path: "docs/DOCS_HOME.md" },
+          { title: "Vision", path: "docs/VISION.md" },
+          { title: "Architecture", path: "docs/ARCHITECTURE.md" }
+        ]},
+        { title: "Platform", items: [
+          { title: "Identity", path: "docs/platform/IDENTITY.md" },
+          { title: "Event Bus", path: "docs/platform/EVENT_BUS.md" },
+          { title: "SDK", path: "docs/SDK.md" }
+        ]},
+        { title: "Production", items: [
+          { title: "Production Roadmap", path: "docs/ecosystem/PRODUCTION_ROADMAP.md" }
+        ]}
+      ]
+    };
+
+    let navData = fallbackNav;
+    let activePath = "docs/DOCS_HOME.md";
+
+    function escapeHtml(value) {
+      return value.replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
+    }
+
+    function mdToHtml(md) {
+      const escaped = escapeHtml(md);
+      let html = escaped
+        .replace(/^### (.*$)/gim, "<h3>$1</h3>")
+        .replace(/^## (.*$)/gim, "<h2>$1</h2>")
+        .replace(/^# (.*$)/gim, "<h1>$1</h1>")
+        .replace(/```mermaid([\s\S]*?)```/gim, "<pre><code class='language-mermaid'>$1</code></pre>")
+        .replace(/```([\s\S]*?)```/gim, "<pre><code>$1</code></pre>")
+        .replace(/`([^`]+)`/gim, "<code>$1</code>")
+        .replace(/\*\*([^*]+)\*\*/gim, "<strong>$1</strong>")
+        .replace(/^&gt; (.*$)/gim, "<p class='note'>$1</p>")
+        .replace(/^- (.*$)/gim, "<li>$1</li>")
+        .replace(/\n\n/g, "</p><p>");
+      html = "<p>" + html + "</p>";
+      html = html.replace(/<p><h/g, "<h").replace(/<\/h([123])><\/p>/g, "</h$1>");
+      html = html.replace(/<p><li>/g, "<ul><li>").replace(/<\/li><\/p>/g, "</li></ul>");
+      html = html.replace(/<\/ul><ul>/g, "");
+      return html;
+    }
+
+    async function loadDoc(path) {
+      activePath = path;
+      document.querySelectorAll("button.nav").forEach(btn => btn.classList.toggle("active", btn.dataset.path === path));
+      const res = await fetch("/" + path);
+      const text = res.ok ? await res.text() : "# Missing Document\n\nCould not load `" + path + "`.";
+      document.getElementById("content").innerHTML = mdToHtml(text);
+      location.hash = encodeURIComponent(path);
+    }
+
+    function renderNav(filter = "") {
+      const nav = document.getElementById("nav");
+      nav.innerHTML = "";
+      const q = filter.trim().toLowerCase();
+      for (const section of navData.sections || []) {
+        const items = (section.items || []).filter(item => !q || item.title.toLowerCase().includes(q) || item.path.toLowerCase().includes(q));
+        if (!items.length) continue;
+        const title = document.createElement("div");
+        title.className = "section-title";
+        title.textContent = section.title;
+        nav.appendChild(title);
+        for (const item of items) {
+          const btn = document.createElement("button");
+          btn.className = "nav";
+          btn.dataset.path = item.path;
+          btn.textContent = item.title;
+          btn.onclick = () => loadDoc(item.path);
+          nav.appendChild(btn);
+        }
+      }
+      document.querySelectorAll("button.nav").forEach(btn => btn.classList.toggle("active", btn.dataset.path === activePath));
+    }
+
+    async function init() {
+      try {
+        const res = await fetch("/docs/docs-nav.json");
+        if (res.ok) navData = await res.json();
+      } catch {}
+      document.getElementById("search").addEventListener("input", e => renderNav(e.target.value));
+      renderNav();
+      const fromHash = location.hash ? decodeURIComponent(location.hash.slice(1)) : null;
+      await loadDoc(fromHash || "docs/DOCS_HOME.md");
+    }
+
+    init();
+  </script>
+</body>
+</html>

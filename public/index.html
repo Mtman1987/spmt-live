@@ -194,6 +194,7 @@
         <button data-view="messages" onclick="showView('messages')">Messages</button>
         <button data-view="apps" onclick="showView('apps')">Apps + SSO</button>
         <button data-view="connections" onclick="showView('connections')">Connections</button>
+        <button data-view="docs" onclick="showView('docs')">Docs</button>
         <button data-view="developers" onclick="showView('developers')">Developers</button>
         <button data-view="forums" onclick="showView('forums')">Forums</button>
         <button data-view="settings" onclick="showView('settings')">Account</button>
@@ -215,6 +216,7 @@
         </div>
         <div class="row">
           <button class="btn" onclick="refreshAll()">Refresh</button>
+          <a class="btn blue" href="/docs.html">Open Docs</a>
           <a class="btn primary" href="https://spacemountain.live">Open SpaceMountain</a>
         </div>
       </div>
@@ -236,6 +238,15 @@
         <div class="card span-12">
           <h3>Suite Apps</h3>
           <div id="dashboard-apps" class="grid cols"></div>
+        </div>
+        <div class="card span-12">
+          <div class="row between">
+            <div>
+              <h3>Documentation</h3>
+              <p class="muted small">Find the platform overview, SDK guide, OAuth flow, app registry, Commlink, Athena, event bus, webhooks, and release checklist.</p>
+            </div>
+            <a class="btn blue" href="/docs.html">Open Docs</a>
+          </div>
         </div>
       </section>
 
@@ -285,6 +296,33 @@
         <div id="provider-grants" class="grid cols span-12"></div>
       </section>
 
+      <section id="view-docs" class="hidden grid cols">
+        <div class="card span-12">
+          <div class="row between">
+            <div>
+              <h3>SPMT Documentation</h3>
+              <p class="muted small">The public docs page is the human entry point for platform concepts, developer integration, OAuth, apps, Commlink, Athena, events, webhooks, and release readiness.</p>
+            </div>
+            <a class="btn primary" href="/docs.html">Open Full Docs</a>
+          </div>
+        </div>
+        <div class="card span-4">
+          <h3>Developer API</h3>
+          <p class="muted small">SDK install, app-bound keys, public API routes, app submissions, and webhook integration.</p>
+          <div class="row" style="margin-top:12px"><a class="btn" href="/api/platform/docs">API Docs JSON</a></div>
+        </div>
+        <div class="card span-4">
+          <h3>Production Roadmap</h3>
+          <p class="muted small">Current gates, readiness blockers, evidence requirements, and release order for the ecosystem.</p>
+          <div class="row" style="margin-top:12px"><a class="btn" href="/docs.html#docs%2Fecosystem%2FPRODUCTION_ROADMAP.md">Open Roadmap</a></div>
+        </div>
+        <div class="card span-4">
+          <h3>SpaceMountain</h3>
+          <p class="muted small">SpaceMountain is the user-facing suite shell; SPMT owns identity, app registry, events, and shared platform services.</p>
+          <div class="row" style="margin-top:12px"><a class="btn" href="https://spacemountain.live/docs.html">Open SpaceMountain Docs</a></div>
+        </div>
+      </section>
+
       <section id="view-developers" class="hidden grid cols">
         <div class="card span-12">
           <h3>Install the SPMT developer kit</h3>
@@ -292,6 +330,7 @@
           <pre id="sdk-install-command" class="code-block">Loading SDK command...</pre>
           <div class="row" style="margin-top:10px;flex-wrap:wrap">
             <button class="btn" onclick="copySdkCommand()">Copy command</button>
+            <a class="btn blue" href="/docs.html">Open docs</a>
             <a id="sdk-download-link" class="btn" href="/sdk/spmt-sdk.tgz">Download package</a>
             <a id="sdk-starter-link" class="btn" href="/sdk/atherrea-spmt-starter.zip">Download Atherrea ZIP</a>
           </div>
@@ -576,6 +615,7 @@
         messages: ['Messages', 'DMs, app messages, bot messages, and account notifications.'],
         apps: ['Apps + SSO', 'Launch suite apps through SPMT and see which adapters are complete.'],
         connections: ['Connections', 'One place to authorize Twitch, Discord, YouTube, Kick, and future providers.'],
+        docs: ['Docs', 'Platform guides, API routes, integration contracts, and the production roadmap.'],
         developers: ['Developers', 'Install the SDK, create scoped keys, submit apps, and publish game events.'],
         forums: ['Forums', 'Public threads and mirrored Discord channels under one identity.'],
         settings: ['Account', 'Linked accounts and bridge payload for connected apps.']

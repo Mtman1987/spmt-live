@@ -3266,6 +3266,7 @@ app.use((err: any, req: any, res: any, next: any) => {
 });
 
 // ─── Static fallback (for minimal frontend later) ───
+app.use('/docs', express.static('docs'));
 app.use(express.static('public'));
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });

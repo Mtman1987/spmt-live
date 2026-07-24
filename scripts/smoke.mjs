@@ -137,6 +137,19 @@ try {
   };
   assert.equal(sdk.validateSharedChatEventV1(sharedChatEvent).ok, true);
   assert.equal(sdk.isSharedChatEventV1({ ...sharedChatEvent, tenantId: '' }), false);
+  assert.equal(sdk.SPMT_XP_LEDGER_SCHEMA_VERSION, 1);
+  const mappedXpAward = sdk.mappedXpAwardV1({
+    userId: 'viewer-smoke',
+    mappedEventType: 'chat-tag.tag',
+    upstreamEventId: 'tag-msg-1',
+    metadata: { tenantId: 'tenant-smoke', channelId: 'channel-smoke' },
+  });
+  assert.equal(mappedXpAward.sourceApp, 'chat-tag');
+  assert.equal(mappedXpAward.eventType, 'chat-tag.tag');
+  assert.equal(mappedXpAward.delta, 100);
+  assert.equal(mappedXpAward.idempotencyKey, 'chat-tag:chat-tag.tag:tag-msg-1:viewer-smoke');
+  assert.equal(sdk.validateXpAwardV1(mappedXpAward).ok, true);
+  assert.equal(sdk.validateXpAwardV1({ ...mappedXpAward, idempotencyKey: '' }).ok, false);
   const starterZipResponse = await fetch(`${baseUrl}/sdk/atherrea-spmt-starter.zip`);
   assert.equal(starterZipResponse.status, 200);
   assert.ok((await starterZipResponse.arrayBuffer()).byteLength > 1_000);

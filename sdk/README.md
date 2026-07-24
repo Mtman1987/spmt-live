@@ -1,4 +1,4 @@
-# SPMT SDK 0.1.3
+# SPMT SDK 0.1.4
 
 This is the public `@spmt/sdk` partner SDK and `spmt` developer CLI. It is published on npm and mirrored directly by SPMT.
 
@@ -11,7 +11,7 @@ npm exec --yes --package=@spmt/sdk -- spmt install
 If npm is unavailable or you need the SPMT-hosted mirror, use the versioned package URL:
 
 ```powershell
-npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.1.3.tgz -- spmt install
+npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.1.4.tgz -- spmt install
 ```
 
 The command creates:
@@ -57,7 +57,7 @@ npx spmt event server.status --data-file status.json
 Hosted mirror fallback:
 
 ```bash
-npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.1.3.tgz -- spmt event server.status --data-file status.json
+npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.1.4.tgz -- spmt event server.status --data-file status.json
 ```
 
 The stored event type becomes `game.server.status`, the source app comes from `spmt.app.json`, and the payload keeps the exact JSON shape above.

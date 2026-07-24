@@ -80,6 +80,40 @@ Required ownership boundaries:
 - `routing.canReply`, `routing.botReadable`, and `routing.botCanReply` must be explicit before UI or bots expose reply controls.
 - Mail/direct messages and live chat remain different data types even when shown in the same Commlink workspace.
 
+### Shared XP ledger
+
+Gate 1 uses SPMT as the canonical XP/level/reward ledger. Apps should publish bounded, idempotent awards through `client.experience.award(...)` or build a known award with `mappedXpAwardV1(...)`.
+
+```ts
+import { mappedXpAwardV1, validateXpAwardV1 } from "@spmt/sdk";
+
+const award = mappedXpAwardV1({
+  userId: "spmt_user_id",
+  mappedEventType: "chat-tag.tag",
+  upstreamEventId: "twitch:message:123",
+  metadata: { tenantId: "creator_tenant", channelId: "twitch_channel" },
+});
+
+if (validateXpAwardV1(award).ok) {
+  await client.experience.award(award);
+}
+```
+
+Current canonical mappings:
+
+- `chat-tag.tag` -> `chat-tag`, +100 XP
+- `chat-tag.pass` -> `chat-tag`, +200 XP
+- `chat-tag.bingo.square` -> `chat-tag`, +10 XP
+- `chat-tag.bingo.win` -> `chat-tag`, +250 XP
+- `dsh.discord.message` -> `discord-stream-hub`, +1 XP
+- `dsh.twitch.follow` -> `discord-stream-hub`, +25 XP
+- `dsh.twitch.raid` -> `discord-stream-hub`, +50 XP
+- `dsh.twitch.sub` -> `discord-stream-hub`, +100 XP
+- `spacemountain.tool.trigger` -> `spacemountain`, +5 XP
+- `spacemountain.arena.kill` -> `spacemountain`, +1 XP
+
+Every producer must supply the immutable SPMT `userId`, a stable upstream event/message ID, and metadata that identifies tenant/source/channel without storing secrets. Retries must reuse the same idempotency key so points cannot be awarded twice.
+
 ### Athena
 
 ```ts

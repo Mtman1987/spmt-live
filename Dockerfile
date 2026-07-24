@@ -18,6 +18,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 COPY public ./public
+COPY docs ./docs
 COPY scripts/operations ./scripts/operations
 ENV NODE_ENV=production
 ENV DATABASE_PATH=/data/spmt.db

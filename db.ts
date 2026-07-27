@@ -426,6 +426,72 @@ export function initDb() {
       UNIQUE(user_id, provider, role),
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS oauth_refresh_tokens (
+      token_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      scopes TEXT NOT NULL DEFAULT '[]',
+      expires_at TEXT NOT NULL,
+      revoked_at TEXT,
+      rotated_to_hash TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(user_id) REFERENCES users(id),
+      FOREIGN KEY(client_id) REFERENCES oauth_clients(client_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS embed_launch_codes (
+      code_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      target_origin TEXT NOT NULL,
+      scopes TEXT NOT NULL DEFAULT '[]',
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(user_id) REFERENCES users(id),
+      FOREIGN KEY(client_id) REFERENCES oauth_clients(client_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS oauth_refresh_tokens_client_user
+      ON oauth_refresh_tokens(client_id, user_id);
+    CREATE INDEX IF NOT EXISTS embed_launch_codes_expiry
+      ON embed_launch_codes(expires_at);
+
+    CREATE TABLE IF NOT EXISTS companion_devices (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      capabilities TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'offline',
+      last_seen_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revoked_at TEXT,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS companion_commands (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      device_id TEXT NOT NULL,
+      source TEXT NOT NULL,
+      capability TEXT NOT NULL,
+      action TEXT NOT NULL,
+      payload TEXT NOT NULL DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'queued',
+      result TEXT,
+      error TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      completed_at TEXT,
+      FOREIGN KEY(user_id) REFERENCES users(id),
+      FOREIGN KEY(device_id) REFERENCES companion_devices(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS companion_commands_device_status
+      ON companion_commands(device_id, status, created_at);
   `);
 
   // Compatibility migrations run after canonical tables exist so a fresh database

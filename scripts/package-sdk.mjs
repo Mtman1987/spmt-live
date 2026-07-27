@@ -8,7 +8,9 @@ const destination = path.join(root, 'public', 'sdk');
 fs.mkdirSync(destination, { recursive: true });
 
 for (const filename of fs.readdirSync(destination)) {
-  if (/^(?:spmt(?:-\d+\.\d+\.\d+)?|spmt-sdk(?:-\d+\.\d+\.\d+)?|sdk-\d+\.\d+\.\d+)\.tgz$/.test(filename)) {
+  // Versioned SDK mirrors are immutable release artifacts. Only replace the
+  // stable aliases; deleting older versions breaks consumers with pinned URLs.
+  if (/^(?:spmt|spmt-sdk)\.tgz$/.test(filename)) {
     fs.rmSync(path.join(destination, filename));
   }
 }

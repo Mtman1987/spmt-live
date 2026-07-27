@@ -3,7 +3,9 @@ import cookieParser from 'cookie-parser';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import http from 'http';
 import { v4 as uuidv4 } from 'uuid';
+import { WebSocket, WebSocketServer } from 'ws';
 import { db, getDatabaseReadiness, initDb } from './db.js';
 import {
   createDefaultWorkspaceProfile,
@@ -19,6 +21,9 @@ const JWT_SECRET = process.env.JWT_SECRET || (IS_PRODUCTION ? '' : 'spmt-dev-sec
 const APP_VERSION = '1.0.0';
 const BUILD_SHA = process.env.BUILD_SHA || 'development';
 const RECOVERY_DELIVERY_COOLDOWN_MS = 10 * 60 * 1000;
+const OAUTH_ACCESS_TOKEN_SECONDS = 7 * 24 * 60 * 60;
+const OAUTH_REFRESH_TOKEN_SECONDS = 30 * 24 * 60 * 60;
+const EMBED_LAUNCH_CODE_SECONDS = 90;
 const recoveryDeliveryAttempts = new Map<string, number>();
 const OAUTH_CLIENT_SECRET_NAMES = [
   'SPACEMOUNTAIN_CLIENT_SECRET',
@@ -37,6 +42,33 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || [
   'https://hearmeout-main.fly.dev',
   'https://mtman-machine-rotator.fly.dev',
 ].join(',')).split(',');
+
+const EMBED_SCOPES_BY_CLIENT: Record<string, string[]> = {
+  streamweaver: [
+    'identity:read',
+    'workspace:read',
+    'workspace:write',
+    'tts:control',
+    'overlay:control',
+  ],
+  'discord-stream-hub': ['identity:read', 'workspace:read', 'discord:control'],
+  hearmeout: ['identity:read', 'workspace:read', 'media:control', 'rooms:control'],
+  'chat-tag': ['identity:read', 'game:control'],
+};
+
+const COMPANION_ACTION_CAPABILITIES: Record<string, string> = {
+  'companion.status': 'companion.status',
+  'overlay.show': 'overlay.control',
+  'overlay.hide': 'overlay.control',
+  'popout.show': 'overlay.control',
+  'popout.hide': 'overlay.control',
+  'obs.scene.set': 'obs.control',
+  'audio.mute': 'audio.control',
+  'audio.volume': 'audio.control',
+  'media.transcode': 'media.write',
+};
+const COMPANION_CAPABILITIES = [...new Set(Object.values(COMPANION_ACTION_CAPABILITIES))];
+const companionSockets = new Map<string, WebSocket>();
 
 type EcosystemAppRecord = {
   id: string;
@@ -256,6 +288,59 @@ const USER_COLUMNS = 'id, username, email, display_name, password_hash, discord_
 
 function hashSecret(value: string) {
   return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function randomCredential(bytes = 32) {
+  return crypto.randomBytes(bytes).toString('base64url');
+}
+
+function issueOauthAccessToken(user: any, clientId: string, scopes: string[]) {
+  return jwt.sign({
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    client_id: clientId,
+    scopes,
+    is_admin: Boolean(user.is_admin),
+  }, JWT_SECRET, { expiresIn: OAUTH_ACCESS_TOKEN_SECONDS });
+}
+
+function issueOauthRefreshToken(userId: string, clientId: string, scopes: string[]) {
+  const token = randomCredential(48);
+  const now = new Date();
+  db.prepare(`
+    INSERT INTO oauth_refresh_tokens (
+      token_hash, user_id, client_id, scopes, expires_at, revoked_at, rotated_to_hash, created_at
+    ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)
+  `).run(
+    hashSecret(token),
+    userId,
+    clientId,
+    JSON.stringify(scopes),
+    new Date(now.getTime() + OAUTH_REFRESH_TOKEN_SECONDS * 1000).toISOString(),
+    now.toISOString(),
+  );
+  return token;
+}
+
+function allowedEmbedOrigin(client: any, targetOrigin: string) {
+  let normalized: string;
+  try {
+    normalized = new URL(targetOrigin).origin;
+  } catch {
+    return false;
+  }
+  return String(client?.redirect_uris || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .some((value) => {
+      try {
+        return new URL(value).origin === normalized;
+      } catch {
+        return false;
+      }
+    });
 }
 
 function generateRecoveryCode() {
@@ -1180,7 +1265,7 @@ app.get('/api/platform', (req, res) => {
 app.get('/api/platform/sdk', (req, res) => {
   res.json({
     package: '@spmt/sdk',
-    version: '0.1.4',
+    version: '0.2.0',
     npmPublished: true,
     install: 'npm install @spmt/sdk',
     quickInstall: 'npm exec --yes --package=@spmt/sdk -- spmt install',
@@ -2157,20 +2242,136 @@ app.get('/api/oauth/authorize', (req: any, res) => {
     .run(code, user.id, client_id, redirect_uri, new Date(Date.now() + 5 * 60 * 1000).toISOString());
 
   const bridgeToken = jwt.sign({ id: user.id, username: user.username, email: user.email, client_id, bridge: true }, JWT_SECRET, { expiresIn: '7d' });
-  const codeOnlyClients = new Set(['mountainview', 'spacemountain-live', 'discord-stream-hub', 'hearmeout']);
+  const codeOnlyClients = new Set(['mountainview', 'spacemountain-live', 'discord-stream-hub', 'hearmeout', 'streamweaver']);
   const tokenParameter = codeOnlyClients.has(String(client_id)) ? '' : `&token=${encodeURIComponent(bridgeToken)}`;
   const url = `${redirect_uri}?code=${code}${tokenParameter}${state ? `&state=${encodeURIComponent(state as string)}` : ''}`;
   res.redirect(url);
 });
 
+// ─── Embedded app launch bridge ───
+// The parent app requests a short-lived, one-time code using its authenticated
+// SPMT session. The embedded app exchanges it server-to-server with its client
+// secret, so a profile-only postMessage can never grant authority.
+app.post('/api/embed/launch', authenticate, (req: any, res) => {
+  const clientId = String(req.body?.client_id || '').trim();
+  const targetOrigin = String(req.body?.target_origin || '').trim();
+  const client = db.prepare('SELECT * FROM oauth_clients WHERE client_id = ?').get(clientId) as any;
+  if (!client) return res.status(404).json({ error: 'Unknown embedded app' });
+  if (!allowedEmbedOrigin(client, targetOrigin)) return res.status(400).json({ error: 'Invalid embedded app origin' });
+
+  const allowedScopes = EMBED_SCOPES_BY_CLIENT[clientId] || ['identity:read'];
+  const requestedScopes = Array.isArray(req.body?.scopes)
+    ? req.body.scopes.map((scope: unknown) => String(scope)).filter((scope: string) => allowedScopes.includes(scope))
+    : allowedScopes;
+  const scopes = requestedScopes.length ? [...new Set(requestedScopes)] : ['identity:read'];
+  const code = randomCredential();
+  const now = new Date();
+
+  db.prepare('DELETE FROM embed_launch_codes WHERE expires_at <= ? OR used_at IS NOT NULL').run(now.toISOString());
+  db.prepare(`
+    INSERT INTO embed_launch_codes (
+      code_hash, user_id, client_id, target_origin, scopes, expires_at, used_at, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
+  `).run(
+    hashSecret(code),
+    req.user.id,
+    clientId,
+    new URL(targetOrigin).origin,
+    JSON.stringify(scopes),
+    new Date(now.getTime() + EMBED_LAUNCH_CODE_SECONDS * 1000).toISOString(),
+    now.toISOString(),
+  );
+
+  return res.json({
+    code,
+    client_id: clientId,
+    target_origin: new URL(targetOrigin).origin,
+    scopes,
+    expires_in: EMBED_LAUNCH_CODE_SECONDS,
+  });
+});
+
+app.post('/api/embed/exchange', (req, res) => {
+  const code = String(req.body?.code || '').trim();
+  const clientId = String(req.body?.client_id || '').trim();
+  const clientSecret = String(req.body?.client_secret || '');
+  const targetOrigin = String(req.body?.target_origin || '').trim();
+  if (!code || !clientId || !clientSecret || !targetOrigin) return res.status(400).json({ error: 'Missing fields' });
+
+  const client = db.prepare('SELECT * FROM oauth_clients WHERE client_id = ? AND client_secret = ?')
+    .get(clientId, clientSecret) as any;
+  if (!client) return res.status(401).json({ error: 'Invalid client credentials' });
+
+  let origin: string;
+  try {
+    origin = new URL(targetOrigin).origin;
+  } catch {
+    return res.status(400).json({ error: 'Invalid target origin' });
+  }
+
+  const launch = db.prepare(`
+    SELECT * FROM embed_launch_codes
+    WHERE code_hash = ? AND client_id = ? AND target_origin = ? AND used_at IS NULL
+  `).get(hashSecret(code), clientId, origin) as any;
+  if (!launch) return res.status(400).json({ error: 'Invalid or already used embed launch code' });
+  if (new Date(launch.expires_at) <= new Date()) return res.status(400).json({ error: 'Embed launch code expired' });
+
+  const user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(launch.user_id) as any;
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const scopes = JSON.parse(launch.scopes || '[]') as string[];
+  const now = new Date().toISOString();
+  const accessToken = issueOauthAccessToken(user, clientId, scopes);
+  const refreshToken = issueOauthRefreshToken(user.id, clientId, scopes);
+
+  db.prepare('UPDATE embed_launch_codes SET used_at = ? WHERE code_hash = ?')
+    .run(now, launch.code_hash);
+
+  return res.json({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    token_type: 'Bearer',
+    expires_in: OAUTH_ACCESS_TOKEN_SECONDS,
+    refresh_expires_in: OAUTH_REFRESH_TOKEN_SECONDS,
+    scopes,
+    user: serializeUser(user),
+  });
+});
+
 // ─── OAuth2: Token exchange ───
 app.post('/api/oauth/token', (req, res) => {
-  const { code, client_id, client_secret, redirect_uri } = req.body;
-  if (!code || !client_id || !client_secret) return res.status(400).json({ error: 'Missing fields' });
+  const { code, client_id, client_secret, redirect_uri, refresh_token, grant_type } = req.body;
+  if (!client_id || !client_secret) return res.status(400).json({ error: 'Missing client credentials' });
 
   const client = db.prepare('SELECT * FROM oauth_clients WHERE client_id = ? AND client_secret = ?').get(client_id, client_secret) as any;
   if (!client) return res.status(401).json({ error: 'Invalid client credentials' });
 
+  if (grant_type === 'refresh_token' || refresh_token) {
+    const refreshHash = hashSecret(String(refresh_token || ''));
+    const stored = db.prepare(`
+      SELECT * FROM oauth_refresh_tokens
+      WHERE token_hash = ? AND client_id = ? AND revoked_at IS NULL
+    `).get(refreshHash, client_id) as any;
+    if (!stored) return res.status(400).json({ error: 'Invalid refresh token' });
+    if (new Date(stored.expires_at) <= new Date()) return res.status(400).json({ error: 'Refresh token expired' });
+
+    const user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(stored.user_id) as any;
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const scopes = JSON.parse(stored.scopes || '[]') as string[];
+    const rotatedRefreshToken = issueOauthRefreshToken(user.id, client_id, scopes);
+    db.prepare('UPDATE oauth_refresh_tokens SET revoked_at = ?, rotated_to_hash = ? WHERE token_hash = ?')
+      .run(new Date().toISOString(), hashSecret(rotatedRefreshToken), refreshHash);
+    return res.json({
+      access_token: issueOauthAccessToken(user, client_id, scopes),
+      refresh_token: rotatedRefreshToken,
+      token_type: 'Bearer',
+      expires_in: OAUTH_ACCESS_TOKEN_SECONDS,
+      refresh_expires_in: OAUTH_REFRESH_TOKEN_SECONDS,
+      scopes,
+      user: serializeUser(user),
+    });
+  }
+
+  if (!code || !redirect_uri) return res.status(400).json({ error: 'Missing authorization code or redirect URI' });
   const authCode = db.prepare('SELECT * FROM oauth_codes WHERE code = ? AND client_id = ? AND redirect_uri = ?').get(code, client_id, redirect_uri) as any;
   if (!authCode) return res.status(400).json({ error: 'Invalid code' });
   if (new Date(authCode.expires_at) < new Date()) return res.status(400).json({ error: 'Code expired' });
@@ -2179,9 +2380,16 @@ app.post('/api/oauth/token', (req, res) => {
   db.prepare('DELETE FROM oauth_codes WHERE code = ?').run(code);
 
   const user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(authCode.user_id) as any;
-  const access_token = jwt.sign({ id: user.id, username: user.username, email: user.email, client_id, is_admin: Boolean(user.is_admin) }, JWT_SECRET, { expiresIn: '7d' });
-
-  res.json({ access_token, token_type: 'Bearer', expires_in: 7 * 24 * 3600, user: serializeUser(user) });
+  const scopes = EMBED_SCOPES_BY_CLIENT[String(client_id)] || ['identity:read'];
+  res.json({
+    access_token: issueOauthAccessToken(user, client_id, scopes),
+    refresh_token: issueOauthRefreshToken(user.id, client_id, scopes),
+    token_type: 'Bearer',
+    expires_in: OAUTH_ACCESS_TOKEN_SECONDS,
+    refresh_expires_in: OAUTH_REFRESH_TOKEN_SECONDS,
+    scopes,
+    user: serializeUser(user),
+  });
 });
 
 // ─── OAuth2: User info (for apps to verify tokens) ───
@@ -3255,6 +3463,136 @@ app.get('/api/arena/leaderboard', (req, res) => {
   res.json(leaders);
 });
 
+// ─── SpaceMountain Companion devices and scoped command relay ───
+app.get('/api/companion/capabilities', (_req, res) => {
+  res.json({
+    schemaVersion: 1,
+    capabilities: COMPANION_CAPABILITIES,
+    actions: COMPANION_ACTION_CAPABILITIES,
+  });
+});
+
+app.get('/api/companion/devices', authenticate, (req: any, res) => {
+  const devices = db.prepare(`
+    SELECT id, name, capabilities, status, last_seen_at, created_at, updated_at
+    FROM companion_devices
+    WHERE user_id = ? AND revoked_at IS NULL
+    ORDER BY datetime(updated_at) DESC
+  `).all(req.user.id).map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    capabilities: JSON.parse(row.capabilities || '[]'),
+    status: companionSockets.has(row.id) ? 'online' : row.status,
+    lastSeenAt: row.last_seen_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+  res.json({ devices });
+});
+
+app.post('/api/companion/devices/pair', authenticate, (req: any, res) => {
+  const name = String(req.body?.name || 'My SpaceMountain Companion').trim().slice(0, 80);
+  const requested = Array.isArray(req.body?.capabilities)
+    ? req.body.capabilities.map((value: unknown) => String(value))
+    : COMPANION_CAPABILITIES;
+  const capabilities = [...new Set(requested.filter((value: string) => COMPANION_CAPABILITIES.includes(value)))];
+  const id = uuidv4();
+  const token = randomCredential(48);
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO companion_devices (
+      id, user_id, name, token_hash, capabilities, status, last_seen_at, created_at, updated_at, revoked_at
+    ) VALUES (?, ?, ?, ?, ?, 'offline', NULL, ?, ?, NULL)
+  `).run(id, req.user.id, name || 'My SpaceMountain Companion', hashSecret(token), JSON.stringify(capabilities), now, now);
+  res.status(201).json({
+    device: { id, name: name || 'My SpaceMountain Companion', capabilities, status: 'offline', createdAt: now },
+    pairingToken: token,
+    relayUrl: 'wss://spmt.live/api/companion/relay',
+  });
+});
+
+app.delete('/api/companion/devices/:deviceId', authenticate, (req: any, res) => {
+  const now = new Date().toISOString();
+  const result = db.prepare(`
+    UPDATE companion_devices
+    SET revoked_at = ?, status = 'revoked', updated_at = ?
+    WHERE id = ? AND user_id = ? AND revoked_at IS NULL
+  `).run(now, now, req.params.deviceId, req.user.id);
+  companionSockets.get(req.params.deviceId)?.close(4001, 'Device revoked');
+  companionSockets.delete(req.params.deviceId);
+  if (!result.changes) return res.status(404).json({ error: 'Companion device not found' });
+  res.json({ revoked: true, deviceId: req.params.deviceId });
+});
+
+app.post('/api/companion/commands', authenticate, (req: any, res) => {
+  const deviceId = String(req.body?.deviceId || '').trim();
+  const action = String(req.body?.action || '').trim();
+  const capability = String(req.body?.capability || COMPANION_ACTION_CAPABILITIES[action] || '').trim();
+  const expectedCapability = COMPANION_ACTION_CAPABILITIES[action];
+  if (!deviceId || !expectedCapability || capability !== expectedCapability) {
+    return res.status(400).json({ error: 'Unsupported companion action or capability' });
+  }
+  const device = db.prepare(`
+    SELECT * FROM companion_devices WHERE id = ? AND user_id = ? AND revoked_at IS NULL
+  `).get(deviceId, req.user.id) as any;
+  if (!device) return res.status(404).json({ error: 'Companion device not found' });
+  const capabilities = JSON.parse(device.capabilities || '[]') as string[];
+  if (!capabilities.includes(capability)) return res.status(403).json({ error: `Device has not granted ${capability}` });
+
+  const id = uuidv4();
+  const issuedAt = new Date();
+  const expiresAt = new Date(issuedAt.getTime() + 30_000);
+  const source = String(req.body?.source || 'spmt').trim().slice(0, 40) || 'spmt';
+  const payload = req.body?.payload && typeof req.body.payload === 'object' && !Array.isArray(req.body.payload)
+    ? req.body.payload
+    : {};
+  const envelope = {
+    schemaVersion: 1,
+    id,
+    issuedAt: issuedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    userId: req.user.id,
+    deviceId,
+    source,
+    capability,
+    action,
+    payload,
+    requiresConfirmation: Boolean(req.body?.requiresConfirmation),
+  };
+  const socket = companionSockets.get(deviceId);
+  const status = socket?.readyState === WebSocket.OPEN ? 'sent' : 'queued';
+  db.prepare(`
+    INSERT INTO companion_commands (
+      id, user_id, device_id, source, capability, action, payload, status, result, error, expires_at, created_at, completed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL)
+  `).run(id, req.user.id, deviceId, source, capability, action, JSON.stringify(payload), status, expiresAt.toISOString(), issuedAt.toISOString());
+  if (status === 'sent') socket!.send(JSON.stringify(envelope));
+  res.status(202).json({ command: { ...envelope, status } });
+});
+
+app.get('/api/companion/commands/:commandId', authenticate, (req: any, res) => {
+  const row = db.prepare(`
+    SELECT * FROM companion_commands WHERE id = ? AND user_id = ?
+  `).get(req.params.commandId, req.user.id) as any;
+  if (!row) return res.status(404).json({ error: 'Companion command not found' });
+  res.json({
+    command: {
+      id: row.id,
+      deviceId: row.device_id,
+      source: row.source,
+      capability: row.capability,
+      action: row.action,
+      payload: JSON.parse(row.payload || '{}'),
+      status: row.status,
+      result: row.result ? JSON.parse(row.result) : null,
+      error: row.error,
+      expiresAt: row.expires_at,
+      createdAt: row.created_at,
+      completedAt: row.completed_at,
+    },
+  });
+});
+
 app.use((err: any, req: any, res: any, next: any) => {
   console.error('SPMT API error:', err);
   if (res.headersSent) return next(err);
@@ -3278,6 +3616,109 @@ if (!JWT_SECRET) {
   throw new Error('JWT_SECRET is required in production');
 }
 initDb();
-app.listen(PORT, '0.0.0.0', () => {
+const httpServer = http.createServer(app);
+const companionWss = new WebSocketServer({ noServer: true });
+
+httpServer.on('upgrade', (request, socket, head) => {
+  const pathname = (() => {
+    try {
+      return new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`).pathname;
+    } catch {
+      return '';
+    }
+  })();
+  if (pathname !== '/api/companion/relay') {
+    socket.destroy();
+    return;
+  }
+  const token = String(request.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  const deviceId = String(request.headers['x-spmt-device'] || '').trim();
+  const device = token && deviceId
+    ? db.prepare(`
+        SELECT * FROM companion_devices
+        WHERE id = ? AND token_hash = ? AND revoked_at IS NULL
+      `).get(deviceId, hashSecret(token)) as any
+    : null;
+  if (!device) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  companionWss.handleUpgrade(request, socket, head, (webSocket) => {
+    (webSocket as any).companionDevice = device;
+    companionWss.emit('connection', webSocket, request);
+  });
+});
+
+companionWss.on('connection', (socket: WebSocket) => {
+  const device = (socket as any).companionDevice as any;
+  const now = new Date().toISOString();
+  companionSockets.get(device.id)?.close(4000, 'Replaced by a newer connection');
+  companionSockets.set(device.id, socket);
+  db.prepare(`
+    UPDATE companion_devices SET status = 'online', last_seen_at = ?, updated_at = ? WHERE id = ?
+  `).run(now, now, device.id);
+
+  const queued = db.prepare(`
+    SELECT * FROM companion_commands
+    WHERE device_id = ? AND status = 'queued' AND expires_at > ?
+    ORDER BY datetime(created_at) ASC
+    LIMIT 100
+  `).all(device.id, now) as any[];
+  for (const row of queued) {
+    socket.send(JSON.stringify({
+      schemaVersion: 1,
+      id: row.id,
+      issuedAt: row.created_at,
+      expiresAt: row.expires_at,
+      userId: row.user_id,
+      deviceId: row.device_id,
+      source: row.source,
+      capability: row.capability,
+      action: row.action,
+      payload: JSON.parse(row.payload || '{}'),
+      requiresConfirmation: false,
+    }));
+    db.prepare(`UPDATE companion_commands SET status = 'sent' WHERE id = ?`).run(row.id);
+  }
+
+  socket.on('message', (raw) => {
+    let message: any;
+    try {
+      message = JSON.parse(String(raw));
+    } catch {
+      return;
+    }
+    const seenAt = new Date().toISOString();
+    db.prepare(`
+      UPDATE companion_devices SET status = 'online', last_seen_at = ?, updated_at = ? WHERE id = ?
+    `).run(seenAt, seenAt, device.id);
+    if (message?.type !== 'companion.result' || !message?.id) return;
+    const command = db.prepare(`
+      SELECT id FROM companion_commands WHERE id = ? AND device_id = ? AND user_id = ?
+    `).get(String(message.id), device.id, device.user_id) as any;
+    if (!command) return;
+    db.prepare(`
+      UPDATE companion_commands
+      SET status = ?, result = ?, error = ?, completed_at = ?
+      WHERE id = ?
+    `).run(
+      message.ok ? 'completed' : 'failed',
+      message.result == null ? null : JSON.stringify(message.result),
+      message.error ? String(message.error).slice(0, 500) : null,
+      seenAt,
+      command.id,
+    );
+  });
+  socket.on('close', () => {
+    if (companionSockets.get(device.id) === socket) companionSockets.delete(device.id);
+    const closedAt = new Date().toISOString();
+    db.prepare(`
+      UPDATE companion_devices SET status = 'offline', last_seen_at = ?, updated_at = ? WHERE id = ?
+    `).run(closedAt, closedAt, device.id);
+  });
+});
+
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`spmt.live running on http://localhost:${PORT}`);
 });

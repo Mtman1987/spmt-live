@@ -172,6 +172,87 @@ export type WorkspaceThemeTokensV1 = {
   appThemeMappings: Record<string, string>;
 };
 
+export const COMPANION_CAPABILITIES_V1 = [
+  'companion.status',
+  'overlay.read',
+  'overlay.control',
+  'obs.read',
+  'obs.control',
+  'audio.read',
+  'audio.control',
+  'media.read',
+  'media.write',
+  'rooms.control',
+  'tts.control',
+  'workflow.run',
+] as const;
+
+export type CompanionCapabilityV1 = typeof COMPANION_CAPABILITIES_V1[number];
+
+export const COMPANION_ACTION_CAPABILITY_V1 = {
+  'companion.status': 'companion.status',
+  'overlay.show': 'overlay.control',
+  'overlay.hide': 'overlay.control',
+  'popout.show': 'overlay.control',
+  'popout.hide': 'overlay.control',
+  'obs.scene.set': 'obs.control',
+  'audio.mute': 'audio.control',
+  'audio.volume': 'audio.control',
+  'media.transcode': 'media.write',
+} as const satisfies Record<string, CompanionCapabilityV1>;
+
+export type CompanionActionV1 = keyof typeof COMPANION_ACTION_CAPABILITY_V1;
+
+export type CompanionCommandV1 = {
+  schemaVersion: 1;
+  id: string;
+  issuedAt: string;
+  expiresAt: string;
+  userId: string;
+  deviceId: string;
+  source: 'spmt' | 'spacemountain' | 'discord-activity' | 'streamweaver' | 'hearmeout' | string;
+  capability: CompanionCapabilityV1;
+  action: CompanionActionV1;
+  payload: Record<string, unknown>;
+  requiresConfirmation: boolean;
+  status?: 'queued' | 'sent' | 'completed' | 'failed' | 'expired';
+};
+
+export type CompanionDeviceV1 = {
+  id: string;
+  name: string;
+  capabilities: CompanionCapabilityV1[];
+  status: 'online' | 'offline' | 'revoked' | string;
+  lastSeenAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export function validateCompanionCommandV1(input: unknown):
+  | { ok: true; command: CompanionCommandV1 }
+  | { ok: false; errors: string[] } {
+  const errors: string[] = [];
+  const command = input as Partial<CompanionCommandV1> | null;
+  if (!command || typeof command !== 'object') return { ok: false, errors: ['command must be an object'] };
+  requireLiteral(command.schemaVersion, 1, 'schemaVersion', errors);
+  requireString(command.id, 'id', errors);
+  requireString(command.userId, 'userId', errors);
+  requireString(command.deviceId, 'deviceId', errors);
+  requireString(command.source, 'source', errors);
+  requireIsoTimestamp(command.issuedAt, 'issuedAt', errors);
+  requireIsoTimestamp(command.expiresAt, 'expiresAt', errors);
+  const capability = String(command.capability || '') as CompanionCapabilityV1;
+  const action = String(command.action || '') as CompanionActionV1;
+  if (!COMPANION_CAPABILITIES_V1.includes(capability)) errors.push('capability is not supported');
+  if (!(action in COMPANION_ACTION_CAPABILITY_V1)) errors.push('action is not supported');
+  if (action in COMPANION_ACTION_CAPABILITY_V1 && COMPANION_ACTION_CAPABILITY_V1[action] !== capability) {
+    errors.push('capability does not authorize action');
+  }
+  if (!command.payload || typeof command.payload !== 'object' || Array.isArray(command.payload)) errors.push('payload must be an object');
+  if (typeof command.requiresConfirmation !== 'boolean') errors.push('requiresConfirmation must be boolean');
+  return errors.length ? { ok: false, errors } : { ok: true, command: command as CompanionCommandV1 };
+}
+
 export type SharedChatPlatformV1 = 'twitch' | 'discord' | 'kick' | 'youtube' | 'social-stream' | 'spmt' | 'app' | 'unknown';
 
 export type SharedChatEventTypeV1 =
@@ -610,6 +691,34 @@ export class SpaceMountainClient {
   appState = {
     get: (appId: string, namespace: string) => this.request(`/api/app-state/${encodeURIComponent(appId)}/${encodeURIComponent(namespace)}`),
     put: (appId: string, namespace: string, input: AppStateInput) => this.request(`/api/app-state/${encodeURIComponent(appId)}/${encodeURIComponent(namespace)}`, { method: 'PUT', body: input }),
+  };
+
+  companion = {
+    capabilities: () => this.request('/api/companion/capabilities'),
+    devices: () => this.request('/api/companion/devices') as Promise<{ devices: CompanionDeviceV1[] }>,
+    pair: (input: { name?: string; capabilities?: CompanionCapabilityV1[] } = {}) =>
+      this.request('/api/companion/devices/pair', { method: 'POST', body: input }) as Promise<{
+        device: CompanionDeviceV1;
+        pairingToken: string;
+        relayUrl: string;
+      }>,
+    revoke: (deviceId: string) =>
+      this.request(`/api/companion/devices/${encodeURIComponent(deviceId)}`, { method: 'DELETE' }),
+    command: (input: {
+      deviceId: string;
+      action: CompanionActionV1;
+      payload?: Record<string, unknown>;
+      source?: CompanionCommandV1['source'];
+      requiresConfirmation?: boolean;
+    }) => {
+      const capability = COMPANION_ACTION_CAPABILITY_V1[input.action];
+      return this.request('/api/companion/commands', {
+        method: 'POST',
+        body: { ...input, capability },
+      }) as Promise<{ command: CompanionCommandV1 }>;
+    },
+    commandStatus: (commandId: string) =>
+      this.request(`/api/companion/commands/${encodeURIComponent(commandId)}`) as Promise<{ command: CompanionCommandV1 }>,
   };
 
   experience = {

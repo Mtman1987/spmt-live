@@ -7,6 +7,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
+import WebSocket from 'ws';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const entrypoint = path.join(repoRoot, 'dist', 'server.cjs');
@@ -115,6 +116,9 @@ try {
   const sdkPackageResponse = await fetch(`${baseUrl}/sdk/spmt-sdk.tgz`);
   assert.equal(sdkPackageResponse.status, 200);
   assert.ok((await sdkPackageResponse.arrayBuffer()).byteLength > 1_000);
+  const previousSdkPackageResponse = await fetch(`${baseUrl}/sdk/spmt-sdk-0.1.4.tgz`);
+  assert.equal(previousSdkPackageResponse.status, 200, 'published versioned SDK mirrors must remain available');
+  assert.ok((await previousSdkPackageResponse.arrayBuffer()).byteLength > 1_000);
   const sdk = await import('../sdk/dist/index.js');
   const sharedChatEvent = {
     schemaVersion: 1,
@@ -150,6 +154,21 @@ try {
   assert.equal(mappedXpAward.idempotencyKey, 'chat-tag:chat-tag-tag:tag-msg-1:viewer-smoke');
   assert.equal(sdk.validateXpAwardV1(mappedXpAward).ok, true);
   assert.equal(sdk.validateXpAwardV1({ ...mappedXpAward, idempotencyKey: '' }).ok, false);
+  const companionEnvelope = {
+    schemaVersion: 1,
+    id: 'companion-command-smoke',
+    issuedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 30_000).toISOString(),
+    userId: 'smoke-user',
+    deviceId: 'smoke-device',
+    source: 'discord-activity',
+    capability: 'obs.control',
+    action: 'obs.scene.set',
+    payload: { sceneName: 'Starting Soon' },
+    requiresConfirmation: false,
+  };
+  assert.equal(sdk.validateCompanionCommandV1(companionEnvelope).ok, true);
+  assert.equal(sdk.validateCompanionCommandV1({ ...companionEnvelope, capability: 'media.read' }).ok, false);
   const starterZipResponse = await fetch(`${baseUrl}/sdk/atherrea-spmt-starter.zip`);
   assert.equal(starterZipResponse.status, 200);
   assert.ok((await starterZipResponse.arrayBuffer()).byteLength > 1_000);
@@ -171,6 +190,131 @@ try {
   assert.equal(registration.user.username, 'smoke-user');
   assert.equal(registration.user.email, 'smoke-user@spmt.live');
   assert.equal(registration.user.handle, 'smoke-user@spmt.live');
+
+  const embedLaunchResponse = await fetch(`${baseUrl}/api/embed/launch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({
+      client_id: 'streamweaver',
+      target_origin: 'https://streamweaver-new.fly.dev',
+      scopes: ['identity:read', 'workspace:read', 'obs.control'],
+    }),
+  });
+  const embedLaunch = await embedLaunchResponse.json();
+  assert.equal(embedLaunchResponse.status, 200);
+  assert.ok(embedLaunch.code);
+  assert.deepEqual(embedLaunch.scopes, ['identity:read', 'workspace:read']);
+
+  const embedExchangeResponse = await fetch(`${baseUrl}/api/embed/exchange`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      code: embedLaunch.code,
+      client_id: 'streamweaver',
+      client_secret: 'streamweaver_spmt_secret_2026',
+      target_origin: 'https://streamweaver-new.fly.dev',
+    }),
+  });
+  const embedExchange = await embedExchangeResponse.json();
+  assert.equal(embedExchangeResponse.status, 200);
+  assert.ok(embedExchange.access_token);
+  assert.ok(embedExchange.refresh_token);
+  assert.equal(embedExchange.user.id, registration.user.id);
+
+  const replayExchangeResponse = await fetch(`${baseUrl}/api/embed/exchange`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      code: embedLaunch.code,
+      client_id: 'streamweaver',
+      client_secret: 'streamweaver_spmt_secret_2026',
+      target_origin: 'https://streamweaver-new.fly.dev',
+    }),
+  });
+  assert.equal(replayExchangeResponse.status, 400);
+
+  const refreshResponse = await fetch(`${baseUrl}/api/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      grant_type: 'refresh_token',
+      refresh_token: embedExchange.refresh_token,
+      client_id: 'streamweaver',
+      client_secret: 'streamweaver_spmt_secret_2026',
+    }),
+  });
+  const refreshed = await refreshResponse.json();
+  assert.equal(refreshResponse.status, 200);
+  assert.ok(refreshed.access_token);
+  assert.ok(refreshed.refresh_token);
+  assert.notEqual(refreshed.refresh_token, embedExchange.refresh_token);
+
+  const reusedRefreshResponse = await fetch(`${baseUrl}/api/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      grant_type: 'refresh_token',
+      refresh_token: embedExchange.refresh_token,
+      client_id: 'streamweaver',
+      client_secret: 'streamweaver_spmt_secret_2026',
+    }),
+  });
+  assert.equal(reusedRefreshResponse.status, 400);
+
+  const pairResponse = await fetch(`${baseUrl}/api/companion/devices/pair`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ name: 'Smoke Companion', capabilities: ['companion.status', 'obs.control'] }),
+  });
+  const paired = await pairResponse.json();
+  assert.equal(pairResponse.status, 201);
+  assert.ok(paired.device.id);
+  assert.ok(paired.pairingToken);
+  assert.match(paired.relayUrl, /^wss:\/\//);
+
+  const companionSocket = new WebSocket(`ws://127.0.0.1:${port}/api/companion/relay`, {
+    headers: {
+      Authorization: `Bearer ${paired.pairingToken}`,
+      'X-SPMT-Device': paired.device.id,
+    },
+  });
+  await once(companionSocket, 'open');
+  const companionMessage = once(companionSocket, 'message');
+  const companionCommandResponse = await fetch(`${baseUrl}/api/companion/commands`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({
+      deviceId: paired.device.id,
+      action: 'obs.scene.set',
+      capability: 'obs.control',
+      payload: { sceneName: 'Starting Soon' },
+      source: 'discord-activity',
+    }),
+  });
+  const companionCommand = await companionCommandResponse.json();
+  assert.equal(companionCommandResponse.status, 202);
+  assert.equal(companionCommand.command.status, 'sent');
+  assert.equal(companionCommand.command.capability, 'obs.control');
+  const [companionCommandRaw] = await companionMessage;
+  const relayedCompanionCommand = JSON.parse(String(companionCommandRaw));
+  assert.equal(relayedCompanionCommand.id, companionCommand.command.id);
+  assert.equal(relayedCompanionCommand.action, 'obs.scene.set');
+  companionSocket.send(JSON.stringify({
+    type: 'companion.result',
+    schemaVersion: 1,
+    id: relayedCompanionCommand.id,
+    ok: true,
+    result: { sceneName: 'Starting Soon' },
+  }));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const companionStatusResponse = await fetch(`${baseUrl}/api/companion/commands/${companionCommand.command.id}`, {
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const companionStatus = await companionStatusResponse.json();
+  assert.equal(companionStatusResponse.status, 200);
+  assert.equal(companionStatus.command.status, 'completed');
+  assert.equal(companionStatus.command.result.sceneName, 'Starting Soon');
+  companionSocket.close();
 
   const invalidUsernameResponse = await fetch(`${baseUrl}/api/auth/register`, {
     method: 'POST',
@@ -714,7 +858,10 @@ try {
 
   console.log(JSON.stringify({ status: 'passed', checks: 175 }));
 } catch (error) {
-  throw new Error(`SPMT smoke failed: ${error instanceof Error ? error.message : error}\n${output}`);
+  const detail = error instanceof Error
+    ? `${error.stack || error.message}${error.cause ? `\nCause: ${error.cause}` : ''}`
+    : String(error);
+  throw new Error(`SPMT smoke failed: ${detail}\n${output}`);
 } finally {
   if (child.exitCode === null) {
     child.kill();

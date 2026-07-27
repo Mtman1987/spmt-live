@@ -213,6 +213,68 @@ The same StreamWeaver slice preserves the owner-defined monthly pack pool as an 
 - The same StreamWeaver slice distinguishes an expired SpaceMountain app connection from the still-valid StreamWeaver tenant session and offers a top-level OAuth reconnect that returns to Settings. This closes the false generic “Not authenticated” presentation; a current SPMT sign-in is still required to mint the replacement app token.
 - Production browser evidence selected tenants `1026453815` and `94371378` together, enabled the mixer, and observed active overlay and chat-mixer presence for `1026453815`. The fresh SpaceMountain bundle rendered the canonical ChatTag, shared TTS, and DSH slots and the TTS studio iframe. Automated evidence includes SpaceMountain's 16-check workspace/URL smoke plus its production build and StreamWeaver's 18 focused session/TTS tests. The Gate 1 two-account login matrix, a signed-in reconnect/save/second-device restore, and Gate 4's revocable clean OBS output URL remain open; this slice does not claim those gates complete.
 
+### 2026-07-27 signed embeds and Companion foundation
+
+Implemented in source and covered by focused local checks:
+
+- SpaceMountain now mints a 90-second, one-time, app-bound embed launch code
+  from its HttpOnly SPMT session. StreamWeaver exchanges that code
+  server-to-server with its OAuth client secret and stores the resulting
+  StreamWeaver session plus SPMT access/refresh credentials in secure,
+  partitioned HttpOnly cookies. Exact parent and target origins are enforced;
+  user profile `postMessage` data is presentation only and cannot grant access.
+- SPMT OAuth now issues rotating 30-day refresh credentials. StreamWeaver
+  retries workspace/theme reads after an expired access token and rotates the
+  refresh token without exposing either credential to browser JavaScript.
+- The versioned Companion capability/security contract defines trust
+  boundaries, grant and revocation behavior, exact action-to-capability
+  mapping, replay/expiry rules, confirmation policy, local data ownership, and
+  the outbound-only network boundary.
+- The Companion source uses Electron's single-instance lock and system tray,
+  keeps managed windows out of the taskbar, supports start-at-login and hidden
+  startup, and supervises the existing `start:local` Next.js/WebSocket runtime
+  without opening a console window.
+- The local capability surface includes one click-through overlay, three
+  persistent configurable popouts, OBS WebSocket scene selection, managed
+  window mute/volume, a local media library, bounded MP4/MP3/GIF FFmpeg jobs,
+  and an outbound authenticated WSS command client.
+- SPMT SDK `0.2.0` publishes versioned Companion device, command, action, and
+  capability types plus validation and client methods. SPMT stores hashed
+  device tokens, supports user-owned pairing/revocation, queues expiring
+  commands, and relays them only to the matching outbound device socket.
+- HearMeOut's Discord Activity now exposes its request, queue, event, shared
+  playback, volume, and all-room TTS controls inside Discord instead of hiding
+  those working controls or requiring an external page for normal operation.
+
+This is a foundation, not a production-certification claim. Remaining gates:
+
+- [ ] Package and sign the Windows installer, verify clean install/uninstall,
+  start-at-login, single-instance recovery, tray-only behavior, automatic
+  update, and local server restart on a non-development Windows account.
+- [ ] Add global hold-to-talk capture and explicit microphone/output-device
+  routing. Keep account TTS subscriptions server-owned and volume/PTT/device
+  choices local.
+- [ ] Add resumable download/upload jobs, checksums, quotas, cancellation,
+  malware/content boundary documentation, and explicit confirmation for file
+  selection, external upload, overwrite, or delete. Current media support is
+  deliberately limited to user-selected import and non-destructive transcode.
+- [ ] Add local confirmation UI and audit history before any future
+  `media.upload`, `media.delete`, shell, browser automation, or arbitrary OBS
+  mutation capability can be granted.
+- [ ] Run relay reconnect, duplicate delivery, expiry, revocation, queue
+  overflow, malformed payload, and concurrent-device production tests. Add
+  bounded retention/cleanup for completed and expired commands.
+- [ ] Establish a server-verified Discord Activity-to-SPMT session grant before
+  exposing Companion/OBS/local-media commands inside an Activity. Anonymous
+  Activity media controls must never inherit local-device authority.
+- [ ] Rebuild the DSH, ChatTag, and any future Discord Activities against that
+  scoped Activity session so each becomes a complete in-Discord control surface
+  for its own approved capabilities without external login/control links.
+- [ ] Complete the signed-in two-account embed matrix: first load, third-party
+  cookie restrictions, refresh rotation, account switch, logout, revocation,
+  and second-device restore. Then verify exact deployed SHA parity for SPMT,
+  SpaceMountain, StreamWeaver, and HearMeOut.
+
 Browser-persistence audit snapshot after the 2026-07-17 hardening pass:
 
 - SpaceMountain now uses a same-origin HttpOnly SPMT session and account-backed arena state. A one-time server-validated upgrade converts a still-valid legacy browser token before deleting it.

@@ -112,6 +112,36 @@ export type WorkspaceDockSlotV1 = {
   muted: boolean;
 };
 
+export type WorkspaceOverlayWidgetV1 = {
+  id: string;
+  title: string;
+  kind: 'chat' | 'media' | 'avatar' | 'audio' | 'custom';
+  url: string;
+  visible: boolean;
+  locked: boolean;
+  interactive: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  opacity: number;
+};
+
+export type WorkspaceOverlayWorkflowV1 = {
+  id: string;
+  trigger: string;
+  condition: string;
+  action: string;
+  destination: string;
+  enabled: boolean;
+};
+
+export type WorkspaceOverlayLayoutV1 = {
+  enabled: boolean;
+  widgets: WorkspaceOverlayWidgetV1[];
+  workflows: WorkspaceOverlayWorkflowV1[];
+};
+
 export type WorkspaceProfileV1 = {
   schemaVersion: 1;
   revision: number;
@@ -137,6 +167,7 @@ export type WorkspaceThemeTokensV1 = {
   appearance: WorkspaceAppearanceV1;
   dockSlots: WorkspaceDockSlotV1[];
   activeOverlaySceneId: string | null;
+  overlayWorkspace: WorkspaceOverlayLayoutV1 | null;
   ttsSubscriptions: string[];
   appThemeMappings: Record<string, string>;
 };
@@ -303,7 +334,11 @@ const THEME_PALETTES: Record<string, Pick<WorkspaceThemeTokensV1, 'background' |
   'aurora-green': { background: '#07110d', surface: '#10291e', text: '#f0fdf4', accent: '#34d399' },
 };
 
-export function workspaceThemeTokens(profile: WorkspaceProfileV1, appId: string): WorkspaceThemeTokensV1 {
+export function workspaceThemeTokens(
+  profile: WorkspaceProfileV1,
+  appId: string,
+  overlayWorkspace: WorkspaceOverlayLayoutV1 | null = null,
+): WorkspaceThemeTokensV1 {
   const mapping = String(profile.appThemeMappings?.[appId] || 'follow-workspace');
   const followWorkspace = mapping === 'follow-workspace';
   const themeId = followWorkspace ? profile.appearance.themeId : mapping;
@@ -319,6 +354,11 @@ export function workspaceThemeTokens(profile: WorkspaceProfileV1, appId: string)
     appearance: { ...profile.appearance },
     dockSlots: profile.dockSlots.map((slot) => ({ ...slot })),
     activeOverlaySceneId: profile.activeOverlaySceneId,
+    overlayWorkspace: overlayWorkspace ? {
+      enabled: overlayWorkspace.enabled !== false,
+      widgets: Array.isArray(overlayWorkspace.widgets) ? overlayWorkspace.widgets.map((widget) => ({ ...widget })) : [],
+      workflows: Array.isArray(overlayWorkspace.workflows) ? overlayWorkspace.workflows.map((workflow) => ({ ...workflow })) : [],
+    } : null,
     ttsSubscriptions: [...profile.ttsSubscriptions],
     appThemeMappings: { ...profile.appThemeMappings },
   };
@@ -554,9 +594,13 @@ export class SpaceMountainClient {
     resetProfile: (revision: number) => this.request('/api/workspace-profile/reset', { method: 'POST', body: { revision } }) as Promise<{ profile: WorkspaceProfileV1 }>,
     themeTokens: async (appId = this.appId || '') => {
       if (!appId) throw new Error('appId is required to derive workspace theme tokens');
-      const response = await this.request('/api/workspace-profile') as { profile: WorkspaceProfileV1 };
-      return workspaceThemeTokens(response.profile, appId);
+      const [profileResponse, overlayResponse] = await Promise.all([
+        this.request('/api/workspace-profile') as Promise<{ profile: WorkspaceProfileV1 }>,
+        this.request('/api/overlay-workspace') as Promise<{ layout: WorkspaceOverlayLayoutV1 | null }>,
+      ]);
+      return workspaceThemeTokens(profileResponse.profile, appId, overlayResponse.layout);
     },
+    overlayWorkspace: () => this.request('/api/overlay-workspace') as Promise<{ layout: WorkspaceOverlayLayoutV1 | null; updatedAt: string | null }>,
     overlayScenes: () => this.request('/api/workspace/overlay-scenes'),
     workflows: () => this.request('/api/workspace/workflows'),
     saveOverlayScene: (id: string, input: { name: string; revision?: number; data: Record<string, unknown> }) => this.request(`/api/workspace/overlay-scenes/${encodeURIComponent(id)}`, { method: 'PUT', body: input }),

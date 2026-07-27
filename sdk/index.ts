@@ -85,17 +85,38 @@ export type WorkspaceAppearanceV1 = {
   starDensity: number;
   glassOpacity: number;
   blurStrength: number;
+  nebulaIntensity: number;
+  parallaxDepth: number;
   borderStrength: number;
-  cornerRadius: string;
-  density: string;
-  animation: { enabled: boolean; speed: number; particles: boolean };
+  cornerRadius: 'sm' | 'md' | 'lg' | 'full';
+  density: 'compact' | 'comfortable' | 'spacious';
+  sidebarCollapsed: boolean;
+  sidebarStyle: 'docked' | 'floating' | 'hidden';
+  sidebarPosition: 'left' | 'right';
+  topbarStyle: 'transparent' | 'glass';
+  tabStyle: 'pills' | 'underline' | 'cards';
+  tabPosition: 'top' | 'bottom' | 'left' | 'right';
+  chatTransparency: number;
+  showAvatars: boolean;
+  smoothTransitions: boolean;
+  pushToTalk: boolean;
+  animation: { enabled: boolean; speed: number; particles: boolean; shootingStars: boolean };
+};
+
+export type WorkspaceDockSlotV1 = {
+  id: 1 | 2 | 3;
+  title: string;
+  url: string;
+  collapsed: boolean;
+  volume: number;
+  muted: boolean;
 };
 
 export type WorkspaceProfileV1 = {
   schemaVersion: 1;
   revision: number;
   appearance: WorkspaceAppearanceV1;
-  dockSlots: Array<{ id: 1 | 2 | 3; title: string; url: string; collapsed: boolean; volume: number; muted: boolean }>;
+  dockSlots: WorkspaceDockSlotV1[];
   activeOverlaySceneId: string | null;
   ttsSubscriptions: string[];
   appThemeMappings: Record<string, string>;
@@ -112,7 +133,12 @@ export type WorkspaceThemeTokensV1 = {
   accent: string;
   radius: string;
   density: string;
-  motion: { enabled: boolean; speed: number; particles: boolean };
+  motion: { enabled: boolean; speed: number; particles: boolean; shootingStars: boolean };
+  appearance: WorkspaceAppearanceV1;
+  dockSlots: WorkspaceDockSlotV1[];
+  activeOverlaySceneId: string | null;
+  ttsSubscriptions: string[];
+  appThemeMappings: Record<string, string>;
 };
 
 export type SharedChatPlatformV1 = 'twitch' | 'discord' | 'kick' | 'youtube' | 'social-stream' | 'spmt' | 'app' | 'unknown';
@@ -290,6 +316,11 @@ export function workspaceThemeTokens(profile: WorkspaceProfileV1, appId: string)
     radius: profile.appearance.cornerRadius,
     density: profile.appearance.density,
     motion: { ...profile.appearance.animation },
+    appearance: { ...profile.appearance },
+    dockSlots: profile.dockSlots.map((slot) => ({ ...slot })),
+    activeOverlaySceneId: profile.activeOverlaySceneId,
+    ttsSubscriptions: [...profile.ttsSubscriptions],
+    appThemeMappings: { ...profile.appThemeMappings },
   };
 }
 

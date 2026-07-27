@@ -274,7 +274,7 @@ const THEME_PALETTES: Record<string, Pick<WorkspaceThemeTokensV1, 'background' |
   'solar-flare': { background: '#080b14', surface: '#171321', text: '#f8fafc', accent: '#ff8a3d' },
   'nebula-purple': { background: '#090712', surface: '#1d1530', text: '#f8f4ff', accent: '#a855f7' },
   'oceanic-blue': { background: '#06111a', surface: '#0c2535', text: '#effaff', accent: '#22d3ee' },
-  'forest-green': { background: '#07110d', surface: '#10291e', text: '#f0fdf4', accent: '#34d399' },
+  'aurora-green': { background: '#07110d', surface: '#10291e', text: '#f0fdf4', accent: '#34d399' },
 };
 
 export function workspaceThemeTokens(profile: WorkspaceProfileV1, appId: string): WorkspaceThemeTokensV1 {

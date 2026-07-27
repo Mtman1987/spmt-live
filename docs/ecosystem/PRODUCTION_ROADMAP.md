@@ -185,9 +185,9 @@ The same StreamWeaver slice preserves the owner-defined monthly pack pool as an 
 - [x] Implement `WorkspaceProfileV1`, revision conflicts, validation, export/import/reset, and redacted update events.
 - [x] Move SpaceMountain appearance and three dock slots to the signed-in SPMT profile with one-time browser migration and offline cache semantics.
 - [x] Split overlay scenes and workflow definitions out of the legacy `overlay_workspaces` blob into versioned owned records.
-- [ ] Add `activeOverlaySceneId`, TTS subscriptions, and app theme mappings to real consumers with conflict/retry UI.
+- [x] Add `activeOverlaySceneId`, TTS subscriptions, and app theme mappings to real consumers with conflict/retry UI.
 - [x] Publish one versioned SPMT workspace/theme client with background, surface, text, accent, radius, density, and motion tokens.
-- [ ] Adopt the shared client one app at a time in DSH, StreamWeaver, HearMeOut, and ChatTag, with an explicit “follow SpaceMountain theme” switch.
+- [x] Adopt the shared client one app at a time in DSH, StreamWeaver, HearMeOut, and ChatTag, with an explicit “follow SpaceMountain theme” switch.
 - [x] Keep device-only volume, audio unlock, replay cursors, and transient layout state local; keep account/app state server-authoritative.
 - [ ] Pass cross-device restore, second-account isolation, failed-save retry, embedded-app theme, and no-secret-in-profile tests.
 

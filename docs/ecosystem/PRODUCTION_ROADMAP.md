@@ -1,6 +1,6 @@
 # SpaceMountain Ecosystem Production Roadmap
 
-Updated: 2026-07-23
+Updated: 2026-07-27
 
 Status: active engineering source of truth
 
@@ -204,6 +204,14 @@ The same StreamWeaver slice preserves the owner-defined monthly pack pool as an 
 - SpaceMountain's HttpOnly-session migration had left one broken proxy seam: the same-origin `/api/spmt` proxy did not forward the browser's `If-Match` header, so SPMT correctly rejected workspace writes with HTTP 428 even though the settings UI was signed in. Commit `cdfb0c829b8991933adb0d5bb78ec5552f7427b4` forwards only the required revision header alongside the server-held bearer token and adds a regression check that cookies are not forwarded. GitHub Actions run `30237336724` succeeded and the fresh live process returned health 200. A signed-in user save plus second-device restore remains required before the Gate 2 matrix can close.
 - StreamWeaver commit `38daf35f9d8a2abf1dbb5fd6166cf7bb633bc88e` consumes `WorkspaceThemeTokensV1` through its HttpOnly SPMT session, stores the “Follow SpaceMountain theme” preference as SPMT app state, applies the tokens globally, and exposes loading, local, saving, error, and retry states. Its focused theme test, typecheck, and 212-page production build passed; GitHub Actions run `30238012429` succeeded and live `/api/health` reported the exact commit SHA.
 - HearMeOut already shipped the same shared-client contract in commit `99570a319840b7cee94c07e6936068b1851c18cd`. With DSH, HearMeOut, and StreamWeaver adopted, ChatTag is now the only remaining app-theme consumer in this checklist.
+
+### 2026-07-27 canonical app surfaces, direct routes, and shared TTS mixer
+
+- SpaceMountain commit `f81820c8ada05aa06c3139b6a75e4a9175a69515` replaces embedded StreamWeaver login URLs and the SpaceMountain-to-ChatTag proxy URL with one canonical surface registry. App cards now expose uniform Open and Dock actions, the registry publishes separate embed and popout targets, saved legacy slots migrate to canonical destinations, and the default audio slot is StreamWeaver's shared TTS studio.
+- SpaceMountain commit `9f69b3efc1adfe553065c743be3243f2d86126e5` makes every documented first-load route (`/apps`, `/inbox`, `/forums`, `/rooms`, `/mtnview`, `/builder`, `/crew`, and `/help`, as well as the earlier settings/shop/arena routes) initialize the matching workspace instead of rendering Dashboard data under the requested URL.
+- StreamWeaver commit `2d0e5e58656c510797ac7741fe4822b68394d68b` turns the existing shared player into an all-tenant TTS studio. It discovers tenant overlay and chat queues, lets the operator enable or disable each tenant, mixes both queue types chronologically, maintains the presence heartbeat required for paid synthesis, supports per-tenant and master volume, grid or compact ordering, voice selection, and configurable keyboard or on-screen PTT. Selection, order, layout, voice, and volume remain device preferences; no token or provider secret is written to the mixer URL.
+- The same StreamWeaver slice distinguishes an expired SpaceMountain app connection from the still-valid StreamWeaver tenant session and offers a top-level OAuth reconnect that returns to Settings. This closes the false generic “Not authenticated” presentation; a current SPMT sign-in is still required to mint the replacement app token.
+- Production browser evidence selected tenants `1026453815` and `94371378` together, enabled the mixer, and observed active overlay and chat-mixer presence for `1026453815`. The fresh SpaceMountain bundle rendered the canonical ChatTag, shared TTS, and DSH slots and the TTS studio iframe. Automated evidence includes SpaceMountain's 16-check workspace/URL smoke plus its production build and StreamWeaver's 18 focused session/TTS tests. The Gate 1 two-account login matrix, a signed-in reconnect/save/second-device restore, and Gate 4's revocable clean OBS output URL remain open; this slice does not claim those gates complete.
 
 Browser-persistence audit snapshot after the 2026-07-17 hardening pass:
 

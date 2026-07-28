@@ -199,6 +199,8 @@ export const COMPANION_ACTION_CAPABILITY_V1 = {
   'audio.mute': 'audio.control',
   'audio.volume': 'audio.control',
   'media.transcode': 'media.write',
+  'obs.media.play': 'obs.control',
+  'workflow.run': 'workflow.run',
 } as const satisfies Record<string, CompanionCapabilityV1>;
 
 export type CompanionActionV1 = keyof typeof COMPANION_ACTION_CAPABILITY_V1;

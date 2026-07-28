@@ -483,6 +483,8 @@ export function initDb() {
       status TEXT NOT NULL DEFAULT 'queued',
       result TEXT,
       error TEXT,
+      requires_confirmation INTEGER NOT NULL DEFAULT 0,
+      issued_at TEXT,
       expires_at TEXT NOT NULL,
       created_at TEXT NOT NULL,
       completed_at TEXT,
@@ -502,6 +504,8 @@ export function initDb() {
   try { db.exec('ALTER TABLE users ADD COLUMN twitch_id TEXT'); } catch {}
   try { db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0'); } catch {}
   try { db.exec('ALTER TABLE users ADD COLUMN avatar_url TEXT'); } catch {}
+  try { db.exec('ALTER TABLE companion_commands ADD COLUMN requires_confirmation INTEGER NOT NULL DEFAULT 0'); } catch {}
+  try { db.exec('ALTER TABLE companion_commands ADD COLUMN issued_at TEXT'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN read_at TEXT'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN channel TEXT DEFAULT "direct"'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN conversation_id TEXT'); } catch {}

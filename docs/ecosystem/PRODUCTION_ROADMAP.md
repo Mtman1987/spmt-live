@@ -238,7 +238,7 @@ Implemented in source and covered by focused local checks:
   persistent configurable popouts, OBS WebSocket scene selection, managed
   window mute/volume, a local media library, bounded MP4/MP3/GIF FFmpeg jobs,
   and an outbound authenticated WSS command client.
-- SPMT SDK `0.2.0` publishes versioned Companion device, command, action, and
+- SPMT SDK `0.2.1` publishes versioned Companion device, command, action, and
   capability types plus validation and client methods. SPMT stores hashed
   device tokens, supports user-owned pairing/revocation, queues expiring
   commands, and relays them only to the matching outbound device socket.
@@ -250,15 +250,21 @@ This is a foundation, not a production-certification claim. Remaining gates:
 
 - [ ] Package and sign the Windows installer, verify clean install/uninstall,
   start-at-login, single-instance recovery, tray-only behavior, automatic
-  update, and local server restart on a non-development Windows account.
-- [ ] Add global hold-to-talk capture and explicit microphone/output-device
-  routing. Keep account TTS subscriptions server-owned and volume/PTT/device
-  choices local.
+  update, and local server restart on a non-development Windows account. Source
+  now restarts an unexpectedly exited managed server; clean-account proof,
+  installer signing, and update delivery remain open.
+- [ ] Add global hold-to-talk capture and explicit microphone-device routing.
+  Managed HTML media now accepts a local output-device ID, but friendly device
+  enumeration and hardware proof remain open. Keep account TTS subscriptions
+  server-owned and volume/PTT/device choices local.
 - [ ] Add resumable download/upload jobs, checksums, quotas, cancellation,
   malware/content boundary documentation, and explicit confirmation for file
   selection, external upload, overwrite, or delete. Current media support is
   deliberately limited to user-selected import and non-destructive transcode.
-- [ ] Add local confirmation UI and audit history before any future
+- [x] Add local confirmation UI and persistent reviewed-job history for
+  `obs.media.play`, approved jingle playback, and song briefs. SPMT and the
+  Companion both enforce the action/capability/workflow allowlists.
+- [ ] Keep confirmation and audit coverage mandatory before any future
   `media.upload`, `media.delete`, shell, browser automation, or arbitrary OBS
   mutation capability can be granted.
 - [ ] Run relay reconnect, duplicate delivery, expiry, revocation, queue
@@ -274,6 +280,41 @@ This is a foundation, not a production-certification claim. Remaining gates:
   cookie restrictions, refresh rotation, account switch, logout, revocation,
   and second-device restore. Then verify exact deployed SHA parity for SPMT,
   SpaceMountain, StreamWeaver, and HearMeOut.
+
+### 2026-07-27 shared bot research and reviewed creative workflows
+
+Implemented in source without claiming production certification:
+
+- StreamWeaver now has a generalized Research Mode. Explicit “I have a
+  question” and search phrases open a tenant/user/channel-scoped retrieval
+  path; ordinary mentions do not create search traffic.
+- Tenant public runtime JSON owns enablement, selected knowledge packs, source
+  allowlists, result limits, and cache policy. The live provider credential is
+  only `BRAVE_SEARCH_API_KEY` in environment/Fly secrets.
+- Professor Eevee automatically receives the first curated `vocaloid`
+  knowledge pack. The pack distinguishes synthesis engines, voicebanks,
+  characters, creators, songs, discovery metadata, and rights; the framework
+  is subject-neutral and accepts future packs.
+- Companion and SPMT implement `workflow.run` with a harmless `test.echo`
+  contract. Companion source is now `0.2.0`; `audio.jingle.play` and
+  `song.render.request` always require local
+  approval. The Companion stores bounded review history, can restart an
+  approved local jingle through a named OBS media input, and records an
+  engine-neutral song brief, writes an approved manifest inside the local
+  media library, and detects the named rendered output without granting a shell.
+- No arbitrary shell, bundled copyrighted media, undocumented VOCALOID CLI,
+  tenant upload/download, or viewer-submitted job is exposed. Those last two
+  surfaces remain deliberately deferred.
+- Focused source checks cover research intent/settings, workflow review,
+  payload bounds, the harmless workflow, and Companion syntax. SPMT typecheck
+  covers the expanded SDK/server contract.
+
+Production proof still required: a real Brave-key sourced answer on Twitch and
+Discord; two-tenant isolation; paired SPMT-to-Companion `test.echo`; approval,
+expiry, rejection, replay, and revocation behavior; real OBS media playback;
+licensed-renderer operator proof; GitHub/Fly completion and exact SHA parity.
+StreamWeaver's app-owned implementation record is
+`docs/RESEARCH_AND_CREATIVE_WORKFLOWS.md`.
 
 Browser-persistence audit snapshot after the 2026-07-17 hardening pass:
 

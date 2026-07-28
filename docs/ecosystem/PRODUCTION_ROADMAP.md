@@ -1,6 +1,6 @@
 # SpaceMountain Ecosystem Production Roadmap
 
-Updated: 2026-07-27
+Updated: 2026-07-28
 
 Status: active engineering source of truth
 
@@ -298,8 +298,10 @@ Implemented in source without claiming production certification:
   question” and search phrases open a tenant/user/channel-scoped retrieval
   path; ordinary mentions do not create search traffic.
 - Tenant public runtime JSON owns enablement, selected knowledge packs, source
-  allowlists, result limits, and cache policy. The live provider credential is
-  only `BRAVE_SEARCH_API_KEY` in environment/Fly secrets.
+  allowlists, result limits, and cache policy. Curated knowledge-pack retrieval
+  requires no external API key. Optional live internet retrieval uses
+  `BRAVE_SEARCH_API_KEY` in environment/Fly secrets when an operator chooses to
+  enable that enhancement.
 - Professor Eevee automatically receives the first curated `vocaloid`
   knowledge pack. The pack distinguishes synthesis engines, voicebanks,
   characters, creators, songs, discovery metadata, and rights; the framework
@@ -318,12 +320,46 @@ Implemented in source without claiming production certification:
   payload bounds, the harmless workflow, and Companion syntax. SPMT typecheck
   covers the expanded SDK/server contract.
 
-Production proof still required: a real Brave-key sourced answer on Twitch and
+Core production proof still required: live knowledge-pack answers on Twitch and
 Discord; two-tenant isolation; paired SPMT-to-Companion `test.echo`; approval,
 expiry, rejection, replay, and revocation behavior; real OBS media playback;
-licensed-renderer operator proof; GitHub/Fly completion and exact SHA parity.
+and licensed-renderer operator proof. Live internet retrieval is optional and
+does not block knowledge-pack Research Mode or the core launch gate. If enabled,
+it still requires a configured provider credential and a sourced-answer smoke
+test.
 StreamWeaver's app-owned implementation record is
 `docs/RESEARCH_AND_CREATIVE_WORKFLOWS.md`.
+
+### 2026-07-28 Research and Companion production worksheet
+
+Status values mean: **done** has current production or automated evidence;
+**operator** requires the real account/device/application surface; **optional**
+does not block the core launch; **deferred** is intentionally outside this
+release.
+
+| Work item | Status | Current evidence or next proof |
+| --- | --- | --- |
+| Research intent and two-minute follow-up | Done | StreamWeaver current-main typecheck and focused tests pass; deployed source includes direct and two-step routing |
+| Curated tenant knowledge-pack retrieval | Done | No external API key required; Professor Eevee receives the built-in `vocaloid` pack and tenants can select future subject-neutral packs |
+| Live internet retrieval | Optional | Adapter is deployed but `BRAVE_SEARCH_API_KEY` is not configured; enable only when current web results are worth the provider dependency |
+| Untrusted retrieved-context boundary | Done | Prompt contract labels retrieved material as untrusted and applies source, uncertainty, safe-search, timeout, cache, and allowlist bounds |
+| Automated tenant isolation | Done | Research state is tenant/platform/channel/user scoped and the focused settings/intent suite passes |
+| Live two-tenant Twitch and Discord matrix | Operator | Use two real tenants concurrently and prove one tenant cannot arm, retrieve, configure, or answer through the other |
+| SPMT relay and SDK `0.2.1` | Done | SPMT production readiness reports merge SHA `48615d9c665a793bab58a36177a4edde6564033d`; SDK metadata and versioned tarball are live |
+| StreamWeaver cloud deployment | Done | Production health reports current SHA `9ad0ff20b3f7b57e4ab1bf04f0cb2656a0fbd142`; research/Companion merge `776d51299ed4d5a5556ccc68173796d26ceb41c1` is in its ancestry |
+| Companion harmless `test.echo` locally | Done | Companion syntax and workflow suite pass; it performs no file, OBS, audio, browser, or process work |
+| Real paired-device `test.echo` | Operator | Companion is not currently installed/running on the operator PC; pair it to SPMT and record accepted, delivered, completed, and audit states |
+| Approval, rejection, expiry, replay, and revocation | Operator | Automated contract coverage exists; run the matrix through a real paired Companion and verify stale or revoked work cannot execute |
+| OBS approved-library jingle playback | Operator | Start OBS and Companion, select an existing media input and approved local file, then prove restart playback without arbitrary path access |
+| Reviewed song manifest and output detection | Done | Companion tests prove local review, bounded manifest creation, no second approval after relay approval, and named-output detection |
+| Licensed renderer execution | Operator | Select a documented, locally installed renderer and add an explicitly allowlisted adapter; no undocumented VOCALOID CLI is assumed |
+| Signed installer, update, friendly device enumeration, and global PTT | Operator | Remain desktop production gates; current source supports tray/single-instance behavior, managed restart, and an output-device ID |
+| Tenant uploads/downloads | Deferred | Requires resumability, checksums, quotas, cancellation, malware/content boundaries, and explicit file confirmations |
+| Viewer-submitted creation | Deferred | Do not expose until tenant authorization, moderation, rate/cost limits, review, audit, and abuse controls are complete |
+
+This worksheet closes the cloud deployment and SHA-parity items for this slice.
+It does not convert the paired-device, OBS, renderer, installer, or two-tenant
+operator rows into source-only claims.
 
 Browser-persistence audit snapshot after the 2026-07-17 hardening pass:
 

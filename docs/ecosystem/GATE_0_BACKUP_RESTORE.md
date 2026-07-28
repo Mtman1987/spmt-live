@@ -1,19 +1,19 @@
 # Gate 0 backup and restore runbook
 
-Captured 2026-07-17; live volume inventory refreshed 2026-07-24. The owner/operator is the `mtman-new` Fly organization and the `Mtman1987` repository owner. Secrets are never part of volume JSON and must be restored separately from Fly secrets.
+Captured 2026-07-17; live volume inventory and isolated restore evidence refreshed 2026-07-28. The owner/operator is the `mtman-new` Fly organization and the `Mtman1987` repository owner. Secrets are never part of volume JSON and must be restored separately from Fly secrets.
 
 | Runtime | Authority | Backup | RPO | Target RTO | Restore evidence |
 | --- | --- | --- | --- | --- | --- |
-| SPMT | `/data/spmt.db` SQLite on `vol_vde2p30e6xo8d0k4` (`spmt_data`, lax, 1GB) | online SQLite backup plus encrypted Fly snapshots | 24 hours; take an on-demand backup before identity/schema work | 60 minutes | Latest isolated read-only backup passed `quick_check`, 503 users, and 59 schema objects; Fly snapshot restore to a separate volume still needs timed proof |
-| SpaceMountain | `/data` SQLite/app state on `vol_42kmdp560dmgwl94` (`spacemountain_data`, lax, 1GB) | encrypted Fly snapshot | 24 hours; snapshot before schema work | 60 minutes | Live volume identified; isolated data-level restore remains required |
-| StreamWeaver | `/data` tenant runtime JSON/media on `vol_4ojp7z8jy1mwjoxr` (`streamweaver_data`, iad, 1GB) | encrypted Fly snapshot | 24 hours; snapshot before tenant-store migration | 2 hours | Live volume identified; isolated tenant fixture restore remains required |
-| DiscordStreamHub | SQLite/runtime media on `vol_vz8ey6wpj0nl7zqv` (`discord_stream_data`, iad, 15GB) plus any configured external Firebase/Firestore authority | encrypted Fly snapshot plus external export policy where still configured | 24 hours for app state; generated media may be regenerated | 4 hours | Live volume identified; external export and isolated restore remain required |
-| HearMeOut | `/data` watch/room/media state on `vol_vlypz052m7d3x1d4` (`data`, iad, 10GB) | encrypted Fly snapshot plus atomic last-known-good watch-state file | 24 hours | 2 hours | Live volume identified; isolated room/watch restore remains required |
-| HMO DJ worker | `/data` media/cache state on active `vol_rkgne6q1ooml5524` (`data`, iad, 10GB); detached historical volumes `vol_vlyw1nmy2w7pk3o4` and `vol_4ojp7nl276l6ke2r` need keep/delete decision | encrypted Fly snapshot; generated caches may be regenerated | 24 hours for operator-maintained cache/config; generated media may be rebuilt | 2 hours | Active and detached volumes identified; isolated restore/cleanup decision remains required |
-| ChatTag | attached `/data` game state on `vol_vwn2529mw5w0wq8v` (`chat_tag_data`, iad, 1GB); detached historical `vol_rk19n1poymqe3lk4` needs keep/delete decision | encrypted Fly snapshot plus Firebase/export policy if still configured | 24 hours | 2 hours | Active and detached volumes identified; Firebase/game-state restore remains required |
+| SPMT | `/data/spmt.db` SQLite on `vol_vde2p30e6xo8d0k4` (`spmt_data`, lax, 1GB) | online SQLite backup plus encrypted Fly snapshots | 24 hours; take an on-demand backup before identity/schema work | 60 minutes | 2026-07-28 isolated snapshot restore passed `quick_check` with 31 tables; observed RPO 4.6 hours and RTO 184 seconds |
+| SpaceMountain | `/data` SQLite/app state on `vol_42kmdp560dmgwl94` (`spacemountain_data`, lax, 1GB) | encrypted Fly snapshot | 24 hours; snapshot before schema work | 60 minutes | 2026-07-28 isolated restore passed `quick_check` for `database.db` with 6 tables; observed RPO 16.5 hours and RTO under 10 minutes |
+| StreamWeaver | `/data` tenant runtime JSON/media on `vol_4ojp7z8jy1mwjoxr` (`streamweaver_data`, iad, 1GB) | encrypted Fly snapshot | 24 hours; snapshot before tenant-store migration | 2 hours | 2026-07-28 isolated restore parsed the runtime/config JSON fixture roots; observed RPO 17 hours and RTO under 10 minutes |
+| DiscordStreamHub | SQLite/runtime media on `vol_vz8ey6wpj0nl7zqv` (`discord_stream_data`, iad, 15GB) plus any configured external Firebase/Firestore authority | encrypted Fly snapshot plus external export policy where still configured | 24 hours for app state; generated media may be regenerated | 4 hours | 2026-07-28 isolated restore passed `app.db` `quick_check` with 2 tables, runtime config, and 653 clips; observed RPO 5 hours and RTO 7 minutes 12 seconds |
+| HearMeOut | `/data` watch/room/media state on `vol_vlypz052m7d3x1d4` (`data`, iad, 10GB) | encrypted Fly snapshot plus atomic last-known-good watch-state file | 24 hours | 2 hours | 2026-07-28 isolated restore passed `app.db` `quick_check`, watch state, and media inventories; observed RPO 14 hours and RTO 7 minutes 19 seconds |
+| HMO DJ worker | `/data` media/cache state on active `vol_rkgne6q1ooml5524` (`data`, iad, 10GB); detached historical volumes `vol_vlyw1nmy2w7pk3o4` and `vol_4ojp7nl276l6ke2r` need keep/delete decision | encrypted Fly snapshot; generated caches may be regenerated | 24 hours for operator-maintained cache/config; generated media may be rebuilt | 2 hours | 2026-07-28 isolated restore parsed worker indexes and counted 4 music plus 463 HLS files; observed RPO 7 hours and RTO 7 minutes 2 seconds. Historical volumes remain untouched pending telemetry/ownership proof |
+| ChatTag | attached `/data` game state on `vol_vwn2529mw5w0wq8v` (`chat_tag_data`, iad, 1GB); detached historical `vol_rk19n1poymqe3lk4` needs keep/delete decision | encrypted Fly snapshot plus Firebase/export policy if still configured | 24 hours | 2 hours | 2026-07-28 isolated restore parsed `app-state.json` (2,282,242 bytes, 22 top-level keys); observed RPO 15 hours and RTO under 10 minutes. Detached volume remains untouched pending telemetry/ownership proof |
 | ChatTag bot | no attached Fly volume | source deploy plus Fly secrets | app state lives in ChatTag app/StreamWeaver, not the bot machine | 60 minutes | No volume restore required; verify bot can reconnect after app restore |
 | DSH clip worker | no attached Fly volume | source deploy plus upstream DSH volume/media authority | generated clips read/write through DSH app authority | 60 minutes | No separate volume restore required; verify worker can process against restored DSH state |
-| Rotator/MountainView | `/data` diagnostics, review state, and MountainView records on `vol_v8ee73j6wglewp7v` (`rotator_data`, ord, 1GB) | encrypted Fly snapshot | 24 hours | 60 minutes | Live volume identified; isolated database/state restore remains required |
+| Rotator/MountainView | `/data` diagnostics, review state, and MountainView records on `vol_v8ee73j6wglewp7v` (`rotator_data`, ord, 1GB) | encrypted Fly snapshot | 24 hours | 60 minutes | 2026-07-28 isolated restore passed `mountainview.db` `quick_check` with 16 tables and parsed archive JSON; observed RPO 14 hours and RTO under 10 minutes |
 
 ## Recovery procedure
 
@@ -25,7 +25,25 @@ Captured 2026-07-17; live volume inventory refreshed 2026-07-24. The owner/opera
 6. Promote the restored volume only after validation. Keep the original volume and prior release available for rollback.
 7. Run the app smoke test and `npm run smoke:suite`, then record the recovery release and evidence here.
 
-The large DSH and HearMeOut snapshots can take materially longer than the one-GB volumes. A scheduled snapshot is backup evidence, not restore proof; those rows stay open until a separately mounted copy passes validation.
+The 2026-07-28 drill restored every authoritative Fly volume into a newly
+created, separately mounted volume and inspected it from a service-free machine.
+No restored copy was promoted and no production volume was overwritten. The
+temporary inspector machines and restored volumes were destroyed after
+validation. Snapshot IDs used were:
+
+- SPMT `vs_mJOXmMev9pJmh94gDP5VN`
+- SpaceMountain `vs_Py3wDZ9aNgjSn8Lj3JwZ`
+- StreamWeaver `vs_A5AgeDmbn9DVUKjZwyDK7`
+- DiscordStreamHub `vs_0RRnRG3lA5bphP4JjpmD`
+- HearMeOut `vs_7ly7RljwOKyhQLkn8BxzLz`
+- HMO DJ worker `vs_bJqJnbzPVXztqP13xXKpznn`
+- ChatTag `vs_wJkxgw9J0weh6yxwk9epkDD`
+- Rotator/MountainView `vs_6PL7JzN8wDZetovamw5qV`
+
+The large DSH and HearMeOut restores took about seven minutes from volume
+creation through integrity output, still comfortably inside their two- and
+four-hour targets. The current volume and prior Fly release must remain
+available during an actual recovery so either can be selected for rollback.
 
 ## Offline restored-volume validator
 

@@ -88,10 +88,10 @@ The trusted app uses an app-bound `identity:write` credential, receives the SPMT
 - [x] Add `npm run smoke:suite` as the reproducible owned-suite smoke command; it proves local/origin/Fly build-SHA parity plus health and one critical feature route for every app and worker.
 - [x] Add a Fly service health check to `dsh-clip-worker` using its existing `/health` route.
 - [x] Capture and classify 24–48 hours of current errors after the persistence deployments.
-- [ ] Prove backup plus isolated restore for each owned database/volume and document RPO, RTO, operator, and rollback release.
+- [x] Prove backup plus isolated restore for each owned database/volume and document RPO, RTO, operator, and rollback release.
 - [x] Make Athena/MountainView capability output and every simulated UI action report configured, degraded, unavailable, or a real accepted job truthfully.
 
-2026-07-24 progress: live Fly volume IDs for every owned stateful runtime are recorded in `GATE_0_BACKUP_RESTORE.md`, and `npm run backup:verify-restore -- --profile <profile> --root <restored-volume-root>` now validates isolated restored copies without exposing records or secrets. The checkbox remains open until approved isolated recovery volumes/copies are created, validated, timed, and either promoted or destroyed.
+2026-07-28 completion evidence: every owned stateful Fly runtime was restored from a production snapshot onto an isolated temporary volume and inspector machine, validated without exposing records or secrets, timed, and destroyed without promotion. SQLite authorities passed `PRAGMA quick_check`; JSON/media authorities passed bounded parse and inventory checks. Observed RPO ranged from 4.6 to 17 hours and every RTO was below ten minutes. Exact source volume, snapshot, operator, rollback, and cleanup evidence is recorded in `GATE_0_BACKUP_RESTORE.md`.
 
 ### Gate 1 — identity, scopes, tenant isolation, and XP
 
@@ -105,9 +105,9 @@ The trusted app uses an app-bound `identity:write` credential, receives the SPMT
 - [ ] Verify walk-on, EventSub, welcome, metrics, shared-chat, clips, chat-monitor, polling, voice, and WebSocket paths with concurrent tenants; keep intentionally global Pokemon and partner check-in data global.
 - [x] Make remaining `/api/chat/send`, AI memory/shoutout, TTS, gamble, welcome, and leaderboard routes reject missing tenant context where tenant state is required.
 - [x] Add the automated two-tenant isolation fixture covering chat, replies, botshare, TTS, voice, overlays, workflows, and reconnect.
-- [ ] Define the canonical SPMT XP/level/reward ledger, map ChatTag/DSH/arena/SpaceMountain events with idempotency keys, and make shared displays read it.
+- [x] Define the canonical SPMT XP/level/reward ledger, map ChatTag/DSH/arena/SpaceMountain events with idempotency keys, and make shared displays read it.
 
-2026-07-24 progress: SPMT already owns the `xp_ledger`, `/api/platform/xp` requires `xp:write`, duplicate awards are blocked by app-scoped idempotency keys, and `/api/xp` returns XP plus derived level. SDK `0.1.4` adds versioned XP award types, a validator, an idempotency helper, and canonical mappings for ChatTag, DSH, SpaceMountain tools, and arena kills. The checkbox remains open until ChatTag/DSH/arena/SpaceMountain producers use the mapping and shared displays stop reading split point stores.
+2026-07-28 completion evidence: SPMT owns the `xp_ledger`, `/api/platform/xp` requires `xp:write`, duplicate awards are blocked by app-scoped idempotency keys, and `/api/xp` returns XP plus derived level. ChatTag, DSH, and SpaceMountain arena producers use canonical mappings; SpaceMountain, ChatTag, and DSH display canonical XP. DSH rejects non-Discord `chat_activity` before mapping it to `dsh.discord.message`. A read-only production scope audit proved the active ChatTag and DSH keys each hold `xp:write` without printing credential values.
 
 Implemented foundation awaiting coordinated production verification: app-bound `identity:write` grandfathering, provider-ID collision safety, server-only session issuance, imported-account claim/recovery setup, `xp:write` with app binding and idempotency, and allowed/forbidden contract coverage in the 175-check SPMT smoke suite. SpaceMountain, MountainView, DSH, HearMeOut, ChatTag, and StreamWeaver now have SPMT session paths; DSH/HearMeOut/ChatTag retain a non-admin compatibility path for existing sessions so migration does not become an outage. ChatTag has a bounded durable-user backfill, and DSH has a bot-secret-protected paginated Discord-member backfill plus a signed native Discord modal that creates a provider-owned SPMT identity and optionally registers a public Twitch handle for shoutout tracking. Neither migration invents or transmits passwords. Cross-app XP producers/displays and the two-account live matrix remain exit blockers.
 
@@ -199,6 +199,16 @@ The same StreamWeaver slice preserves the owner-defined monthly pack pool as an 
 - [x] Adopt the shared client one app at a time in DSH, StreamWeaver, HearMeOut, and ChatTag, with an explicit “follow SpaceMountain theme” switch.
 - [x] Keep device-only volume, audio unlock, replay cursors, and transient layout state local; keep account/app state server-authoritative.
 - [ ] Pass cross-device restore, second-account isolation, failed-save retry, embedded-app theme, and no-secret-in-profile tests.
+
+2026-07-28 certification run: the SPMT 175-check suite passed its independent
+second-account isolation, optimistic-conflict `409`, missing `If-Match` `428`,
+export, reset, and database-persistence cases. SpaceMountain's 18-check
+workspace suite passed portable restore, revision conflict/reload, failed-save
+retry, account-switch guards, and no-token-in-profile/browser handling; its
+typecheck and production build also passed. A signed embed loaded the real
+account-backed StreamWeaver lane. The checkbox stays open because only one real
+human account was available in the browser session; the second real account and
+second physical-device proof cannot be replaced by fixtures.
 
 ### 2026-07-18 Gate 1–2 finishing evidence
 
@@ -353,7 +363,8 @@ release.
 | OBS approved-library jingle playback | Operator | Start OBS and Companion, select an existing media input and approved local file, then prove restart playback without arbitrary path access |
 | Reviewed song manifest and output detection | Done | Companion tests prove local review, bounded manifest creation, no second approval after relay approval, and named-output detection |
 | Licensed renderer execution | Operator | Select a documented, locally installed renderer and add an explicitly allowlisted adapter; no undocumented VOCALOID CLI is assumed |
-| Signed installer, update, friendly device enumeration, and global PTT | Operator | Remain desktop production gates; current source supports tray/single-instance behavior, managed restart, and an output-device ID |
+| Signed installer and updates | Source ready; credential blocked | Companion `0.3.0` uses `electron-updater`, publishes `latest.yml` plus blockmaps, checks on startup and every six hours, exposes a manual check, and asks before restart/install. The release workflow fails closed unless `WINDOWS_CERTIFICATE_P12` and `WINDOWS_CERTIFICATE_PASSWORD` exist. No trusted code-signing certificate is installed locally or configured in GitHub, so a signed public installer cannot yet be produced. |
+| Friendly device enumeration and global PTT | Operator | Current source retains the output-device ID and local PTT controls; real device enumeration/global hotkey behavior still needs a desktop design and operator proof. |
 | Persistent SpaceMountain dock tray | Source done | The three account-backed slots now remain fixed at the bottom while another app is active; deploy and verify all three headers plus an expanded cross-origin app on desktop and mobile |
 | Companion personal overlay window | Source done | Companion now opens the controls-free `desktopOverlay=1` SpaceMountain canvas in its transparent Electron window, restores prior visibility, and exposes click-through, opacity, and always-on-top controls; package and prove it above a real desktop app |
 | Shared UI effect parity | Source done | DSH, HearMeOut, StreamWeaver, and ChatTag now consume shared color plus glass, blur, radius, star-density, and motion effects; StreamWeaver has account-backed app-only trims and ChatTag has an explicit follow/local switch |
@@ -383,7 +394,7 @@ StreamWeaver generation hardening remains an app track, not a Gate 0–2 blocker
 
 The former StreamWeaver Kick broadcast TODO is folded here as deferred app-track work: cross-channel ChatTag broadcast slug resolution, non-tenant Kick listening, and Kick AI/TTS response parity must use the current Kick public API contract and tenant/provider grants. It is not a separate active queue and does not override Gates 0–3.
 
-HearMeOut media consolidation remains an app track, not a Gate 0–2 blocker: preserve the movie-style watch-session contract as the backbone; adapt music into the same accepted media contract; keep voice separate; align watch page, Discord Activity, rooms, and overlay players; add separate OBS media/voice outputs; add telemetry and playback smoke tests; deprecate old routes only after usage evidence. `hearmeout-main/docs/HEARMEOUT_MEDIA_ROUTE_INVENTORY.md` remains the evidence inventory, while this roadmap owns the queue.
+HearMeOut media consolidation remains an app track, not a Gate 0–2 blocker: preserve the movie-style watch-session contract as the backbone; adapt music into the same accepted media contract; keep voice separate; align watch page, Discord Activity, rooms, and overlay players; add separate OBS media/voice outputs; add telemetry and playback smoke tests; deprecate old routes only after usage evidence. On 2026-07-28 the duplicate root Activity routes and legacy music state/control routes became compatibility wrappers around the canonical watch-session handlers, and legacy Activity/music/DJ-debug hits gained privacy-safe `[RouteTelemetry]` records. No route or dead file was removed because the required observation window has not elapsed. `hearmeout-main/docs/HEARMEOUT_MEDIA_ROUTE_INVENTORY.md` remains the evidence inventory, while this roadmap owns the queue.
 
 ## Direct Answers To The Current Questions
 
@@ -844,6 +855,16 @@ labels, glass/solid/minimal styles, configurable duration, clear, optional
 queue auto-advance, and an empty transparent state. Real OBS playback remains
 an operator proof gate.
 
+2026-07-28 signed operator proof: SpaceMountain loaded the signed Live Chat
+embed for tenant `94371378` and simultaneously rendered current Twitch and
+Discord records. A harmless Twitch status message was pinned, queued, advanced,
+and featured. The public OBS browser-source route rendered the correct
+platform/channel/sender/message, then returned to its transparent empty state
+after the configured 15-second duration. Temporary pins were removed and the
+queue returned to zero. Reply and audible TTS were deliberately not transmitted
+during this non-disruptive proof, so those two side effects remain explicit
+operator checks.
+
 ### Gate 3 exit criteria
 
 - Two real sources stream simultaneously into one account.
@@ -864,9 +885,10 @@ an operator proof gate.
   APIs reject with `401`; `/shared-chat` redirects to login; the featured OBS
   page loads publicly; and its tenant-scoped data feed returns `200` with a
   transparent empty payload.
-- Gate 3 is not certified complete until a signed operator session proves the
-  Commlink embed and two real sources prove ingest, reconnect/dedupe,
-  feature/queue/pin, TTS, Twitch reply, OBS output, and tenant isolation.
+- The signed Commlink embed, simultaneous Twitch/Discord rendering,
+  feature/queue/pin controls, timed clearing, and public OBS output are proven.
+  Gate 3 remains open for reconnect/dedupe under forced interruption, audible
+  TTS, a transmitted Twitch reply, and cross-tenant feed/reply denial.
 - Mail and live chat remain distinct data types even though they share one workspace.
 
 ## Production Gate 4 — Overlay Studio And Stable URLs

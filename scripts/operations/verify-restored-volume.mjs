@@ -11,8 +11,8 @@ const profiles = {
     expectedTables: ['users', 'messages', 'notifications'],
   },
   spacemountain: {
-    requiredAny: ['app.db', 'spmt.db', 'runtime-config.json'],
-    sqlite: ['app.db', 'spmt.db'],
+    requiredAny: ['database.db', 'app.db', 'spmt.db', 'runtime-config.json'],
+    sqlite: ['database.db', 'app.db', 'spmt.db'],
     json: ['runtime-config.json'],
   },
   streamweaver: {

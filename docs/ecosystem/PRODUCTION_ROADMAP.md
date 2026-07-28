@@ -345,8 +345,8 @@ release.
 | Untrusted retrieved-context boundary | Done | Prompt contract labels retrieved material as untrusted and applies source, uncertainty, safe-search, timeout, cache, and allowlist bounds |
 | Automated tenant isolation | Done | Research state is tenant/platform/channel/user scoped and the focused settings/intent suite passes |
 | Live two-tenant Twitch and Discord matrix | Operator | Use two real tenants concurrently and prove one tenant cannot arm, retrieve, configure, or answer through the other |
-| SPMT relay and SDK `0.2.1` | Done | SPMT production readiness reports merge SHA `48615d9c665a793bab58a36177a4edde6564033d`; SDK metadata and versioned tarball are live |
-| StreamWeaver cloud deployment | Done | Production health reports current SHA `9ad0ff20b3f7b57e4ab1bf04f0cb2656a0fbd142`; research/Companion merge `776d51299ed4d5a5556ccc68173796d26ceb41c1` is in its ancestry |
+| SPMT relay and SDK `0.2.1` | Done | Relay/SDK merge `48615d9c665a793bab58a36177a4edde6564033d` is in current-main ancestry; SDK metadata and versioned tarball are live |
+| StreamWeaver cloud deployment | Done | Research/Companion merge `776d51299ed4d5a5556ccc68173796d26ceb41c1` and no-key default merge `d91af1723cdbee923c6a4d3a8dd2ca42ac4fee70` are in current-main ancestry |
 | Companion harmless `test.echo` locally | Done | Companion syntax and workflow suite pass; it performs no file, OBS, audio, browser, or process work |
 | Real paired-device `test.echo` | Operator | Companion is not currently installed/running on the operator PC; pair it to SPMT and record accepted, delivered, completed, and audit states |
 | Approval, rejection, expiry, replay, and revocation | Operator | Automated contract coverage exists; run the matrix through a real paired Companion and verify stale or revoked work cannot execute |
@@ -360,6 +360,11 @@ release.
 This worksheet closes the cloud deployment and SHA-parity items for this slice.
 It does not convert the paired-device, OBS, renderer, installer, or two-tenant
 operator rows into source-only claims.
+
+Exact current SHA is deliberately not frozen into this worksheet because the
+documentation commit itself advances `main`. Certification must compare
+`origin/main` with the live health/build label at verification time; on
+2026-07-28 that dynamic comparison passed for both StreamWeaver and SPMT.
 
 Browser-persistence audit snapshot after the 2026-07-17 hardening pass:
 

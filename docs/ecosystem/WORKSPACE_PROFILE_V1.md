@@ -24,6 +24,34 @@ The `workspace_profiles` table stores:
 
 Every current SpaceMountain appearance control is represented, including theme, glow, stars, glass, blur, nebula, parallax, borders, radius, density, navigation layout, chat appearance, motion, particles, and push-to-talk preference.
 
+### Consumer appearance behavior
+
+Consumer apps map the shared contract onto semantic UI surfaces rather than
+copying SpaceMountain's component markup. The current first-party adapters use:
+
+| Shared setting | Consumer effect |
+| --- | --- |
+| Theme, glow, nebula, stars | Page palette and the app-owned cosmic background |
+| Glass opacity, blur, border, radius | Top bars, sidebars, cards, and marked chat surfaces |
+| Density | Main workspace padding and spacing |
+| Sidebar collapsed/style/position | Icon-width navigation, docked/floating/hidden presentation, and left/right placement where the app has a sidebar |
+| Top-bar style | Transparent or blurred glass top bar |
+| Tab style/position | Pills, underline, or cards; top, bottom, left, or right for Radix tab groups |
+| Chat transparency | Marked Discord, StreamWeaver, and HearMeOut message surfaces |
+| Show avatars | Shared avatar primitives; names and message text remain visible |
+| Motion, smooth transitions, particles, shooting stars, speed | App animation suppression, app-owned particle layers, and the shared shooting-star accent |
+
+Settings that do not correspond to a surface in an app are ignored safely.
+For example, ChatTag has no persistent application sidebar, and
+push-to-talk remains a device/app preference interpreted only by voice-capable
+clients. OBS output routes are excluded from these shell adapters so account UI
+choices cannot accidentally make a browser source opaque.
+
+Every app retains a visible `follow SpaceMountain theme` choice or an
+equivalent app-owned fallback. Turning follow mode off clears the workspace
+attributes before applying local settings. App-only trims remain in the owning
+app and are not added to `WorkspaceProfileV1`.
+
 Dock URLs must use HTTPS. SPMT rejects URL query parameters whose names look like credentials, tokens, passwords, sessions, secrets, or API keys. The profile must never contain provider credentials.
 
 ## API

@@ -16,8 +16,8 @@
     "test": "npm run typecheck && npm run build && npm run sdk:package && npm run smoke"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "better-sqlite3": "^12.11.1",
-    "bcrypt": "^5.1.1",
     "cookie-parser": "^1.4.7",
     "crypto-randomuuid": "^1.0.0",
     "dotenv": "^17.2.3",

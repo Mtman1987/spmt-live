@@ -847,6 +847,22 @@ an operator proof gate.
 - Feature/queue/pin/TTS/reply are verified against real sources.
 - Tenant A cannot subscribe or reply to tenant B.
 - A bot can be granted read-only feed access without reply access.
+
+2026-07-28 deployment evidence:
+
+- StreamWeaver commit `a92302e31f00f6b22e70ec7dd7240af6345e75a2`
+  deployed successfully in Actions run `30335155411`; Fly machine health and
+  `/api/health` report the same SHA.
+- SpaceMountain commit `837306138d35cc1f116e332ceb9184abc3f70b32`
+  deployed successfully in Actions run `30334666865`; Fly reports the same
+  build SHA.
+- Live unauthenticated checks prove replay, SSE, operator, and bridge-health
+  APIs reject with `401`; `/shared-chat` redirects to login; the featured OBS
+  page loads publicly; and its tenant-scoped data feed returns `200` with a
+  transparent empty payload.
+- Gate 3 is not certified complete until a signed operator session proves the
+  Commlink embed and two real sources prove ingest, reconnect/dedupe,
+  feature/queue/pin, TTS, Twitch reply, OBS output, and tenant isolation.
 - Mail and live chat remain distinct data types even though they share one workspace.
 
 ## Production Gate 4 — Overlay Studio And Stable URLs

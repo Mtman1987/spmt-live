@@ -406,25 +406,36 @@ Decision:
 
 ### Is the inbox like Social Stream Ninja now?
 
-No. It is improved Commlink, not a Social Stream-style combined chat dock.
+Partially. Commlink now has first-class Mail, Live Chat, Notifications, and App
+Events lanes. Live Chat opens StreamWeaver's authenticated tenant dock through
+the signed embed handoff instead of copying high-volume viewer chat into SPMT.
 
-What exists:
+What exists as of 2026-07-28:
 
-- SPMT direct/group/app messages.
-- Search and basic filters.
-- Notifications with read-one/read-all.
-- A nearby combined app-event timeline.
+- Normalized Twitch, YouTube, Kick, Discord, and Social Stream bridge events.
+- Bounded tenant replay, deduplication, validation dead letters, cursor polling,
+  and platform/source/channel/text/type filters.
+- Source/channel cards, roles, badges, donations, memberships, media links,
+  connection/degraded state, and stable source IDs.
+- Tenant-persisted pin, queue, feature, auto-show, next, and clear controls.
+- Separate Commlink lanes for mail, live chat, notifications, and app events.
+- Authenticated SSE push with automatic reconnect plus polling fallback.
+- Per-user read cursors and saved filters.
+- Manual TTS listen/stop and destination-validated Twitch replies.
+- A transparent featured-message browser source with style, duration, clear,
+  and optional queue auto-advance.
+- Bridge heartbeat, stale-health reporting, bounded persistent dedupe cursor,
+  and reconnect state.
 
 What is missing:
 
-- Normalized live Twitch/YouTube/Kick/Discord/Social Stream messages.
-- Source/channel badges, donations, memberships, media, replies, and stable source IDs.
-- Pin, queue, feature, auto-show, next, and clear-feature controls.
-- Reply routing back to the correct source.
-- Per-source filters and operator modes.
-- Replay, retention, deduplication, and reconnect behavior.
+- Verified reply and moderation adapters for Discord, YouTube, Kick, and
+  Social Stream. Twitch reply is enabled; moderation remains disabled.
+- Shared-mixer routing and explicit collaborator operator/viewer grants. Manual
+  dock TTS is implemented.
 - Bot feed subscriptions and per-bot reply permissions.
-- A selected-message browser-source overlay.
+- Live two-source, OBS browser-source, TTS, reply, reconnect, and tenant
+  isolation operator proof.
 
 The target is one Commlink workspace with separate but connected lanes for Mail, Live Chat, Notifications, and App Events. High-volume raw chat remains owned by StreamWeaver; SPMT indexes safe summaries and authorization metadata rather than duplicating every chat database.
 
@@ -750,7 +761,12 @@ StreamWeaver owns a tenant-scoped `SharedChatEventV1` with:
 - `meta` for provider-specific extensions.
 - Deduplication, reflection, and routing markers.
 
-2026-07-24 progress: StreamWeaver now has a typed `SharedChatEventV1` contract and parser covering supported platforms, sender identity, badges/roles, message/media/link/monetization/reply context, timestamps, provider metadata, app-scoped dedupe keys, and explicit tenant isolation/routing markers. The first tests prove valid live-message and donation payloads parse and tenant isolation is mandatory. Ingestion is intentionally not switched yet; existing source listeners can adopt the contract one source at a time.
+2026-07-28 progress: StreamWeaver has the typed `SharedChatEventV1` contract
+and normalizers for Twitch, Discord, YouTube, Kick, and the Social Stream
+bridge. Twitch and Discord listeners plus Social Stream ingress record
+normalized tenant replay events. Tests cover validation, normalization,
+isolation, replay deduplication, dead letters, cursor/query behavior, and
+operator-state isolation.
 
 ### Step 3.2 — Finish ingestion
 
@@ -759,6 +775,17 @@ StreamWeaver owns a tenant-scoped `SharedChatEventV1` with:
 3. Normalize existing Twitch, Discord, Kick, YouTube, and app events into the same contract where available.
 4. Store bounded replay history and retention policy.
 5. Record dead-letter events that fail validation.
+
+2026-07-28 status: items 1, 3, 4, and 5 are implemented. The helper reconnects
+with bounded exponential backoff, sends an explicit tenant header, performs
+WebSocket ping/pong health checks, writes stale-readable health state, and
+persists a bounded dedupe cursor across reconnects. Social Stream does not
+expose a historical replay protocol on this listener path, so the cursor
+prevents duplicate forwarding rather than requesting missed upstream history.
+The local helper now discovers volume-backed
+`config/social-stream-bridges.json`; its supervisor reconciles one isolated
+listener process per enabled tenant and restarts unexpected exits. The bridge
+token remains environment-secret and is not stored in public runtime JSON.
 
 ### Step 3.3 — Expose safe feed APIs
 
@@ -769,6 +796,12 @@ StreamWeaver owns a tenant-scoped `SharedChatEventV1` with:
 5. Reply/send-back capability metadata per source.
 6. Read/unread and per-user cursor state.
 7. Bot subscription scopes and reply destination rules.
+
+2026-07-28 status: bounded history, cursor polling, authenticated SSE,
+platform/source/channel/text/type/role/donation/membership filters, reply
+capability metadata, tenant-persisted feature/pin/queue state, per-user read
+cursors, and saved filters are implemented. Bot subscription scopes remain
+open.
 
 ### Step 3.4 — Rebuild Commlink as four lanes
 
@@ -788,9 +821,24 @@ The Live Chat lane must include:
 - Operator/view-only modes.
 - Connection/replay/degraded indicators.
 
+2026-07-28 status: all four Commlink lanes and the signed StreamWeaver Live
+Chat embed exist. The dock implements source filters, search, source/channel
+cards, roles/badges, donations/memberships/media links, connection/degraded
+status, SSE reconnect, saved filters, per-user unread state, persistent
+pin/queue/feature/next/auto-show/clear controls, manual TTS, and
+destination-validated Twitch replies. Other reply/moderation adapters,
+shared-mixer routing, and explicit collaborator operator grants remain open and
+are labeled rather than simulated.
+
 ### Step 3.5 — Add the featured-message output
 
 Create a clean scene widget and browser-source URL for the selected message. It must support labels, styling, duration, queue advance, clear, and a transparent empty state.
+
+2026-07-28 status: implemented at
+`/overlay/shared-chat-featured?tenant=<TENANT_ID>` with platform/channel/sender
+labels, glass/solid/minimal styles, configurable duration, clear, optional
+queue auto-advance, and an empty transparent state. Real OBS playback remains
+an operator proof gate.
 
 ### Gate 3 exit criteria
 

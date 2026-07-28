@@ -66,9 +66,61 @@ const COMPANION_ACTION_CAPABILITIES: Record<string, string> = {
   'audio.mute': 'audio.control',
   'audio.volume': 'audio.control',
   'media.transcode': 'media.write',
+  'obs.media.play': 'obs.control',
+  'workflow.run': 'workflow.run',
 };
 const COMPANION_CAPABILITIES = [...new Set(Object.values(COMPANION_ACTION_CAPABILITIES))];
 const companionSockets = new Map<string, WebSocket>();
+const COMPANION_WORKFLOWS = new Set(['test.echo', 'audio.jingle.play', 'song.render.request']);
+
+function companionText(value: unknown, max: number) {
+  return String(value || '').trim().slice(0, max);
+}
+
+function validateCompanionPayload(action: string, value: unknown): Record<string, unknown> | null {
+  const payload = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  if (['companion.status', 'overlay.show', 'overlay.hide'].includes(action)) return {};
+  if (['popout.show', 'popout.hide'].includes(action)) {
+    const id = Number(payload.id);
+    return Number.isInteger(id) && id >= 1 && id <= 3 ? { id } : null;
+  }
+  if (action === 'obs.scene.set') {
+    const sceneName = companionText(payload.sceneName, 120);
+    return sceneName ? { sceneName } : null;
+  }
+  if (action === 'audio.mute') return typeof payload.muted === 'boolean' ? { muted: payload.muted } : null;
+  if (action === 'audio.volume') {
+    const volume = Number(payload.volume);
+    return Number.isFinite(volume) && volume >= 0 && volume <= 1 ? { volume } : null;
+  }
+  if (action === 'media.transcode') {
+    const inputName = companionText(payload.inputName, 240);
+    const preset = companionText(payload.preset, 40);
+    return inputName && ['mp4-web', 'audio-mp3', 'gif'].includes(preset) ? { inputName, preset } : null;
+  }
+  if (action === 'obs.media.play') {
+    const mediaName = companionText(payload.mediaName, 240);
+    const obsInputName = companionText(payload.obsInputName, 120);
+    return mediaName && obsInputName ? { mediaName, obsInputName, title: companionText(payload.title, 120) } : null;
+  }
+  if (action === 'workflow.run') {
+    const workflowId = companionText(payload.workflowId, 80);
+    const input = payload.input && typeof payload.input === 'object' && !Array.isArray(payload.input)
+      ? payload.input as Record<string, unknown>
+      : {};
+    if (!COMPANION_WORKFLOWS.has(workflowId) || JSON.stringify(input).length > 20_000) return null;
+    return { workflowId, input };
+  }
+  return null;
+}
+
+function companionRequiresConfirmation(action: string, payload: Record<string, unknown>) {
+  if (action === 'obs.media.play') return true;
+  if (action !== 'workflow.run') return false;
+  return payload.workflowId !== 'test.echo';
+}
 
 type EcosystemAppRecord = {
   id: string;
@@ -1265,7 +1317,7 @@ app.get('/api/platform', (req, res) => {
 app.get('/api/platform/sdk', (req, res) => {
   res.json({
     package: '@spmt/sdk',
-    version: '0.2.0',
+    version: '0.2.1',
     npmPublished: true,
     install: 'npm install @spmt/sdk',
     quickInstall: 'npm exec --yes --package=@spmt/sdk -- spmt install',
@@ -3539,13 +3591,25 @@ app.post('/api/companion/commands', authenticate, (req: any, res) => {
   const capabilities = JSON.parse(device.capabilities || '[]') as string[];
   if (!capabilities.includes(capability)) return res.status(403).json({ error: `Device has not granted ${capability}` });
 
+  const payload = validateCompanionPayload(action, req.body?.payload);
+  if (!payload) return res.status(400).json({ error: 'Companion command payload is invalid' });
+  const requiresConfirmation = Boolean(req.body?.requiresConfirmation) || companionRequiresConfirmation(action, payload);
+  const nowIso = new Date().toISOString();
+  db.prepare(`
+    UPDATE companion_commands
+    SET status = 'expired', completed_at = COALESCE(completed_at, ?)
+    WHERE device_id = ? AND status IN ('queued', 'sent') AND expires_at <= ?
+  `).run(nowIso, deviceId, nowIso);
+  const pendingCount = Number((db.prepare(`
+    SELECT COUNT(*) AS count FROM companion_commands
+    WHERE device_id = ? AND status IN ('queued', 'sent')
+  `).get(deviceId) as any)?.count || 0);
+  if (pendingCount >= 100) return res.status(429).json({ error: 'Companion command queue is full' });
+
   const id = uuidv4();
   const issuedAt = new Date();
-  const expiresAt = new Date(issuedAt.getTime() + 30_000);
+  const expiresAt = new Date(issuedAt.getTime() + (requiresConfirmation ? 10 * 60_000 : 30_000));
   const source = String(req.body?.source || 'spmt').trim().slice(0, 40) || 'spmt';
-  const payload = req.body?.payload && typeof req.body.payload === 'object' && !Array.isArray(req.body.payload)
-    ? req.body.payload
-    : {};
   const envelope = {
     schemaVersion: 1,
     id,
@@ -3557,15 +3621,19 @@ app.post('/api/companion/commands', authenticate, (req: any, res) => {
     capability,
     action,
     payload,
-    requiresConfirmation: Boolean(req.body?.requiresConfirmation),
+    requiresConfirmation,
   };
   const socket = companionSockets.get(deviceId);
   const status = socket?.readyState === WebSocket.OPEN ? 'sent' : 'queued';
   db.prepare(`
     INSERT INTO companion_commands (
-      id, user_id, device_id, source, capability, action, payload, status, result, error, expires_at, created_at, completed_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL)
-  `).run(id, req.user.id, deviceId, source, capability, action, JSON.stringify(payload), status, expiresAt.toISOString(), issuedAt.toISOString());
+      id, user_id, device_id, source, capability, action, payload, status, result, error,
+      requires_confirmation, issued_at, expires_at, created_at, completed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, NULL)
+  `).run(
+    id, req.user.id, deviceId, source, capability, action, JSON.stringify(payload), status,
+    requiresConfirmation ? 1 : 0, issuedAt.toISOString(), expiresAt.toISOString(), issuedAt.toISOString()
+  );
   if (status === 'sent') socket!.send(JSON.stringify(envelope));
   res.status(202).json({ command: { ...envelope, status } });
 });
@@ -3586,6 +3654,8 @@ app.get('/api/companion/commands/:commandId', authenticate, (req: any, res) => {
       status: row.status,
       result: row.result ? JSON.parse(row.result) : null,
       error: row.error,
+      requiresConfirmation: Boolean(row.requires_confirmation),
+      issuedAt: row.issued_at || row.created_at,
       expiresAt: row.expires_at,
       createdAt: row.created_at,
       completedAt: row.completed_at,
@@ -3669,7 +3739,7 @@ companionWss.on('connection', (socket: WebSocket) => {
     socket.send(JSON.stringify({
       schemaVersion: 1,
       id: row.id,
-      issuedAt: row.created_at,
+      issuedAt: row.issued_at || row.created_at,
       expiresAt: row.expires_at,
       userId: row.user_id,
       deviceId: row.device_id,
@@ -3677,7 +3747,7 @@ companionWss.on('connection', (socket: WebSocket) => {
       capability: row.capability,
       action: row.action,
       payload: JSON.parse(row.payload || '{}'),
-      requiresConfirmation: false,
+      requiresConfirmation: Boolean(row.requires_confirmation),
     }));
     db.prepare(`UPDATE companion_commands SET status = 'sent' WHERE id = ?`).run(row.id);
   }

@@ -264,7 +264,7 @@ try {
   const pairResponse = await fetch(`${baseUrl}/api/companion/devices/pair`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
-    body: JSON.stringify({ name: 'Smoke Companion', capabilities: ['companion.status', 'obs.control'] }),
+    body: JSON.stringify({ name: 'Smoke Companion', capabilities: ['companion.status', 'obs.control', 'workflow.run'] }),
   });
   const paired = await pairResponse.json();
   assert.equal(pairResponse.status, 201);
@@ -314,6 +314,40 @@ try {
   assert.equal(companionStatusResponse.status, 200);
   assert.equal(companionStatus.command.status, 'completed');
   assert.equal(companionStatus.command.result.sceneName, 'Starting Soon');
+
+  const workflowMessage = once(companionSocket, 'message');
+  const companionWorkflowResponse = await fetch(`${baseUrl}/api/companion/commands`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({
+      deviceId: paired.device.id,
+      action: 'workflow.run',
+      capability: 'workflow.run',
+      payload: { workflowId: 'test.echo', input: { message: 'smoke test' } },
+      source: 'spmt',
+    }),
+  });
+  const companionWorkflowCommand = await companionWorkflowResponse.json();
+  assert.equal(companionWorkflowResponse.status, 202);
+  assert.equal(companionWorkflowCommand.command.requiresConfirmation, false);
+  const [workflowRaw] = await workflowMessage;
+  const relayedWorkflow = JSON.parse(String(workflowRaw));
+  assert.equal(relayedWorkflow.action, 'workflow.run');
+  assert.equal(relayedWorkflow.payload.workflowId, 'test.echo');
+  companionSocket.send(JSON.stringify({
+    type: 'companion.result',
+    schemaVersion: 1,
+    id: relayedWorkflow.id,
+    ok: true,
+    result: { echoed: 'smoke test', touchedLocalState: false },
+  }));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const companionWorkflowStatusResponse = await fetch(`${baseUrl}/api/companion/commands/${companionWorkflowCommand.command.id}`, {
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const companionWorkflowStatus = await companionWorkflowStatusResponse.json();
+  assert.equal(companionWorkflowStatus.command.status, 'completed');
+  assert.equal(companionWorkflowStatus.command.result.touchedLocalState, false);
   companionSocket.close();
 
   const invalidUsernameResponse = await fetch(`${baseUrl}/api/auth/register`, {

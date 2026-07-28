@@ -73,6 +73,7 @@ SPMT currently tracks the first-party ecosystem apps:
 - HearMeOut - voice rooms, watch parties, shared listening, and media surfaces
 - ChatTag + Quackverse - community games, overlays, rewards, cards, and live play
 - MountainView - future device/app layer for QR, voice, camera, and AR-style workflows
+- SpaceMountain Companion - paired local host for StreamWeaver, OBS, media, audio, and reviewed device workflows
 
 ## Main Platform Areas
 
@@ -183,6 +184,7 @@ Useful entry points:
 - `docs/ecosystem/production-manifest.json` for repository, deployment, health, and ownership inventory
 - `docs/ecosystem/WORKING_METHOD.md` for cross-app sequencing and deployment gates
 - `docs/ecosystem/DOCUMENT_REGISTRY.md` for document ownership and archive rules
+- StreamWeaver's `docs/RESEARCH_AND_CREATIVE_WORKFLOWS.md` for the app-owned bot research and Companion workflow implementation
 - `docs/business/ECOSYSTEM_ROLLOUT_PLAN.md` for product adoption sequencing
 - `docs/DOCS_HOME.md` for the documentation index
 - `spec/README.md` for platform specifications

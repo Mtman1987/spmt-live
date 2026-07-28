@@ -1,6 +1,6 @@
 # Ecosystem Document Registry
 
-Updated: 2026-07-13
+Updated: 2026-07-27
 
 This registry prevents old plans, generated mirrors, and public copy from becoming competing engineering sources of truth.
 
@@ -19,6 +19,7 @@ This registry prevents old plans, generated mirrors, and public copy from becomi
 | Product integration/adoption | `docs/business/ECOSYSTEM_ROLLOUT_PLAN.md` | Product narrative, not an engineering queue |
 | Platform contracts | `docs/platform/` and `spec/` | Update beside contract-changing code |
 | App-specific implementation | Each app repository's `docs/` and tests | App owner is authoritative for its feature internals |
+| StreamWeaver research and Companion creative workflows | `streamweaver/docs/RESEARCH_AND_CREATIVE_WORKFLOWS.md` | App-owned behavior, config ownership, limitations, and focused verification; cross-suite ordering stays in the production roadmap |
 
 ## Mirrored Documents
 

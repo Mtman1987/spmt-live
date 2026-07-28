@@ -9,6 +9,8 @@
 - Athena OS foundation
 - App registry
 - Developer documentation
+- Shared bot research and knowledge-pack beta
+- SpaceMountain Companion reviewed-workflow beta
 
 ## Next
 
@@ -18,6 +20,8 @@
 - SDK package
 - Plugin marketplace hardening
 - More live demos
+- Signed Companion installer and paired-device production tests
+- Approved local creative-renderer integrations
 
 ## Later
 

@@ -40,7 +40,7 @@ The full snapshot below was re-verified on 2026-07-17; the affected SPMT SDK, St
 | Product | Current production state | What is real now | What prevents production-ready status |
 | --- | --- | --- | --- |
 | SPMT (`spmt.live`) | Live, health passing, 12 real users at the latest slice | Identity, sessions, account recovery, partner SDK/app review, apps, Commlink messages/conversations, notifications, events, `WorkspaceProfileV1`, overlay workspace JSON, Athena memory/routes | Owner recovery operations still need a durable admin audit path; app identity adoption is incomplete; event authorization and retention need hardening; legacy overlay/builder storage remains unversioned; Athena reports capabilities it does not execute |
-| SpaceMountain (`spacemountain.live`) | Live, health passing | Suite shell, launcher, rocket arena easter egg, SPMT mail/notifications/events, account-backed appearance and three URL slots, personal overlay canvas, builder definitions, MountainView surface | DiscordStreamHub is the first shared-theme consumer; StreamWeaver, HearMeOut, and ChatTag still need adoption; overlay has no clean output URL; builder test buttons only show notifications; inbox is not a combined live-chat dock; `App.tsx` remains too large and its production bundle still needs code splitting |
+| SpaceMountain (`spacemountain.live`) | Live, health passing; current UI/desktop-overlay update pending deployment | Suite shell, launcher, rocket arena easter egg, SPMT mail/notifications/events, account-backed appearance and three URL slots, personal overlay canvas, builder definitions, MountainView surface | Shared-theme consumers exist for DSH, StreamWeaver, HearMeOut, and ChatTag; the fixed dock tray and Companion personal-overlay route still require deployment and live operator proof; builder execution and `App.tsx` code splitting remain open |
 | StreamWeaver | Live, health passing | Bot/AI runtime, chat processing, TTS, public overlays/listeners, shared TTS mixer, tenant-owned chat/configuration/automation state, automated two-tenant fixture | The full concurrent live-path matrix, provider-token database migration, and canonical XP producer/display adoption remain open |
 | DiscordStreamHub | Live, health passing | Discord interactions, dashboards, community/live state, calendar, shoutout/moderation flows, SPMT event bridge, first real SPMT workspace-theme consumer with retry UI | SPMT identity/session is not the only identity; community authority/spotlight contracts need completion; cross-app events and launch targets need full production verification |
 | HearMeOut + DJ worker | Both live with passing checks | Rooms, LiveKit configuration, watch/listen state, Discord Activity paths, overlays, voice/media event publishing | Media behavior still has multiple truth paths; active work is summarized in this roadmap and the route inventory remains evidence; player/source/Activity/OBS behavior needs contract consolidation and end-to-end tests |
@@ -205,14 +205,14 @@ The same StreamWeaver slice preserves the owner-defined monthly pack pool as an 
 - StreamWeaver's 56-test isolation suite, persistence verifier, lint, typecheck, and 202-page production build pass. The new two-tenant fixture exercises both tenant IDs through the exact state owners named in Gate 1, so that fixture checkbox is complete; it does not replace the still-open live EventSub/walk-on/polling/voice/WebSocket concurrency matrix.
 - SPMT's hosted SDK 0.1.2 contains the versioned `WorkspaceThemeTokensV1` and `workspaceThemeTokens` exports. The 175-check SPMT smoke suite passes, and the versioned tarball is served from the production SPMT SDK mirror.
 - DiscordStreamHub is the first real Gate 2 client adopter. Its authenticated server route reads the signed-in account's workspace profile, derives the shared tokens through `@spmt/sdk`, and applies background, surface, text, accent, radius, density, and motion metadata behind the existing “Follow SpaceMountain theme” switch. Failure stays visible and offers Retry; the local theme path remains available when the switch is off.
-- DSH, HearMeOut, and StreamWeaver are now real shared-theme adopters. ChatTag is the sole remaining app in the four-app shared-client item. The active overlay/TTS/app-theme mapping consumers and the cross-device, second-account, conflict/retry, embedded-app, and no-secret matrix also remain open.
+- DSH, HearMeOut, StreamWeaver, and ChatTag now contain real shared-theme adapters. The active overlay/TTS/app-theme mapping consumers and the cross-device, second-account, conflict/retry, embedded-app, and no-secret matrix remain open.
 - StreamWeaver SeaArt character DMs are a deferred app-track improvement, not a Gate 0–2 closure claim: a tenant-configured character ID routes private app chat and Discord DMs through SeaArt character sessions, uses a separate optional character token, falls back to limited tourist chat when absent, parses streamed text, and removes the temporary upstream session.
 
 ### 2026-07-26 Gate 2 save regression repair and consumer rollout
 
 - SpaceMountain's HttpOnly-session migration had left one broken proxy seam: the same-origin `/api/spmt` proxy did not forward the browser's `If-Match` header, so SPMT correctly rejected workspace writes with HTTP 428 even though the settings UI was signed in. Commit `cdfb0c829b8991933adb0d5bb78ec5552f7427b4` forwards only the required revision header alongside the server-held bearer token and adds a regression check that cookies are not forwarded. GitHub Actions run `30237336724` succeeded and the fresh live process returned health 200. A signed-in user save plus second-device restore remains required before the Gate 2 matrix can close.
 - StreamWeaver commit `38daf35f9d8a2abf1dbb5fd6166cf7bb633bc88e` consumes `WorkspaceThemeTokensV1` through its HttpOnly SPMT session, stores the “Follow SpaceMountain theme” preference as SPMT app state, applies the tokens globally, and exposes loading, local, saving, error, and retry states. Its focused theme test, typecheck, and 212-page production build passed; GitHub Actions run `30238012429` succeeded and live `/api/health` reported the exact commit SHA.
-- HearMeOut already shipped the same shared-client contract in commit `99570a319840b7cee94c07e6936068b1851c18cd`. With DSH, HearMeOut, and StreamWeaver adopted, ChatTag is now the only remaining app-theme consumer in this checklist.
+- HearMeOut already shipped the same shared-client contract in commit `99570a319840b7cee94c07e6936068b1851c18cd`. ChatTag subsequently added the adapter; the 2026-07-28 UI alignment slice adds its missing explicit follow/local switch and makes the appearance metadata visibly affect the app chrome.
 
 ### 2026-07-27 canonical app surfaces, direct routes, and shared TTS mixer
 
@@ -354,6 +354,9 @@ release.
 | Reviewed song manifest and output detection | Done | Companion tests prove local review, bounded manifest creation, no second approval after relay approval, and named-output detection |
 | Licensed renderer execution | Operator | Select a documented, locally installed renderer and add an explicitly allowlisted adapter; no undocumented VOCALOID CLI is assumed |
 | Signed installer, update, friendly device enumeration, and global PTT | Operator | Remain desktop production gates; current source supports tray/single-instance behavior, managed restart, and an output-device ID |
+| Persistent SpaceMountain dock tray | Source done | The three account-backed slots now remain fixed at the bottom while another app is active; deploy and verify all three headers plus an expanded cross-origin app on desktop and mobile |
+| Companion personal overlay window | Source done | Companion now opens the controls-free `desktopOverlay=1` SpaceMountain canvas in its transparent Electron window, restores prior visibility, and exposes click-through, opacity, and always-on-top controls; package and prove it above a real desktop app |
+| Shared UI effect parity | Source done | DSH, HearMeOut, StreamWeaver, and ChatTag now consume shared color plus glass, blur, radius, star-density, and motion effects; StreamWeaver has account-backed app-only trims and ChatTag has an explicit follow/local switch |
 | Tenant uploads/downloads | Deferred | Requires resumability, checksums, quotas, cancellation, malware/content boundaries, and explicit file confirmations |
 | Viewer-submitted creation | Deferred | Do not expose until tenant authorization, moderation, rate/cost limits, review, audit, and abuse controls are complete |
 
@@ -458,15 +461,16 @@ This is Gate 5, after tenant isolation and normalized chat are safe.
 
 ### Do overlays, URL slots, and themes persist across apps now?
 
-Partially, with the first Gate 2 consumer now implemented.
+The owner contract and all four current theme adapters are implemented; desktop and cross-device operator proof is still incomplete.
 
 - `WorkspaceProfileV1` stores every current SpaceMountain appearance control and all three dock slots in the signed-in SPMT account with validation and revision conflicts.
 - SpaceMountain migrates `spmtEmbedSlots` once, uses an account-specific local cache only for startup/offline visibility, and shows save, retry, conflict, reload, and reset states.
-- Overlay widget positions and builder rows still share the legacy `spmt-live.overlay_workspaces` blob and must be split into versioned scene and workflow records.
-- Other apps do not consume shared theme tokens yet.
-- The overlay still renders only on top of SpaceMountain; there is no controls-free OBS/browser-source route.
+- Overlay widget positions still load through the legacy compatibility workspace while versioned overlay scenes are the long-term owner; builder rows have a separate versioned workflow contract.
+- DiscordStreamHub, StreamWeaver, HearMeOut, and ChatTag consume the shared theme tokens and retain app-owned fallback or fine-tuning controls.
+- SpaceMountain exposes a controls-free `?desktopOverlay=1` canvas for the local Companion. Electron owns transparency, click-through, always-on-top, opacity, remembered bounds, and restart restoration.
+- The three account-backed URL slots are a fixed bottom tray so an active embedded app no longer pushes them below the viewport.
 
-Tickets 13 through 15 are complete for the owner plus first consumer. Gate 2 remains open for overlay/TTS selectors and one-at-a-time app theme adoption. Gate 4 creates the actual overlay studio and output URLs.
+Gate 2 remains open only for the live cross-device/account/conflict/no-secret matrix. The Companion overlay still needs a packaged Windows build and real desktop operator proof before it is production-certified.
 
 ### Can the glasses connect directly to the cloud without the mobile app?
 

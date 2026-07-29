@@ -6,6 +6,7 @@ export type XpBalanceMigrationResult = {
   observedBalance: number;
   previousSourceBalance: number;
   adjustment: number;
+  migrationVersion: number;
   totalXp: number;
   migratedAt: string;
 };
@@ -16,6 +17,7 @@ export function migrateLegacyXpBalance(
     userId: string;
     sourceApp: string;
     observedBalance: number;
+    migrationVersion: number;
     entryId: string;
     idempotencyKey: string;
     migratedAt: string;
@@ -24,7 +26,7 @@ export function migrateLegacyXpBalance(
 ): XpBalanceMigrationResult {
   return database.transaction(() => {
     const existing = database.prepare(`
-      SELECT observed_balance, previous_source_balance, adjustment, migrated_at
+      SELECT observed_balance, previous_source_balance, adjustment, migration_version, migrated_at
       FROM xp_balance_migrations
       WHERE user_id = ? AND source_app = ?
     `).get(input.userId, input.sourceApp) as any;
@@ -32,13 +34,14 @@ export function migrateLegacyXpBalance(
       'SELECT COALESCE(SUM(delta), 0) AS xp FROM xp_ledger WHERE user_id = ?'
     ).get(input.userId) as any)?.xp || 0);
 
-    if (existing) {
+    if (existing && Number(existing.migration_version) >= input.migrationVersion) {
       return {
         migrated: false,
         sourceApp: input.sourceApp,
         observedBalance: Number(existing.observed_balance),
         previousSourceBalance: Number(existing.previous_source_balance),
         adjustment: Number(existing.adjustment),
+        migrationVersion: Number(existing.migration_version),
         totalXp: total(),
         migratedAt: String(existing.migrated_at),
       };
@@ -74,14 +77,21 @@ export function migrateLegacyXpBalance(
     }
     database.prepare(`
       INSERT INTO xp_balance_migrations
-        (user_id, source_app, observed_balance, previous_source_balance, adjustment, migrated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+        (user_id, source_app, observed_balance, previous_source_balance, adjustment, migration_version, migrated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, source_app) DO UPDATE SET
+        observed_balance = excluded.observed_balance,
+        previous_source_balance = excluded.previous_source_balance,
+        adjustment = xp_balance_migrations.adjustment + excluded.adjustment,
+        migration_version = excluded.migration_version,
+        migrated_at = excluded.migrated_at
     `).run(
       input.userId,
       input.sourceApp,
       input.observedBalance,
       previousSourceBalance,
       adjustment,
+      input.migrationVersion,
       input.migratedAt,
     );
 
@@ -91,6 +101,7 @@ export function migrateLegacyXpBalance(
       observedBalance: input.observedBalance,
       previousSourceBalance,
       adjustment,
+      migrationVersion: input.migrationVersion,
       totalXp: total(),
       migratedAt: input.migratedAt,
     };

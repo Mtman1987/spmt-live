@@ -3117,8 +3117,10 @@ app.post('/api/platform/xp/migrate-balance', authenticatePlatformKey('xp:write')
     }
     const userId = String(req.body?.userId || '').trim();
     const observedBalance = Number(req.body?.observedBalance);
-    if (!userId || !Number.isInteger(observedBalance) || observedBalance < 0 || observedBalance > 100_000_000) {
-      return res.status(400).json({ error: 'userId and a bounded non-negative observedBalance are required' });
+    const migrationVersion = Number(req.body?.migrationVersion || 1);
+    if (!userId || !Number.isInteger(observedBalance) || observedBalance < 0 || observedBalance > 100_000_000
+      || !Number.isInteger(migrationVersion) || migrationVersion < 1 || migrationVersion > 100) {
+      return res.status(400).json({ error: 'userId, migrationVersion, and a bounded non-negative observedBalance are required' });
     }
     if (!getUserById(userId)) return res.status(404).json({ error: 'User not found' });
     const metadata = req.body?.metadata ?? {};
@@ -3128,8 +3130,9 @@ app.post('/api/platform/xp/migrate-balance', authenticatePlatformKey('xp:write')
       userId,
       sourceApp,
       observedBalance,
+      migrationVersion,
       entryId: uuidv4(),
-      idempotencyKey: `legacy-balance:${sourceApp}:${userId}`.slice(0, 200),
+      idempotencyKey: `legacy-balance:${sourceApp}:${userId}:${observedBalance}`.slice(0, 200),
       migratedAt,
       metadata: { schemaVersion: 1, migration: 'legacy-source-balance', ...metadata },
     });

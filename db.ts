@@ -324,6 +324,7 @@ export function initDb() {
       observed_balance INTEGER NOT NULL,
       previous_source_balance INTEGER NOT NULL,
       adjustment INTEGER NOT NULL,
+      migration_version INTEGER NOT NULL DEFAULT 1,
       migrated_at TEXT NOT NULL,
       PRIMARY KEY(user_id, source_app),
       FOREIGN KEY(user_id) REFERENCES users(id)
@@ -518,6 +519,7 @@ export function initDb() {
   try { db.exec('ALTER TABLE users ADD COLUMN avatar_url TEXT'); } catch {}
   try { db.exec('ALTER TABLE companion_commands ADD COLUMN requires_confirmation INTEGER NOT NULL DEFAULT 0'); } catch {}
   try { db.exec('ALTER TABLE companion_commands ADD COLUMN issued_at TEXT'); } catch {}
+  try { db.exec('ALTER TABLE xp_balance_migrations ADD COLUMN migration_version INTEGER NOT NULL DEFAULT 1'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN read_at TEXT'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN channel TEXT DEFAULT "direct"'); } catch {}
   try { db.exec('ALTER TABLE messages ADD COLUMN conversation_id TEXT'); } catch {}

@@ -367,13 +367,49 @@ release.
 | Friendly device enumeration and global PTT | Operator | Current source retains the output-device ID and local PTT controls; real device enumeration/global hotkey behavior still needs a desktop design and operator proof. |
 | Persistent SpaceMountain dock tray | Source done | The three account-backed slots now remain fixed at the bottom while another app is active; deploy and verify all three headers plus an expanded cross-origin app on desktop and mobile |
 | Companion personal overlay window | Source done | Companion now opens the controls-free `desktopOverlay=1` SpaceMountain canvas in its transparent Electron window, restores prior visibility, and exposes click-through, opacity, and always-on-top controls; package and prove it above a real desktop app |
-| Shared UI effect parity | Source done | DSH, HearMeOut, StreamWeaver, and ChatTag now consume shared color plus glass, blur, radius, star-density, and motion effects; StreamWeaver has account-backed app-only trims and ChatTag has an explicit follow/local switch |
+| Shared UI effect parity | Source done | DSH, HearMeOut, StreamWeaver, and ChatTag now map shared density, sidebar collapse/style/position, top-bar style, tab style/position, avatar visibility, chat transparency, glass/blur/border/radius, particles, shooting stars, animation speed, and motion to semantic app surfaces; unsupported surfaces are ignored and each app keeps its local fallback |
 | Tenant uploads/downloads | Deferred | Requires resumability, checksums, quotas, cancellation, malware/content boundaries, and explicit file confirmations |
 | Viewer-submitted creation | Deferred | Do not expose until tenant authorization, moderation, rate/cost limits, review, audit, and abuse controls are complete |
 
 This worksheet closes the cloud deployment and SHA-parity items for this slice.
 It does not convert the paired-device, OBS, renderer, installer, or two-tenant
 operator rows into source-only claims.
+
+#### Final shared-UI and desktop operator pass
+
+Run this matrix after the other production task has deployed exact source
+parity. Test one signed-in owner account first, then a second account to prove
+isolation.
+
+- [ ] Change theme colors, glow, stars, nebula, glass, blur, borders, and radius
+  in SpaceMountain; refresh StreamWeaver, DSH, HearMeOut, and ChatTag and verify
+  each follows without making text unreadable.
+- [ ] Test compact, comfortable, and spacious density at desktop and mobile
+  widths.
+- [ ] Test docked, floating, and hidden sidebars plus collapsed/expanded and
+  left/right placement in StreamWeaver, DSH, and HearMeOut. ChatTag has no
+  persistent sidebar and should remain stable.
+- [ ] Test transparent/glass top bars and pills/underline/cards tabs. For Radix
+  tab groups also test top/bottom/left/right placement and keyboard focus.
+- [ ] Turn avatars off and confirm names, messages, tooltips, and navigation
+  remain understandable.
+- [ ] Set chat opacity low/high in StreamWeaver raw chat, DSH Discord messages,
+  and HearMeOut Space Mountain chat; Twitch's cross-origin iframe retains its
+  provider styling.
+- [ ] Disable particles, shooting stars, smooth transitions, and all motion in
+  turn; confirm reduced-motion mode has no lingering decorative animation.
+- [ ] Turn follow mode off in each app, change its local theme/tuning, refresh,
+  then re-enable follow mode and verify the account workspace wins again.
+- [ ] Expand all three fixed SpaceMountain docks over another desktop app and
+  at a mobile width; verify headers, collapse, volume/mute, and cross-origin
+  content remain usable.
+- [ ] Install/run Companion `0.2.1`, open the personal overlay, and verify
+  transparency, opacity, click-through, always-on-top above a real application,
+  multi-monitor placement, hide/show, and restart restoration.
+- [ ] Sign out, sign in as a second tenant, and verify no appearance, local
+  fallback, dock URL, overlay state, or app-owned setting crosses accounts.
+- [ ] Record deployed SHA parity and screenshots for one desktop and one mobile
+  width before changing this row from source done to operator verified.
 
 Exact current SHA is deliberately not frozen into this worksheet because the
 documentation commit itself advances `main`. Certification must compare

@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import 'dotenv/config';
+import { reconcileMisroutedProviderXp } from './identity-reconciliation.js';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || Boolean(process.env.FLY_APP_NAME);
 const PERSISTENT_DATABASE_ROOT = path.resolve('/data');
@@ -528,6 +529,11 @@ export function initDb() {
   try { db.exec('ALTER TABLE app_submissions ADD COLUMN reviewed_at TEXT'); } catch {}
   try { db.exec('ALTER TABLE app_submissions ADD COLUMN review_notes TEXT'); } catch {}
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS app_submissions_user_app ON app_submissions(user_id, app_id) WHERE app_id IS NOT NULL');
+
+  const identityReconciliation = reconcileMisroutedProviderXp(db);
+  if (identityReconciliation.xpRowsMoved > 0) {
+    console.warn('Reconciled XP from cross-provider imported identities', identityReconciliation);
+  }
 
   seedOauthClient(
     'spacemountain-live',

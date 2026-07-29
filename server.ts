@@ -13,6 +13,7 @@ import {
   validateWorkspaceProfile,
   type WorkspaceProfileV1,
 } from './workspace-profile.js';
+import { migrateLegacyXpBalance } from './xp-balance-migration.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -3105,6 +3106,39 @@ app.post('/api/platform/xp', authenticatePlatformKey('xp:write'), (req: any, res
     res.status(201).json({ awarded: true, duplicate: false, entry: { id, userId, sourceApp, eventType, delta, metadata, createdAt } });
   } catch (error: any) {
     res.status(error.statusCode || 400).json({ error: error.message || 'XP could not be awarded' });
+  }
+});
+
+app.post('/api/platform/xp/migrate-balance', authenticatePlatformKey('xp:write'), (req: any, res) => {
+  try {
+    const sourceApp = validateRecordSlug(req.body?.sourceApp || req.platformKey.appId, 'sourceApp');
+    if (!req.platformKey.appId || sourceApp !== req.platformKey.appId) {
+      return res.status(403).json({ error: 'Legacy XP migration requires a matching app-bound key' });
+    }
+    const userId = String(req.body?.userId || '').trim();
+    const observedBalance = Number(req.body?.observedBalance);
+    if (!userId || !Number.isInteger(observedBalance) || observedBalance < 0 || observedBalance > 100_000_000) {
+      return res.status(400).json({ error: 'userId and a bounded non-negative observedBalance are required' });
+    }
+    if (!getUserById(userId)) return res.status(404).json({ error: 'User not found' });
+    const metadata = req.body?.metadata ?? {};
+    assertPublicAppState(metadata, 'metadata');
+    const migratedAt = new Date().toISOString();
+    const result = migrateLegacyXpBalance(db, {
+      userId,
+      sourceApp,
+      observedBalance,
+      entryId: uuidv4(),
+      idempotencyKey: `legacy-balance:${sourceApp}:${userId}`.slice(0, 200),
+      migratedAt,
+      metadata: { schemaVersion: 1, migration: 'legacy-source-balance', ...metadata },
+    });
+    res.status(result.migrated ? 201 : 200).json(result);
+  } catch (error: any) {
+    res.status(error.statusCode || 400).json({
+      error: error.message || 'Legacy XP balance could not be migrated',
+      previousSourceBalance: error.previousSourceBalance,
+    });
   }
 });
 

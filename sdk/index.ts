@@ -455,6 +455,7 @@ export const SPMT_XP_EVENT_MAP_V1 = {
   'chat-tag.bingo.square': { sourceApp: 'chat-tag', eventType: 'chat-tag-bingo-square', defaultDelta: 10 },
   'chat-tag.bingo.win': { sourceApp: 'chat-tag', eventType: 'chat-tag-bingo-win', defaultDelta: 250 },
   'dsh.discord.message': { sourceApp: 'discord-stream-hub', eventType: 'dsh-discord-message', defaultDelta: 1 },
+  'dsh.twitch.message': { sourceApp: 'discord-stream-hub', eventType: 'dsh-twitch-message', defaultDelta: 10 },
   'dsh.twitch.follow': { sourceApp: 'discord-stream-hub', eventType: 'dsh-twitch-follow', defaultDelta: 25 },
   'dsh.twitch.raid': { sourceApp: 'discord-stream-hub', eventType: 'dsh-twitch-raid', defaultDelta: 50 },
   'dsh.twitch.sub': { sourceApp: 'discord-stream-hub', eventType: 'dsh-twitch-sub', defaultDelta: 100 },

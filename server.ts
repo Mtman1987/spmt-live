@@ -145,7 +145,7 @@ type EcosystemAppRecord = {
 };
 
 const COMPANION_DOWNLOAD_URL = 'https://spmt.live/downloads/companion/windows';
-const COMPANION_GITHUB_RELEASE_API = 'https://api.github.com/repos/Mtman1987/streamweaver/releases/tags/companion-unsigned-v0.3.0.1';
+const COMPANION_RELEASE_DOWNLOAD_URL = 'https://github.com/Mtman1987/streamweaver/releases/download/companion-unsigned-v0.3.0.1/SpaceMountain-Companion-0.3.0-unsigned-portable.zip';
 
 const SUITE_APPS: EcosystemAppRecord[] = [
   {
@@ -1729,65 +1729,8 @@ app.get('/api/apps', (req, res) => {
   res.json({ apps: buildAppsForUser(userId) });
 });
 
-type CompanionReleaseCache = {
-  expiresAt: number;
-  installerUrl?: string;
-  tag?: string;
-  message?: string;
-};
-let companionReleaseCache: CompanionReleaseCache | null = null;
-
-async function resolveSignedCompanionRelease(): Promise<CompanionReleaseCache> {
-  if (companionReleaseCache && companionReleaseCache.expiresAt > Date.now()) return companionReleaseCache;
-  try {
-    const response = await fetch(COMPANION_GITHUB_RELEASE_API, {
-      headers: {
-        accept: 'application/vnd.github+json',
-        'user-agent': 'spmt-live-companion-download',
-        'x-github-api-version': '2022-11-28',
-      },
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!response.ok) throw new Error(`GitHub release lookup returned ${response.status}`);
-    const release = await response.json() as any;
-    const assets = Array.isArray(release.assets) ? release.assets : [];
-    const archive = assets.find((asset: any) => /^SpaceMountain-Companion-\d+\.\d+\.\d+-unsigned-portable\.zip$/.test(String(asset.name)));
-    const requiredNames = archive ? [
-      `${archive.name}.sha256`,
-      'companion-unsigned.json',
-    ] : [];
-    const complete = archive
-      && release.draft !== true
-      && release.prerelease === true
-      && requiredNames.every((name) => assets.some((asset: any) => asset.name === name));
-    if (!complete) {
-      throw new Error('The unsigned Companion release is incomplete');
-    }
-    companionReleaseCache = {
-      expiresAt: Date.now() + 5 * 60 * 1000,
-      installerUrl: String(archive.browser_download_url),
-      tag: String(release.tag_name || ''),
-    };
-  } catch (error) {
-    companionReleaseCache = {
-      expiresAt: Date.now() + 30 * 1000,
-      message: error instanceof Error ? error.message : 'Signed Companion release is unavailable',
-    };
-  }
-  return companionReleaseCache;
-}
-
-app.get('/downloads/companion/windows', async (_req, res) => {
-  const release = await resolveSignedCompanionRelease();
-  if (release.installerUrl) return res.redirect(302, release.installerUrl);
-  res.status(503).type('html').send(`<!doctype html>
-    <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-    <title>Companion download unavailable</title></head>
-    <body style="margin:0;background:#070b16;color:#e5e7eb;font:16px system-ui;display:grid;min-height:100vh;place-items:center">
-      <main style="max-width:620px;padding:32px"><h1>Companion download is temporarily unavailable</h1>
-      <p>The unsigned portable ZIP could not be resolved. Please try again shortly.</p>
-      <p><a style="color:#67e8f9" href="/#apps">Return to Apps + SSO</a></p></main>
-    </body></html>`);
+app.get('/downloads/companion/windows', (_req, res) => {
+  res.redirect(302, COMPANION_RELEASE_DOWNLOAD_URL);
 });
 
 app.post('/api/events', authenticate, (req: any, res) => {

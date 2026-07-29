@@ -26,7 +26,8 @@
       "url": "https://spmt.live/downloads/companion/windows",
       "downloadUrl": "https://spmt.live/downloads/companion/windows",
       "distribution": "windows-desktop",
-      "description": "Signed Windows desktop companion for local overlays, OBS, approved media, and reviewed workflows.",
+      "signed": false,
+      "description": "Unsigned portable Windows companion for local overlays, OBS, approved media, and reviewed workflows.",
       "scopes": ["companion.status", "overlay.control", "obs.control", "audio.control", "workflow.run"]
     },
     {

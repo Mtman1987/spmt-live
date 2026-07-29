@@ -790,6 +790,7 @@ try {
   assert.equal(companionApp.distribution, 'windows-desktop');
   assert.equal(companionApp.downloadUrl, 'https://spmt.live/downloads/companion/windows');
   assert.equal(companionApp.permissions.includes('workflow.run'), true);
+  assert.equal(companionApp.signed, false);
 
   const deniedReviewResponse = await fetch(`${baseUrl}/api/platform/apps/review`, {
     headers: { Authorization: `Bearer ${registration.token}` },

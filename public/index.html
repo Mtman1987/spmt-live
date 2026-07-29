@@ -633,9 +633,9 @@
       const render = (app) => {
         const isDesktop = app.distribution === 'windows-desktop';
         const primaryUrl = isDesktop ? (app.downloadUrl || app.url) : (app.authUrl || app.url);
-        const primaryLabel = isDesktop ? 'Download for Windows' : 'Sign In / Launch';
+        const primaryLabel = isDesktop && app.signed === false ? 'Download unsigned ZIP' : isDesktop ? 'Download for Windows' : 'Sign In / Launch';
         const secondary = isDesktop
-          ? '<span class="badge good">Authenticode + auto-update</span>'
+          ? `<span class="badge ${app.signed === false ? 'warn' : 'good'}">${app.signed === false ? 'Unsigned portable beta' : 'Authenticode + auto-update'}</span>`
           : `<a class="btn" href="${app.url}">Open</a>`;
         return `
         <div class="card app-card span-4">

@@ -141,10 +141,11 @@ type EcosystemAppRecord = {
   permissions?: string[];
   distribution?: 'web' | 'windows-desktop';
   downloadUrl?: string;
+  signed?: boolean;
 };
 
 const COMPANION_DOWNLOAD_URL = 'https://spmt.live/downloads/companion/windows';
-const COMPANION_GITHUB_RELEASE_API = 'https://api.github.com/repos/Mtman1987/streamweaver/releases/latest';
+const COMPANION_GITHUB_RELEASE_API = 'https://api.github.com/repos/Mtman1987/streamweaver/releases/tags/companion-unsigned-v0.3.0.1';
 
 const SUITE_APPS: EcosystemAppRecord[] = [
   {
@@ -190,13 +191,14 @@ const SUITE_APPS: EcosystemAppRecord[] = [
     authUrl: COMPANION_DOWNLOAD_URL,
     downloadUrl: COMPANION_DOWNLOAD_URL,
     distribution: 'windows-desktop',
-    description: 'Signed Windows desktop companion for local overlays, OBS, approved media, and reviewed workflows.',
+    signed: false,
+    description: 'Unsigned portable Windows companion for local overlays, OBS, approved media, and reviewed workflows.',
     category: 'desktop',
-    status: 'connected',
-    version: '0.3.0',
-    latestVersion: '0.3.0',
+    status: 'available',
+    version: '0.3.0-unsigned.1',
+    latestVersion: '0.3.0-unsigned.1',
     updatedAt: '2026-07-29',
-    releaseNotes: ['Download delivery is gated on a validly signed release with updater metadata and checksums.'],
+    releaseNotes: ['Portable ZIP is explicitly unsigned; extract it fully before running SpaceMountain Companion.exe.'],
     official: true,
     permissions: ['companion.status', 'overlay.control', 'obs.control', 'audio.control', 'workflow.run'],
   },
@@ -1749,23 +1751,21 @@ async function resolveSignedCompanionRelease(): Promise<CompanionReleaseCache> {
     if (!response.ok) throw new Error(`GitHub release lookup returned ${response.status}`);
     const release = await response.json() as any;
     const assets = Array.isArray(release.assets) ? release.assets : [];
-    const installer = assets.find((asset: any) => /^SpaceMountain-Companion-Setup-\d+\.\d+\.\d+\.exe$/.test(String(asset.name)));
-    const requiredNames = installer ? [
-      `${installer.name}.blockmap`,
-      `${installer.name}.sha256`,
-      'latest.yml',
-      'companion-signature.json',
+    const archive = assets.find((asset: any) => /^SpaceMountain-Companion-\d+\.\d+\.\d+-unsigned-portable\.zip$/.test(String(asset.name)));
+    const requiredNames = archive ? [
+      `${archive.name}.sha256`,
+      'companion-unsigned.json',
     ] : [];
-    const complete = installer
+    const complete = archive
       && release.draft !== true
-      && release.prerelease !== true
+      && release.prerelease === true
       && requiredNames.every((name) => assets.some((asset: any) => asset.name === name));
     if (!complete) {
-      throw new Error('The latest release is not a complete signed Companion release');
+      throw new Error('The unsigned Companion release is incomplete');
     }
     companionReleaseCache = {
       expiresAt: Date.now() + 5 * 60 * 1000,
-      installerUrl: String(installer.browser_download_url),
+      installerUrl: String(archive.browser_download_url),
       tag: String(release.tag_name || ''),
     };
   } catch (error) {
@@ -1782,10 +1782,10 @@ app.get('/downloads/companion/windows', async (_req, res) => {
   if (release.installerUrl) return res.redirect(302, release.installerUrl);
   res.status(503).type('html').send(`<!doctype html>
     <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-    <title>Companion download preparing</title></head>
+    <title>Companion download unavailable</title></head>
     <body style="margin:0;background:#070b16;color:#e5e7eb;font:16px system-ui;display:grid;min-height:100vh;place-items:center">
-      <main style="max-width:620px;padding:32px"><h1>Signed Companion download is preparing</h1>
-      <p>SpaceMountain will offer the Windows installer here as soon as its trusted signature and update files pass release verification.</p>
+      <main style="max-width:620px;padding:32px"><h1>Companion download is temporarily unavailable</h1>
+      <p>The unsigned portable ZIP could not be resolved. Please try again shortly.</p>
       <p><a style="color:#67e8f9" href="/#apps">Return to Apps + SSO</a></p></main>
     </body></html>`);
 });

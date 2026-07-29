@@ -318,6 +318,17 @@ export function initDb() {
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS xp_balance_migrations (
+      user_id TEXT NOT NULL,
+      source_app TEXT NOT NULL,
+      observed_balance INTEGER NOT NULL,
+      previous_source_balance INTEGER NOT NULL,
+      adjustment INTEGER NOT NULL,
+      migrated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id, source_app),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS account_recovery_codes (
       user_id TEXT PRIMARY KEY,
       code_hash TEXT NOT NULL,

@@ -106,6 +106,7 @@ Current canonical mappings:
 - `chat-tag.bingo.square` -> `chat-tag` / `chat-tag-bingo-square`, +10 XP
 - `chat-tag.bingo.win` -> `chat-tag` / `chat-tag-bingo-win`, +250 XP
 - `dsh.discord.message` -> `discord-stream-hub` / `dsh-discord-message`, +1 XP
+- `dsh.twitch.message` -> `discord-stream-hub` / `dsh-twitch-message`, +10 XP
 - `dsh.twitch.follow` -> `discord-stream-hub` / `dsh-twitch-follow`, +25 XP
 - `dsh.twitch.raid` -> `discord-stream-hub` / `dsh-twitch-raid`, +50 XP
 - `dsh.twitch.sub` -> `discord-stream-hub` / `dsh-twitch-sub`, +100 XP

@@ -138,7 +138,12 @@ type EcosystemAppRecord = {
   releaseNotes: string[];
   official?: boolean;
   permissions?: string[];
+  distribution?: 'web' | 'windows-desktop';
+  downloadUrl?: string;
 };
+
+const COMPANION_DOWNLOAD_URL = 'https://spmt.live/downloads/companion/windows';
+const COMPANION_GITHUB_RELEASE_API = 'https://api.github.com/repos/Mtman1987/streamweaver/releases/latest';
 
 const SUITE_APPS: EcosystemAppRecord[] = [
   {
@@ -176,6 +181,23 @@ const SUITE_APPS: EcosystemAppRecord[] = [
     latestVersion: '0.2.1',
     updatedAt: '2026-07-01',
     releaseNotes: ['Registered with SPMT while full adapter work remains queued.'],
+  },
+  {
+    id: 'companion',
+    name: 'SpaceMountain Companion',
+    url: COMPANION_DOWNLOAD_URL,
+    authUrl: COMPANION_DOWNLOAD_URL,
+    downloadUrl: COMPANION_DOWNLOAD_URL,
+    distribution: 'windows-desktop',
+    description: 'Signed Windows desktop companion for local overlays, OBS, approved media, and reviewed workflows.',
+    category: 'desktop',
+    status: 'connected',
+    version: '0.3.0',
+    latestVersion: '0.3.0',
+    updatedAt: '2026-07-29',
+    releaseNotes: ['Download delivery is gated on a validly signed release with updater metadata and checksums.'],
+    official: true,
+    permissions: ['companion.status', 'overlay.control', 'obs.control', 'audio.control', 'workflow.run'],
   },
   {
     id: 'chat-tag',
@@ -660,6 +682,7 @@ function appPermissionsFor(appId: string) {
     'spacemountain-live': ['identity:read', 'apps:launch', 'messages:read', 'messages:write'],
     'discord-stream-hub': ['identity:read', 'linked_accounts:read', 'messages:write'],
     streamweaver: ['identity:read', 'linked_accounts:read', 'messages:write'],
+    companion: ['companion.status', 'overlay.control', 'obs.control', 'audio.control', 'workflow.run'],
     'chat-tag': ['identity:read', 'apps:launch'],
     hearmeout: ['identity:read', 'apps:launch'],
     mountainview: ['identity:read', 'linked_accounts:read', 'apps:launch'],
@@ -1701,6 +1724,69 @@ app.get('/api/apps', (req, res) => {
     } catch {}
   }
   res.json({ apps: buildAppsForUser(userId) });
+});
+
+type CompanionReleaseCache = {
+  expiresAt: number;
+  installerUrl?: string;
+  tag?: string;
+  message?: string;
+};
+let companionReleaseCache: CompanionReleaseCache | null = null;
+
+async function resolveSignedCompanionRelease(): Promise<CompanionReleaseCache> {
+  if (companionReleaseCache && companionReleaseCache.expiresAt > Date.now()) return companionReleaseCache;
+  try {
+    const response = await fetch(COMPANION_GITHUB_RELEASE_API, {
+      headers: {
+        accept: 'application/vnd.github+json',
+        'user-agent': 'spmt-live-companion-download',
+        'x-github-api-version': '2022-11-28',
+      },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) throw new Error(`GitHub release lookup returned ${response.status}`);
+    const release = await response.json() as any;
+    const assets = Array.isArray(release.assets) ? release.assets : [];
+    const installer = assets.find((asset: any) => /^SpaceMountain-Companion-Setup-\d+\.\d+\.\d+\.exe$/.test(String(asset.name)));
+    const requiredNames = installer ? [
+      `${installer.name}.blockmap`,
+      `${installer.name}.sha256`,
+      'latest.yml',
+      'companion-signature.json',
+    ] : [];
+    const complete = installer
+      && release.draft !== true
+      && release.prerelease !== true
+      && requiredNames.every((name) => assets.some((asset: any) => asset.name === name));
+    if (!complete) {
+      throw new Error('The latest release is not a complete signed Companion release');
+    }
+    companionReleaseCache = {
+      expiresAt: Date.now() + 5 * 60 * 1000,
+      installerUrl: String(installer.browser_download_url),
+      tag: String(release.tag_name || ''),
+    };
+  } catch (error) {
+    companionReleaseCache = {
+      expiresAt: Date.now() + 30 * 1000,
+      message: error instanceof Error ? error.message : 'Signed Companion release is unavailable',
+    };
+  }
+  return companionReleaseCache;
+}
+
+app.get('/downloads/companion/windows', async (_req, res) => {
+  const release = await resolveSignedCompanionRelease();
+  if (release.installerUrl) return res.redirect(302, release.installerUrl);
+  res.status(503).type('html').send(`<!doctype html>
+    <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+    <title>Companion download preparing</title></head>
+    <body style="margin:0;background:#070b16;color:#e5e7eb;font:16px system-ui;display:grid;min-height:100vh;place-items:center">
+      <main style="max-width:620px;padding:32px"><h1>Signed Companion download is preparing</h1>
+      <p>SpaceMountain will offer the Windows installer here as soon as its trusted signature and update files pass release verification.</p>
+      <p><a style="color:#67e8f9" href="/#apps">Return to Apps + SSO</a></p></main>
+    </body></html>`);
 });
 
 app.post('/api/events', authenticate, (req: any, res) => {

@@ -786,6 +786,10 @@ try {
   const catalogBeforeApprovalResponse = await fetch(`${baseUrl}/api/apps`);
   const catalogBeforeApproval = await catalogBeforeApprovalResponse.json();
   assert.equal(catalogBeforeApproval.apps.some((app) => app.id === 'smoke-game'), false);
+  const companionApp = catalogBeforeApproval.apps.find((app) => app.id === 'companion');
+  assert.equal(companionApp.distribution, 'windows-desktop');
+  assert.equal(companionApp.downloadUrl, 'https://spmt.live/downloads/companion/windows');
+  assert.equal(companionApp.permissions.includes('workflow.run'), true);
 
   const deniedReviewResponse = await fetch(`${baseUrl}/api/platform/apps/review`, {
     headers: { Authorization: `Bearer ${registration.token}` },

@@ -19,6 +19,17 @@
       "scopes": ["identity.read", "messages.write", "overlays.write", "bots.write"]
     },
     {
+      "id": "companion",
+      "name": "SpaceMountain Companion",
+      "category": "desktop",
+      "status": "available",
+      "url": "https://spmt.live/downloads/companion/windows",
+      "downloadUrl": "https://spmt.live/downloads/companion/windows",
+      "distribution": "windows-desktop",
+      "description": "Signed Windows desktop companion for local overlays, OBS, approved media, and reviewed workflows.",
+      "scopes": ["companion.status", "overlay.control", "obs.control", "audio.control", "workflow.run"]
+    },
+    {
       "id": "hearmeout",
       "name": "HearMeOut",
       "category": "voice",

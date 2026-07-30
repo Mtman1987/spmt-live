@@ -9,8 +9,9 @@ This directory is the versioned engineering control center for taking the SpaceM
 3. `SPMT_PRODUCTION_INVENTORY.md` — the first app's live Gate 0 evidence, configuration classification, and open stop conditions.
 4. `PRODUCTION_ROADMAP.md` — the ordered production gates and engineering tickets.
 5. `WORKSPACE_PROFILE_V1.md` — the first completed portable-workspace owner/consumer contract, migration, validation, and rollback.
-6. `WORKING_METHOD.md` — how to change one app without losing cross-app implications.
-7. `DOCUMENT_REGISTRY.md` — which documents are authoritative, supporting, mirrored, or archived.
+6. `COSMO_COMMLINK_INTEGRATION_PLAN.md` — how Cosmo becomes the SPMT messaging experience without replacing app-owned capabilities and runtimes.
+7. `WORKING_METHOD.md` — how to change one app without losing cross-app implications.
+8. `DOCUMENT_REGISTRY.md` — which documents are authoritative, supporting, mirrored, or archived.
 
 ## Authority Rules
 

@@ -804,6 +804,12 @@ Overlay scenes and workflow definitions get their own records; do not keep expan
 
 ## Production Gate 3 — Combined Commlink And Social Stream-Style Inbox
 
+The canonical UI, ChatSpace, multi-panel Desk, provider-fidelity, portable
+settings-sync, Social Stream Ninja reference, capability-preservation, phased
+integration, verification, and rollback plan is
+`docs/ecosystem/COSMO_COMMLINK_INTEGRATION_PLAN.md`. Keep detailed product
+requirements there rather than maintaining a competing copy in this roadmap.
+
 ### Step 3.1 — Freeze the normalized message contract
 
 StreamWeaver owns a tenant-scoped `SharedChatEventV1` with:

@@ -107,6 +107,20 @@ try {
   assert.match(home, /request-recovery-code/);
   assert.match(home, /Generate \+ Show New Recovery Code/);
 
+  const commlinkResponse = await fetch(`${baseUrl}/commlink/`);
+  const commlink = await commlinkResponse.text();
+  assert.equal(commlinkResponse.status, 200);
+  assert.match(commlink, /Cosmo Commlink Preview/);
+  assert.match(commlink, /Synthetic chat data/);
+  assert.match(commlink, /id="settings-drawer"/);
+  assert.match(commlink, /id="destination-chips"/);
+  const commlinkCssResponse = await fetch(`${baseUrl}/commlink/commlink.css`);
+  assert.equal(commlinkCssResponse.status, 200);
+  assert.match(commlinkCssResponse.headers.get('content-type') || '', /text\/css/);
+  const commlinkJsResponse = await fetch(`${baseUrl}/commlink/commlink.js`);
+  assert.equal(commlinkJsResponse.status, 200);
+  assert.match(commlinkJsResponse.headers.get('content-type') || '', /javascript/);
+
   const sdkMetadataResponse = await fetch(`${baseUrl}/api/platform/sdk`);
   const sdkMetadata = await sdkMetadataResponse.json();
   assert.equal(sdkMetadataResponse.status, 200);
@@ -895,7 +909,7 @@ try {
   assert.equal(conversation.stored, true);
   assert.equal(conversation.routed, false);
 
-  console.log(JSON.stringify({ status: 'passed', checks: 175 }));
+  console.log(JSON.stringify({ status: 'passed', checks: 184 }));
 } catch (error) {
   const detail = error instanceof Error
     ? `${error.stack || error.message}${error.cause ? `\nCause: ${error.cause}` : ''}`

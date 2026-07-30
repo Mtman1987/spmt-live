@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Cosmo Commlink Preview | SPMT</title>
+  <link rel="stylesheet" href="/commlink/commlink.css">
+</head>
+<body>
+  <div class="space-background" aria-hidden="true">
+    <div class="nebula nebula-one"></div>
+    <div class="nebula nebula-two"></div>
+    <div class="stars"></div>
+  </div>
+
+  <div class="prototype-banner">
+    <span>Pass 1 preview</span>
+    Synthetic chat data · no provider messages are sent
+  </div>
+
+  <main class="app-shell" id="app-shell">
+    <aside class="space-rail" aria-label="Saved ChatSpaces">
+      <a class="brand" href="/" aria-label="Back to SPMT account center">
+        <span class="brand-orbit" aria-hidden="true"><span>✦</span></span>
+        <span><strong>Cosmo</strong><small>Commlink</small></span>
+      </a>
+
+      <button class="create-space" id="create-space" type="button">
+        <span>＋</span> New ChatSpace
+      </button>
+
+      <div class="rail-heading">
+        <span>Saved ChatSpaces</span>
+        <button class="icon-button" type="button" aria-label="Sort ChatSpaces">↕</button>
+      </div>
+      <nav class="space-list" id="space-list"></nav>
+
+      <div class="rail-heading desk-heading">
+        <span>Saved Desks</span>
+      </div>
+      <button class="desk-card active" type="button" data-desk="live-show">
+        <span class="desk-icon">⌘</span>
+        <span><strong>Live Show</strong><small>3 panels · synced</small></span>
+      </button>
+      <button class="desk-card" type="button" data-desk="mod-shift">
+        <span class="desk-icon">◫</span>
+        <span><strong>Mod Shift</strong><small>2 panels · helper</small></span>
+      </button>
+
+      <div class="account-card">
+        <span class="account-avatar">MT</span>
+        <span><strong>Mountain Crew</strong><small id="sync-summary">Checking SPMT sync…</small></span>
+        <span class="presence-dot" title="Online"></span>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div class="workspace-title">
+          <button class="mobile-rail-toggle icon-button" id="mobile-rail-toggle" type="button" aria-label="Toggle ChatSpaces">☰</button>
+          <div>
+            <div class="eyebrow">Commlink Desk / <span id="desk-name">Live Show</span></div>
+            <h1 id="space-title">Friday Stream</h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <div class="view-switch" aria-label="Workspace layout">
+            <button class="active" type="button" data-view="focus">Focus</button>
+            <button type="button" data-view="desk">Desk</button>
+          </div>
+          <button class="top-action" id="search-button" type="button" aria-label="Search messages">⌕</button>
+          <button class="top-action" id="settings-button" type="button" aria-label="Open appearance settings">⚙</button>
+          <button class="avatar-action" type="button" aria-label="Account menu">MT</button>
+        </div>
+      </header>
+
+      <section class="source-strip" aria-label="Connected sources">
+        <div class="source-summary">
+          <span class="live-pulse"></span>
+          <strong id="source-count">4 sources live</strong>
+          <span>One multiplexed session</span>
+        </div>
+        <div class="source-chips" id="source-chips"></div>
+        <button class="add-source" type="button" id="add-source">＋ Add source</button>
+      </section>
+
+      <section class="focus-view" id="focus-view">
+        <div class="conversation-pane">
+          <div class="feed-toolbar">
+            <div class="filter-tabs" id="filter-tabs">
+              <button class="active" type="button" data-filter="all">All</button>
+              <button type="button" data-filter="chat">Chat</button>
+              <button type="button" data-filter="events">Events</button>
+              <button type="button" data-filter="queued">Queue <span id="queue-count">2</span></button>
+            </div>
+            <div class="feed-actions">
+              <button class="toolbar-button" id="compact-toggle" type="button">Compact</button>
+              <button class="toolbar-button" id="replay-button" type="button">↻ Replay 5m</button>
+            </div>
+          </div>
+
+          <div class="message-feed" id="message-feed" aria-live="polite"></div>
+
+          <div class="composer">
+            <div class="destination-row">
+              <span class="destination-label">Destinations</span>
+              <div class="destination-chips" id="destination-chips"></div>
+              <button class="destination-edit" id="destination-edit" type="button">Edit</button>
+              <span class="routing-note">Replies remain source-locked</span>
+            </div>
+            <div class="compose-row">
+              <button class="compose-tool" type="button" aria-label="Add attachment">＋</button>
+              <div class="compose-input-wrap">
+                <textarea id="compose-input" rows="1" placeholder="Message selected destinations… Type @ to target one channel" aria-label="Compose message"></textarea>
+                <div class="mention-menu hidden" id="mention-menu"></div>
+              </div>
+              <button class="preview-button" id="preview-send" type="button">
+                <span>Preview</span>
+                <strong id="send-label">Send → 4</strong>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <aside class="context-panel" id="context-panel" aria-label="Message context">
+          <div class="context-empty" id="context-empty">
+            <span class="context-orbit">◎</span>
+            <h2>Select a message</h2>
+            <p>Inspect identity, badges, SPMT XP, recent activity, and available actions.</p>
+          </div>
+          <div class="context-content hidden" id="context-content"></div>
+        </aside>
+      </section>
+
+      <section class="desk-view hidden" id="desk-view">
+        <div class="desk-grid" id="desk-grid"></div>
+      </section>
+    </section>
+  </main>
+
+  <aside class="settings-drawer hidden" id="settings-drawer" aria-label="Appearance and sync settings">
+    <div class="drawer-header">
+      <div>
+        <span class="eyebrow">Portable SPMT workspace</span>
+        <h2>Appearance & sync</h2>
+      </div>
+      <button class="icon-button" id="close-settings" type="button" aria-label="Close settings">×</button>
+    </div>
+    <div class="sync-card" id="sync-card">
+      <span class="sync-indicator"></span>
+      <span><strong id="sync-title">Loading workspace</strong><small id="sync-detail">Checking this browser’s SPMT session.</small></span>
+      <button id="reload-profile" type="button">Reload</button>
+    </div>
+
+    <div class="settings-scroll">
+      <section class="setting-section">
+        <h3>Theme presets</h3>
+        <div class="theme-grid" id="theme-grid">
+          <button type="button" data-theme="solar-flare"><span style="--swatch:#fb923c"></span>Solar Flare</button>
+          <button type="button" data-theme="nebula-purple"><span style="--swatch:#a78bfa"></span>Nebula Purple</button>
+          <button type="button" data-theme="oceanic-blue"><span style="--swatch:#38bdf8"></span>Oceanic Blue</button>
+          <button type="button" data-theme="aurora-green"><span style="--swatch:#34d399"></span>Aurora Green</button>
+        </div>
+      </section>
+
+      <section class="setting-section">
+        <h3>Space & glass</h3>
+        <label class="range-setting"><span>Glow intensity <output id="glow-output">80%</output></span><input id="glow-input" type="range" min="0" max="100" value="80"></label>
+        <label class="range-setting"><span>Star density <output id="stars-output">70%</output></span><input id="stars-input" type="range" min="0" max="100" value="70"></label>
+        <label class="range-setting"><span>Glass opacity <output id="glass-output">65%</output></span><input id="glass-input" type="range" min="0" max="100" value="65"></label>
+        <label class="range-setting"><span>Blur strength <output id="blur-output">22px</output></span><input id="blur-input" type="range" min="0" max="60" value="22"></label>
+      </section>
+
+      <section class="setting-section two-column-settings">
+        <label><span>UI density</span><select id="density-select"><option value="compact">Compact</option><option value="comfortable" selected>Comfortable</option><option value="spacious">Spacious</option></select></label>
+        <label><span>Corner radius</span><select id="radius-select"><option value="sm">Small</option><option value="md" selected>Medium</option><option value="lg">Large</option><option value="full">Round</option></select></label>
+        <label><span>Sidebar position</span><select id="sidebar-position"><option value="left">Left</option><option value="right">Right</option></select></label>
+        <label><span>Tab style</span><select id="tab-style"><option value="pills">Pills</option><option value="underline">Underline</option><option value="cards">Cards</option></select></label>
+      </section>
+
+      <section class="setting-section toggle-list">
+        <label><span><strong>Show avatars</strong><small>Names and roles always remain visible</small></span><input id="avatars-toggle" type="checkbox" checked></label>
+        <label><span><strong>UI animations</strong><small>Automatically honors reduced motion</small></span><input id="animations-toggle" type="checkbox" checked></label>
+        <label><span><strong>Particle stars</strong><small>Cosmic background decoration</small></span><input id="particles-toggle" type="checkbox" checked></label>
+        <label><span><strong>Shooting stars</strong><small>Occasional background accents</small></span><input id="shooting-toggle" type="checkbox" checked></label>
+      </section>
+    </div>
+
+    <div class="drawer-footer">
+      <span id="save-note">Preview changes are local until saved.</span>
+      <button class="secondary-button" id="reset-preview" type="button">Reset preview</button>
+      <button class="primary-button" id="save-profile" type="button">Save to SPMT</button>
+    </div>
+  </aside>
+
+  <div class="modal-backdrop hidden" id="send-modal" role="dialog" aria-modal="true" aria-labelledby="send-modal-title">
+    <div class="send-modal-card">
+      <button class="modal-close" id="close-send-modal" type="button" aria-label="Close preview">×</button>
+      <span class="eyebrow">Destination review</span>
+      <h2 id="send-modal-title">Preview message routing</h2>
+      <p class="modal-message" id="modal-message"></p>
+      <div class="modal-destinations" id="modal-destinations"></div>
+      <div class="safety-note"><span>✓</span> This Pass 1 prototype will add a synthetic operator card only. It will not contact Twitch, Kick, YouTube, or Discord.</div>
+      <div class="modal-actions">
+        <button class="secondary-button" id="cancel-send" type="button">Keep editing</button>
+        <button class="primary-button" id="simulate-send" type="button">Simulate send</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-region" id="toast-region" aria-live="polite"></div>
+  <script src="/commlink/commlink.js" defer></script>
+</body>
+</html>

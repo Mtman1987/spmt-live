@@ -39,6 +39,44 @@ export type NotificationInput = {
   linkUrl?: string;
 };
 
+export type CommlinkDestinationV1 = {
+  platform: 'twitch' | 'discord' | 'kick' | 'youtube';
+  channelId: string;
+  channelName: string;
+};
+
+export type CommlinkDispatchInputV1 = {
+  idempotencyKey: string;
+  action?: 'compose' | 'reply' | 'timeout' | 'delete';
+  destinations: CommlinkDestinationV1[];
+  message?: string;
+  eventId?: string;
+  durationSeconds?: number;
+};
+
+export type CommlinkDispatchReceiptV1 = {
+  id: string;
+  groupId: string;
+  idempotencyKey: string;
+  action: NonNullable<CommlinkDispatchInputV1['action']>;
+  destination: CommlinkDestinationV1;
+  status: 'dispatching' | 'delivered' | 'failed';
+  error?: { code: string; message: string } | null;
+  duplicate: boolean;
+  retryOf?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CommlinkDispatchGroupV1 = {
+  version: 'commlink-dispatch-group.v1';
+  groupId: string;
+  status: 'delivered' | 'partial' | 'failed';
+  delivered: number;
+  failed: number;
+  receipts: CommlinkDispatchReceiptV1[];
+};
+
 export type AthenaMemoryInput = {
   topic: string;
   content: string;
@@ -752,6 +790,18 @@ export class SpaceMountainClient {
     }),
     messages: () => this.request('/api/messages'),
     notifications: () => this.request('/api/notifications'),
+    dispatch: (input: CommlinkDispatchInputV1) => this.request('/api/commlink/dispatch', {
+      method: 'POST',
+      body: input,
+    }) as Promise<CommlinkDispatchGroupV1>,
+    dispatchAsApp: (input: CommlinkDispatchInputV1) => this.request('/api/platform/commlink/dispatch', {
+      method: 'POST',
+      authMode: 'apiKey',
+      body: input,
+    }) as Promise<CommlinkDispatchGroupV1>,
+    retryFailed: (groupId: string) => this.request(`/api/commlink/dispatch/${encodeURIComponent(groupId)}/retry`, {
+      method: 'POST',
+    }) as Promise<CommlinkDispatchGroupV1>,
   };
 
   athena = {

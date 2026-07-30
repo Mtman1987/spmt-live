@@ -2,9 +2,8 @@
 
 Updated: 2026-07-30
 
-Status: canonical, comprehensive UI/UX-first integration plan; Passes 1 and 2
-are deployed, and Pass 3 adds the account-scoped real read layer while all
-provider writes remain gated
+Status: canonical, comprehensive UI/UX-first integration plan; Passes 1 through
+3 are deployed, and Pass 4 adds receipt-backed deliberate provider actions
 
 Owners:
 
@@ -132,6 +131,37 @@ Pass 3 delivery on 2026-07-30:
   remain disabled or synthetic until Pass 4/5; replay never re-triggers XP,
   TTS, bots, moderation, or automation.
 
+Pass 4 delivery on 2026-07-30:
+
+- SPMT owns durable, per-user idempotency records and grouped outbound receipts.
+- The signed-in UI requires exact destination chips and an explicit review
+  before dispatch; `@channel` selects exactly one verified destination.
+- Fan-out becomes one child request per destination with partial failure shown
+  per target and retry limited to failed children.
+- Reply is source-locked to the selected replay event. Twitch reply, Twitch
+  timeout, and Discord delete are validated against the same tenant/channel
+  replay boundary before StreamWeaver executes them.
+- Compose is enabled only for a tenant-validated Twitch, Kick, or Discord
+  channel. YouTube remains visibly read-only until its runtime is tenant-scoped;
+  it is never silently included in send-all.
+- The partner SDK exposes the same dispatch group and receipt contract through a
+  `messages:write` scoped platform-key route.
+- Discord channel curation uses the authorized channels returned by the account
+  feed; DiscordStreamHub remains the permission and advanced-management owner.
+
+Navigation and visual convergence requirements clarified during Pass 3:
+
+- `/commlink/` must become a primary SPMT sidebar destination before cutover;
+  the direct route alone is not a finished navigation integration.
+- Legacy SPMT messaging entry points must converge on Commlink instead of
+  remaining separate sources of truth.
+- Commlink's shell is the visual reference for the wider SPMT product. Migrate
+  shared sidebar, top bar, panels, drawers, typography, settings, and responsive
+  behavior surface-by-surface while preserving specialized app workspaces.
+- The SDK and typed events are the extension seam for other developers: apps
+  publish or request scoped messaging through SPMT rather than creating another
+  inbox or bypassing Commlink receipts.
+
 ### Compressed release-pass plan
 
 Target: seven total deploy-and-test passes, with a permitted range of six to
@@ -142,8 +172,8 @@ SPMT commit/push whenever possible.
 | --- | --- |
 | 1 — deployed | Synthetic Cosmo Commlink UI, combined feed, Desk, destination preview, and portable appearance profile |
 | 2 — deployed | Durable ChatSpaces/Desks plus the three-discovery easter-egg and final reward system |
-| 3 — this release | Real read-only Twitch, Kick, YouTube, Discord, and SPMT feeds with fidelity, history, replay, health, and dedupe |
-| 4 | Scoped compose, source-locked reply, deliberate fan-out, partial receipts, moderation, and Discord curation |
+| 3 — deployed | Real read-only Twitch, Kick, YouTube, Discord, and SPMT feeds with fidelity, history, replay, health, and dedupe |
+| 4 — this release | Scoped compose, source-locked reply, deliberate fan-out, partial receipts, moderation, Discord curation, and SDK dispatch |
 | 5 | Smart staging, operator roles/sync, TTS, bots/AI, voice, translation, avatar, and pop-outs |
 | 6 | Typed event panels, guarded rules, show tools, named OBS outputs, Stream Deck/Companion/MIDI controls |
 | 7 | Remaining app migrations, two-tenant/failure matrix, cutover, observation, rollback proof, and approved cleanup |

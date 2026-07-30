@@ -268,6 +268,9 @@ select { width: 100%; border: 1px solid var(--border); border-radius: 8px; paddi
 .modal-destination strong { font-size: 9px; }
 .modal-destination small { color: var(--muted); font-size: 7px; }
 .modal-destination > span:last-child { color: var(--success); font-size: 8px; }
+.modal-destination.receipt-delivered { border: 1px solid rgba(52, 211, 153, .48); }
+.modal-destination.receipt-failed { border: 1px solid rgba(248, 113, 113, .58); background: rgba(127, 29, 29, .18); }
+.modal-destination.receipt-failed > span:last-child { color: #fca5a5; }
 .safety-note { display: flex; gap: 8px; padding: 9px; border-radius: 9px; color: #a7f3d0; background: rgba(16,185,129,.08); font-size: 8px; line-height: 1.5; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 14px; }
 .toast-region { position: fixed; z-index: 120; right: 16px; bottom: 16px; display: grid; gap: 7px; }

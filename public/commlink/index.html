@@ -15,8 +15,8 @@
   </div>
 
   <div class="prototype-banner">
-    <span>Pass 3 read-only</span>
-    <span id="feed-banner-detail">Checking account sources · provider writes remain disabled</span>
+    <span>Pass 4 deliberate send</span>
+    <span id="feed-banner-detail">Checking account sources · writes require exact destinations and receipts</span>
   </div>
 
   <main class="app-shell" id="app-shell">
@@ -117,7 +117,7 @@
               <span class="destination-label">Destinations</span>
               <div class="destination-chips" id="destination-chips"></div>
               <button class="destination-edit" id="destination-edit" type="button">Edit</button>
-              <span class="routing-note">Replies remain source-locked</span>
+              <span class="routing-note" id="routing-note">Replies remain source-locked</span>
             </div>
             <div class="compose-row">
               <button class="compose-tool" type="button" aria-label="Add attachment">＋</button>
@@ -126,7 +126,7 @@
                 <div class="mention-menu hidden" id="mention-menu"></div>
               </div>
               <button class="preview-button" id="preview-send" type="button">
-                <span>Preview</span>
+                <span>Review</span>
                 <strong id="send-label">Send → 4</strong>
               </button>
             </div>
@@ -230,10 +230,10 @@
       <h2 id="send-modal-title">Preview message routing</h2>
       <p class="modal-message" id="modal-message"></p>
       <div class="modal-destinations" id="modal-destinations"></div>
-      <div class="safety-note"><span>✓</span> Pass 3 reads real account feeds, but this preview still adds a local operator card only. It will not contact Twitch, Kick, YouTube, or Discord.</div>
+      <div class="safety-note" id="send-safety-note"><span>✓</span> Every destination receives its own idempotent request and receipt. Partial failure never appears as a complete send.</div>
       <div class="modal-actions">
         <button class="secondary-button" id="cancel-send" type="button">Keep editing</button>
-        <button class="primary-button" id="simulate-send" type="button">Simulate send</button>
+        <button class="primary-button" id="simulate-send" type="button">Send deliberately</button>
       </div>
     </div>
   </div>

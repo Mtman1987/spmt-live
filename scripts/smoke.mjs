@@ -65,13 +65,34 @@ assert.match(
 const port = await getFreePort();
 const streamweaverMockPort = await getFreePort();
 const streamweaverMockRequests = [];
-const streamweaverMock = http.createServer((request, response) => {
+const streamweaverMock = http.createServer(async (request, response) => {
   const tenantId = String(request.headers['x-spmt-tenant-id'] || '');
   const serviceKey = String(request.headers['x-spmt-key'] || '');
-  streamweaverMockRequests.push({ tenantId, serviceKey, url: request.url });
+  streamweaverMockRequests.push({ tenantId, serviceKey, url: request.url, method: request.method });
   if (serviceKey !== 'smoke-system-key' || !tenantId) {
     response.writeHead(401, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ error: 'unauthorized' }));
+    return;
+  }
+  if (request.url?.startsWith('/api/shared-chat/spmt-dispatch')) {
+    let rawBody = '';
+    for await (const chunk of request) rawBody += chunk;
+    const body = JSON.parse(rawBody || '{}');
+    streamweaverMockRequests.at(-1).body = body;
+    if (body.destination?.platform === 'youtube') {
+      response.writeHead(409, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ error: { code: 'ADAPTER_UNAVAILABLE', message: 'YouTube egress is not tenant-isolated yet' } }));
+      return;
+    }
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({
+      version: 'outbound-message-receipt.v1',
+      idempotencyKey: body.idempotencyKey,
+      status: 'delivered',
+      action: body.action,
+      destination: body.destination,
+      deliveredAt: new Date().toISOString(),
+    }));
     return;
   }
   const event = {
@@ -150,6 +171,7 @@ const child = spawn(process.execPath, [entrypoint], {
     BUILD_SHA: 'smoke-build',
     SYSTEM_API_KEY: 'smoke-system-key',
     SPMT_TEST_STREAMWEAVER_FEED_URL: `http://127.0.0.1:${streamweaverMockPort}/api/shared-chat/spmt-feed`,
+    SPMT_TEST_STREAMWEAVER_DISPATCH_URL: `http://127.0.0.1:${streamweaverMockPort}/api/shared-chat/spmt-dispatch`,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -183,13 +205,15 @@ try {
   assert.match(home, /Create an app-bound key/);
   assert.match(home, /request-recovery-code/);
   assert.match(home, /Generate \+ Show New Recovery Code/);
+  assert.match(home, /Commlink · Unified Messaging/);
 
   const commlinkResponse = await fetch(`${baseUrl}/commlink/`);
   const commlink = await commlinkResponse.text();
   assert.equal(commlinkResponse.status, 200);
   assert.match(commlink, /Cosmo Commlink Preview/);
-  assert.match(commlink, /Pass 3 read-only/);
-  assert.match(commlink, /provider writes remain disabled/);
+  assert.match(commlink, /Pass 4 deliberate send/);
+  assert.match(commlink, /Send deliberately/);
+  assert.match(commlink, /writes require exact destinations and receipts/);
   assert.match(commlink, /id="settings-drawer"/);
   assert.match(commlink, /id="history-search"/);
   assert.match(commlink, /id="source-health-summary"/);
@@ -585,7 +609,7 @@ try {
   });
   const commlinkFeed = await commlinkFeedResponse.json();
   assert.equal(commlinkFeedResponse.status, 200);
-  assert.equal(commlinkFeed.mode, 'live-read-only');
+  assert.equal(commlinkFeed.mode, 'live-actions');
   assert.equal(commlinkFeed.upstream.streamweaver.status, 'ready');
   assert.equal(commlinkFeed.sources.some((source) => source.platform === 'twitch' && source.status === 'live'), true);
   assert.equal(commlinkFeed.sources.some((source) => source.platform === 'spmt' && source.status === 'live'), true);
@@ -595,6 +619,65 @@ try {
   assert.equal(commlinkFeed.items.some((item) => item.text === 'account scoped SPMT event'), true);
   assert.equal(commlinkFeed.dedupe.inputCount > commlinkFeed.dedupe.outputCount, true);
   assert.equal(streamweaverMockRequests.some((request) => request.tenantId === registration.user.id && request.serviceKey === 'smoke-system-key'), true);
+
+  const unauthenticatedDispatch = await fetch(`${baseUrl}/api/commlink/dispatch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  assert.equal(unauthenticatedDispatch.status, 401);
+
+  const dispatchRequest = {
+    idempotencyKey: 'smoke-pass4-deliberate-send',
+    action: 'compose',
+    message: 'Pass 4 grouped receipt',
+    destinations: [
+      { platform: 'twitch', channelId: 'room-smoke', channelName: 'smoke-channel' },
+      { platform: 'youtube', channelId: 'youtube-smoke', channelName: 'youtube-smoke' },
+    ],
+  };
+  const dispatchResponse = await fetch(`${baseUrl}/api/commlink/dispatch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify(dispatchRequest),
+  });
+  const dispatch = await dispatchResponse.json();
+  assert.equal(dispatchResponse.status, 207);
+  assert.equal(dispatch.status, 'partial');
+  assert.equal(dispatch.delivered, 1);
+  assert.equal(dispatch.failed, 1);
+  assert.equal(dispatch.receipts.some((receipt) => receipt.destination.platform === 'twitch' && receipt.status === 'delivered'), true);
+  assert.equal(dispatch.receipts.some((receipt) => receipt.destination.platform === 'youtube' && receipt.error.code === 'ADAPTER_UNAVAILABLE'), true);
+
+  const duplicateDispatchResponse = await fetch(`${baseUrl}/api/commlink/dispatch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify(dispatchRequest),
+  });
+  const duplicateDispatch = await duplicateDispatchResponse.json();
+  assert.equal(duplicateDispatchResponse.status, 207);
+  assert.equal(duplicateDispatch.receipts.every((receipt) => receipt.duplicate === true), true);
+  assert.equal(streamweaverMockRequests.filter((request) => request.url?.startsWith('/api/shared-chat/spmt-dispatch')).length, 2);
+
+  const isolatedDispatchResponse = await fetch(`${baseUrl}/api/commlink/dispatch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secondRegistration.token}` },
+    body: JSON.stringify(dispatchRequest),
+  });
+  const isolatedDispatch = await isolatedDispatchResponse.json();
+  assert.equal(isolatedDispatchResponse.status, 207);
+  assert.equal(isolatedDispatch.receipts.every((receipt) => receipt.duplicate === false), true);
+  assert.equal(isolatedDispatch.receipts.every((receipt) => receipt.groupId !== dispatch.groupId), true);
+
+  const retryResponse = await fetch(`${baseUrl}/api/commlink/dispatch/${encodeURIComponent(dispatch.groupId)}/retry`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const retried = await retryResponse.json();
+  assert.equal(retryResponse.status, 207);
+  assert.equal(retried.receipts.length, 1);
+  assert.equal(retried.receipts[0].destination.platform, 'youtube');
+  assert.equal(retried.receipts[0].retryOf != null, true);
 
   const searchedCommlinkFeedResponse = await fetch(`${baseUrl}/api/commlink/feed?q=upstream&limit=20`, {
     headers: { Authorization: `Bearer ${registration.token}` },
@@ -782,7 +865,7 @@ try {
     body: JSON.stringify({
       appId: 'smoke-game',
       name: 'Smoke game key',
-      scopes: ['identity:read', 'identity:write', 'apps:read', 'apps:write', 'events:write', 'xp:write'],
+      scopes: ['identity:read', 'identity:write', 'apps:read', 'apps:write', 'events:write', 'messages:write', 'xp:write'],
     }),
   });
   const key = await keyResponse.json();
@@ -798,6 +881,21 @@ try {
   assert.equal(keyVerificationResponse.status, 200);
   assert.equal(keyVerification.valid, true);
   assert.equal(keyVerification.key.appId, 'smoke-game');
+
+  const appDispatchResponse = await fetch(`${baseUrl}/api/platform/commlink/dispatch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.token}` },
+    body: JSON.stringify({
+      idempotencyKey: 'smoke-sdk-commlink-dispatch',
+      action: 'compose',
+      message: 'Developer SDK dispatch',
+      destinations: [{ platform: 'twitch', channelId: 'room-smoke', channelName: 'smoke-channel' }],
+    }),
+  });
+  const appDispatch = await appDispatchResponse.json();
+  assert.equal(appDispatchResponse.status, 200);
+  assert.equal(appDispatch.status, 'delivered');
+  assert.equal(appDispatch.receipts[0].destination.platform, 'twitch');
 
   const grandfatherResponse = await fetch(`${baseUrl}/api/platform/identity/grandfather`, {
     method: 'POST',

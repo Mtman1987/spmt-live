@@ -3340,6 +3340,201 @@ function streamweaverCommlinkFeedUrl() {
   return 'https://streamweaver-new.fly.dev/api/shared-chat/spmt-feed';
 }
 
+function streamweaverCommlinkDispatchUrl() {
+  if (!IS_PRODUCTION && process.env.NODE_ENV === 'test' && process.env.SPMT_TEST_STREAMWEAVER_DISPATCH_URL) {
+    return process.env.SPMT_TEST_STREAMWEAVER_DISPATCH_URL;
+  }
+  return 'https://streamweaver-new.fly.dev/api/shared-chat/spmt-dispatch';
+}
+
+const COMMLINK_EGRESS_CAPABILITIES: Record<string, Record<string, boolean>> = {
+  twitch: { compose: true, reply: true, timeout: true, delete: false },
+  discord: { compose: true, reply: false, timeout: false, delete: true },
+  kick: { compose: true, reply: false, timeout: false, delete: false },
+  youtube: { compose: false, reply: false, timeout: false, delete: false },
+  spmt: { compose: false, reply: false, timeout: false, delete: false },
+};
+
+function commlinkDestination(value: any) {
+  const platform = commlinkFeedText(value?.platform, 40).toLowerCase();
+  const channelId = commlinkFeedText(value?.channelId, 160);
+  const channelName = commlinkFeedText(value?.channelName, 160);
+  if (!['twitch', 'discord', 'kick', 'youtube'].includes(platform) || !channelId || !channelName) return null;
+  return { platform, channelId, channelName };
+}
+
+function serializeCommlinkReceipt(row: any, duplicate = false) {
+  return {
+    id: row.id,
+    groupId: row.group_id,
+    idempotencyKey: row.idempotency_key,
+    action: row.action,
+    destination: {
+      platform: row.platform,
+      channelId: row.channel_id,
+      channelName: row.channel_name,
+    },
+    status: row.status,
+    providerReceipt: row.provider_receipt_json ? JSON.parse(row.provider_receipt_json) : null,
+    error: row.error_message ? { code: row.error_code || 'DISPATCH_FAILED', message: row.error_message } : null,
+    retryOf: row.retry_of || null,
+    duplicate,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+async function dispatchCommlinkGroup(userId: string, sourceApp: string, input: any, options: { groupId?: string; retryOf?: string } = {}) {
+  const user = getUserById(userId);
+  if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
+  const action = commlinkFeedText(input?.action || 'compose', 24).toLowerCase();
+  if (!['compose', 'reply', 'timeout', 'delete'].includes(action)) {
+    throw Object.assign(new Error('Unsupported Commlink action'), { statusCode: 400 });
+  }
+  const message = commlinkFeedText(input?.message, 2_000);
+  if (['compose', 'reply'].includes(action) && !message) {
+    throw Object.assign(new Error('Message required'), { statusCode: 400 });
+  }
+  const eventId = commlinkFeedText(input?.eventId, 240);
+  if (action !== 'compose' && !eventId) {
+    throw Object.assign(new Error('A source event is required for this action'), { statusCode: 400 });
+  }
+  const idempotencyKey = commlinkFeedText(input?.idempotencyKey, 160);
+  if (idempotencyKey.length < 8) {
+    throw Object.assign(new Error('A stable idempotency key is required'), { statusCode: 400 });
+  }
+  const destinations = Array.from(new Map(
+    (Array.isArray(input?.destinations) ? input.destinations : [input?.destination])
+      .map(commlinkDestination)
+      .filter(Boolean)
+      .slice(0, 8)
+      .map((destination: any) => [`${destination.platform}:${destination.channelId}`, destination]),
+  ).values()) as Array<{ platform: string; channelId: string; channelName: string }>;
+  if (!destinations.length) throw Object.assign(new Error('At least one exact destination is required'), { statusCode: 400 });
+
+  const groupId = options.groupId || uuidv4();
+  const tenantId = String(user.twitch_id || user.id);
+  const receipts = [];
+  for (const destination of destinations) {
+    const childKey = `${idempotencyKey}:${action}:${destination.platform}:${destination.channelId}`.slice(0, 200);
+    const existing = db.prepare('SELECT * FROM commlink_dispatch_receipts WHERE user_id = ? AND idempotency_key = ?')
+      .get(user.id, childKey) as any;
+    if (existing) {
+      receipts.push(serializeCommlinkReceipt(existing, true));
+      continue;
+    }
+
+    const id = uuidv4();
+    const now = new Date().toISOString();
+    const providerRequest = {
+      idempotencyKey: childKey,
+      action,
+      destination,
+      message,
+      eventId: eventId || undefined,
+      durationSeconds: action === 'timeout' ? Math.min(1_209_600, Math.max(1, Number(input?.durationSeconds || 600) || 600)) : undefined,
+    };
+    db.prepare(`
+      INSERT INTO commlink_dispatch_receipts (
+        id, group_id, user_id, source_app, idempotency_key, action, platform,
+        channel_id, channel_name, request_json, status, retry_of, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'dispatching', ?, ?, ?)
+    `).run(
+      id, groupId, user.id, sourceApp || 'cosmo-commlink', childKey, action,
+      destination.platform, destination.channelId, destination.channelName,
+      JSON.stringify(providerRequest), options.retryOf || null, now, now,
+    );
+
+    try {
+      const response = await fetch(streamweaverCommlinkDispatchUrl(), {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-spmt-key': String(process.env.SYSTEM_API_KEY || ''),
+          'x-spmt-tenant-id': tenantId,
+          'x-spmt-user-id': user.id,
+        },
+        body: JSON.stringify(providerRequest),
+        signal: AbortSignal.timeout(12_000),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = commlinkFeedText(result?.error?.message || result?.error || `Provider returned ${response.status}`, 500);
+        const code = commlinkFeedText(result?.error?.code || 'PROVIDER_DISPATCH_FAILED', 80);
+        db.prepare(`
+          UPDATE commlink_dispatch_receipts
+          SET status = 'failed', error_code = ?, error_message = ?, provider_receipt_json = ?, updated_at = ?
+          WHERE id = ?
+        `).run(code, message, JSON.stringify(result), new Date().toISOString(), id);
+      } else {
+        db.prepare(`
+          UPDATE commlink_dispatch_receipts
+          SET status = 'delivered', provider_receipt_json = ?, updated_at = ?
+          WHERE id = ?
+        `).run(JSON.stringify(result), new Date().toISOString(), id);
+      }
+    } catch (error) {
+      db.prepare(`
+        UPDATE commlink_dispatch_receipts
+        SET status = 'failed', error_code = 'UPSTREAM_UNAVAILABLE', error_message = ?, updated_at = ?
+        WHERE id = ?
+      `).run(error instanceof Error ? error.message.slice(0, 500) : 'Provider dispatch unavailable', new Date().toISOString(), id);
+    }
+    receipts.push(serializeCommlinkReceipt(
+      db.prepare('SELECT * FROM commlink_dispatch_receipts WHERE id = ?').get(id),
+    ));
+  }
+
+  const delivered = receipts.filter((receipt) => receipt.status === 'delivered').length;
+  const failed = receipts.filter((receipt) => receipt.status === 'failed').length;
+  return {
+    version: 'commlink-dispatch-group.v1',
+    groupId,
+    status: failed === 0 ? 'delivered' : delivered === 0 ? 'failed' : 'partial',
+    delivered,
+    failed,
+    receipts,
+  };
+}
+
+async function handleCommlinkDispatch(req: any, res: any, userId: string, sourceApp = 'cosmo-commlink') {
+  try {
+    const result = await dispatchCommlinkGroup(userId, sourceApp, req.body);
+    return res.status(result.status === 'delivered' ? 200 : 207).json(result);
+  } catch (error: any) {
+    return res.status(error?.statusCode || 500).json({ error: error?.message || 'Commlink dispatch failed' });
+  }
+}
+
+app.post('/api/commlink/dispatch', authenticate, (req: any, res) => (
+  handleCommlinkDispatch(req, res, req.user.id, 'cosmo-commlink')
+));
+
+app.post('/api/platform/commlink/dispatch', authenticatePlatformKey('messages:write'), (req: any, res) => (
+  handleCommlinkDispatch(req, res, req.platformKey.userId, req.platformKey.appId || req.platformKey.name || 'partner-app')
+));
+
+app.post('/api/commlink/dispatch/:groupId/retry', authenticate, async (req: any, res) => {
+  const failed = db.prepare(`
+    SELECT * FROM commlink_dispatch_receipts
+    WHERE user_id = ? AND group_id = ? AND status = 'failed'
+    ORDER BY datetime(created_at) ASC
+  `).all(req.user.id, commlinkFeedText(req.params.groupId, 80)) as any[];
+  if (!failed.length) return res.status(404).json({ error: 'No failed destinations are available to retry' });
+  const request = JSON.parse(failed[0].request_json);
+  request.destinations = failed.map((row) => JSON.parse(row.request_json).destination);
+  request.idempotencyKey = `${failed[0].group_id}:retry:${uuidv4()}`.slice(0, 160);
+  try {
+    const result = await dispatchCommlinkGroup(req.user.id, failed[0].source_app, request, {
+      groupId: failed[0].group_id,
+      retryOf: failed[0].id,
+    });
+    return res.status(result.status === 'delivered' ? 200 : 207).json(result);
+  } catch (error: any) {
+    return res.status(error?.statusCode || 500).json({ error: error?.message || 'Commlink retry failed' });
+  }
+});
+
 app.get('/api/commlink/feed', authenticate, async (req: any, res) => {
   const user = getUserById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -3406,6 +3601,7 @@ app.get('/api/commlink/feed', authenticate, async (req: any, res) => {
       channelName: item.channelName || item.sourceName || item.channelId,
       lastEventAt: item.originalTimestamp,
       readOnly: true,
+      capabilities: COMMLINK_EGRESS_CAPABILITIES[item.platform] || COMMLINK_EGRESS_CAPABILITIES.spmt,
     }];
   })).values());
   const remoteSources = Array.isArray(streamweaver?.sources) ? streamweaver.sources : [];
@@ -3421,13 +3617,17 @@ app.get('/api/commlink/feed', authenticate, async (req: any, res) => {
   res.setHeader('Cache-Control', 'private, no-store');
   res.json({
     schemaVersion: 1,
-    mode: 'live-read-only',
+    mode: 'live-actions',
     generatedAt: new Date().toISOString(),
     count: items.length,
     hasMore: filtered.length > items.length || Boolean(streamweaver?.hasMore),
     nextSince: items.at(-1)?.originalTimestamp || req.query.since || null,
     sources: [
-      ...(remoteSources.length ? remoteSources : unavailableSources),
+      ...(remoteSources.length ? remoteSources : unavailableSources).map((source: any) => ({
+        ...source,
+        readOnly: !COMMLINK_EGRESS_CAPABILITIES[source.platform]?.compose,
+        capabilities: COMMLINK_EGRESS_CAPABILITIES[source.platform] || COMMLINK_EGRESS_CAPABILITIES.spmt,
+      })),
       {
         platform: 'spmt',
         status: 'live',
@@ -3435,10 +3635,15 @@ app.get('/api/commlink/feed', authenticate, async (req: any, res) => {
         eventCount: localItems.length,
         lastEventAt: latestLocalTimestamp,
         readOnly: true,
+        capabilities: COMMLINK_EGRESS_CAPABILITIES.spmt,
       },
     ],
     channels: [
-      ...(Array.isArray(streamweaver?.channels) ? streamweaver.channels : []),
+      ...(Array.isArray(streamweaver?.channels) ? streamweaver.channels.map((channel: any) => ({
+        ...channel,
+        readOnly: !(COMMLINK_EGRESS_CAPABILITIES[channel.platform]?.compose),
+        capabilities: COMMLINK_EGRESS_CAPABILITIES[channel.platform] || COMMLINK_EGRESS_CAPABILITIES.spmt,
+      })) : []),
       ...localChannels,
     ],
     upstream: {

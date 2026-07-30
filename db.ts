@@ -281,6 +281,31 @@ export function initDb() {
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS commlink_dispatch_receipts (
+      id TEXT PRIMARY KEY,
+      group_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      source_app TEXT NOT NULL DEFAULT 'cosmo-commlink',
+      idempotency_key TEXT NOT NULL,
+      action TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      channel_name TEXT NOT NULL,
+      request_json TEXT NOT NULL,
+      status TEXT NOT NULL,
+      provider_receipt_json TEXT,
+      error_code TEXT,
+      error_message TEXT,
+      retry_of TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(user_id, idempotency_key),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_commlink_dispatch_group
+      ON commlink_dispatch_receipts(user_id, group_id, created_at);
+
     CREATE TABLE IF NOT EXISTS user_discoveries (
       user_id TEXT NOT NULL,
       discovery_id TEXT NOT NULL,

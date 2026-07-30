@@ -9,10 +9,10 @@ const providers = {
 };
 
 const defaultSources = [
-  { id: 'twitch-creatora', provider: 'twitch', channel: 'creatorA', state: 'Live · can send' },
-  { id: 'kick-creatorc', provider: 'kick', channel: 'creatorC', state: 'Live · can send' },
-  { id: 'youtube-creatorb', provider: 'youtube', channel: 'creatorB', state: 'Live · can send' },
-  { id: 'discord-livechat', provider: 'discord', channel: '#live-chat', state: 'Live · can send' },
+  { id: 'twitch-creatora', provider: 'twitch', channelId: 'creatorA', channel: 'creatorA', state: 'Live · can send', capabilities: { compose: true, reply: true, timeout: true, delete: false } },
+  { id: 'kick-creatorc', provider: 'kick', channelId: 'creatorC', channel: 'creatorC', state: 'Live · can send', capabilities: { compose: true, reply: false, timeout: false, delete: false } },
+  { id: 'youtube-creatorb', provider: 'youtube', channelId: 'creatorB', channel: 'creatorB', state: 'Read only', capabilities: { compose: false, reply: false, timeout: false, delete: false } },
+  { id: 'discord-livechat', provider: 'discord', channelId: 'live-chat', channel: '#live-chat', state: 'Live · can send', capabilities: { compose: true, reply: false, timeout: false, delete: true } },
 ];
 
 const defaultChatSpaces = [
@@ -119,6 +119,8 @@ const state = {
   searchQuery: '',
   replayActive: false,
   selectedMessage: null,
+  replyToMessageId: null,
+  lastDispatchGroup: null,
   selectedDestinations: defaultSources.map((source) => source.id),
   messages: initialMessages.map((message) => ({ ...message })),
   chatSpaces: structuredClone(defaultChatSpaces),
@@ -244,7 +246,7 @@ function renderMessages() {
     : state.replayActive
       ? 'Safe replay · last 5 minutes · automations disabled'
       : state.feedMode === 'real'
-        ? 'Live read-only feed · provider actions disabled'
+        ? 'Live Commlink feed · actions are capability-gated'
         : state.feedMode === 'degraded'
           ? 'Feed degraded · preview data shown'
           : 'Synthetic preview · sign in for real sources';
@@ -278,6 +280,9 @@ function renderContext() {
     <section class="context-section">
       <h3>Operator actions</h3>
       <div class="context-actions">
+        <button type="button" data-action="reply" ${message.capabilities.reply ? '' : 'disabled'}>Reply</button>
+        ${message.provider === 'twitch' && message.capabilities.moderate ? '<button type="button" data-action="timeout">Timeout 10m</button>' : ''}
+        ${message.provider === 'discord' && message.capabilities.moderate ? '<button type="button" data-action="delete">Delete</button>' : ''}
         <button type="button" data-action="pin">${message.pinned ? 'Unpin' : 'Pin'}</button>
         <button type="button" data-action="queue">${message.queued ? 'Remove queue' : 'Add queue'}</button>
         <button type="button" data-action="feature">Feature</button>
@@ -288,9 +293,9 @@ function renderContext() {
       <h3>${provider.name} capabilities</h3>
       <div class="capability-list">
         <div class="capability"><span>Receive rich chat</span><span>Available</span></div>
-        <div class="capability unavailable"><span>Reply to source</span><span>Pass 4</span></div>
-        <div class="capability unavailable"><span>Moderation</span><span>Pass 4</span></div>
-        <div class="capability"><span>Connection</span><span>${state.feedMode === 'real' ? 'Read only' : 'Preview'}</span></div>
+        <div class="capability ${message.capabilities.reply ? '' : 'unavailable'}"><span>Reply to source</span><span>${message.capabilities.reply ? 'Available' : 'Unavailable'}</span></div>
+        <div class="capability ${message.capabilities.moderate ? '' : 'unavailable'}"><span>Moderation</span><span>${message.capabilities.moderate ? 'Scoped' : 'Unavailable'}</span></div>
+        <div class="capability"><span>Connection</span><span>${state.feedMode === 'real' ? 'Live contract' : 'Preview'}</span></div>
       </div>
     </section>
     <section class="context-section">
@@ -301,8 +306,25 @@ function renderContext() {
 }
 
 function handleMessageAction(message, action) {
+  if (action === 'reply') {
+    if (!message.capabilities.reply) return toast('This source does not expose a verified reply adapter.');
+    state.replyToMessageId = message.id;
+    state.selectedDestinations = [message.sourceId];
+    $('#routing-note').textContent = `Reply locked to ${providerFor(message.provider).name}/${message.channel}`;
+    renderDestinations();
+    $('#compose-input').focus();
+    return;
+  }
+  if (['timeout', 'delete'].includes(action)) {
+    if (!message.capabilities.moderate) return toast('Moderation is unavailable for this source.');
+    const prompt = action === 'timeout'
+      ? `Timeout ${message.name} on ${message.channel} for 10 minutes?`
+      : `Delete this Discord message from ${message.channel}?`;
+    if (window.confirm(prompt)) dispatchMessageAction(message, action);
+    return;
+  }
   if (state.feedMode === 'real' && ['pin', 'queue', 'feature', 'tts'].includes(action)) {
-    return toast('Pass 3 is read-only. This action did not contact a provider or trigger automation.');
+    return toast('This show-control action arrives in Pass 5. No provider request was made.');
   }
   if (action === 'pin') message.pinned = !message.pinned;
   if (action === 'queue') message.queued = !message.queued;
@@ -321,7 +343,7 @@ function renderDestinations() {
     const provider = providerFor(source.provider);
     return `<span class="destination-chip" style="${providerStyle(source.provider)}">${provider.name}/${source.channel}<button type="button" data-remove-destination="${id}" aria-label="Remove ${provider.name} ${source.channel}">×</button></span>`;
   }).join('');
-  $('#send-label').textContent = `Send → ${state.selectedDestinations.length}`;
+  $('#send-label').textContent = `${state.replyToMessageId ? 'Reply' : 'Send'} → ${state.selectedDestinations.length}`;
   $$('[data-remove-destination]').forEach((button) => button.addEventListener('click', () => {
     state.selectedDestinations = state.selectedDestinations.filter((id) => id !== button.dataset.removeDestination);
     rememberSpaceDestinations();
@@ -368,21 +390,35 @@ function renderAll() {
   renderDeskSelection();
 }
 
-function showMentionMenu() {
+function showMentionMenu(mode = 'single') {
   const menu = $('#mention-menu');
-  menu.innerHTML = activeSources().map((source) => {
+  const sendable = activeSources().filter((source) => source.capabilities?.compose);
+  menu.innerHTML = sendable.map((source) => {
     const provider = providerFor(source.provider);
-    return `<button class="mention-option" type="button" data-mention="${source.id}" style="${providerStyle(source.provider)}">
-      <span class="provider-logo">${provider.short}</span><span>${provider.name}/${source.channel}<small>Target only this destination</small></span><small>${source.state}</small>
+    const selected = state.selectedDestinations.includes(source.id);
+    return `<button class="mention-option" type="button" data-mention="${source.id}" data-mode="${mode}" style="${providerStyle(source.provider)}">
+      <span class="provider-logo">${provider.short}</span><span>${provider.name}/${source.channel}<small>${mode === 'single' ? 'Target only this destination' : selected ? 'Selected · click to remove' : 'Click to add'}</small></span><small>${source.state}</small>
     </button>`;
-  }).join('');
+  }).join('') || '<div class="feed-empty">No provider currently has a verified compose adapter.</div>';
   menu.classList.remove('hidden');
   $$('.mention-option').forEach((button) => button.addEventListener('click', () => {
-    state.selectedDestinations = [button.dataset.mention];
+    if (button.dataset.mode === 'single') {
+      state.selectedDestinations = [button.dataset.mention];
+      state.replyToMessageId = null;
+      $('#routing-note').textContent = 'Single destination selected with @channel routing';
+    } else if (state.selectedDestinations.includes(button.dataset.mention)) {
+      state.selectedDestinations = state.selectedDestinations.filter((id) => id !== button.dataset.mention);
+    } else {
+      state.selectedDestinations = [...state.selectedDestinations, button.dataset.mention];
+    }
     rememberSpaceDestinations();
     const input = $('#compose-input');
-    input.value = input.value.replace(/(^|\s)@\S*$/, '$1');
-    menu.classList.add('hidden');
+    if (button.dataset.mode === 'single') {
+      input.value = input.value.replace(/(^|\s)@\S*$/, '$1');
+      menu.classList.add('hidden');
+    } else {
+      showMentionMenu('toggle');
+    }
     renderDestinations();
     scheduleWorkspaceSave();
     input.focus();
@@ -394,6 +430,10 @@ function openSendPreview() {
   const message = input.value.trim();
   if (!message) return toast('Type a message before opening the destination preview.');
   if (!state.selectedDestinations.length) return toast('Select at least one destination.');
+  const selected = state.selectedDestinations.map((id) => state.sources.find((source) => source.id === id)).filter(Boolean);
+  if (selected.some((source) => !source.capabilities?.compose)) {
+    return toast('Remove destinations that do not have a verified compose adapter.');
+  }
   $('#modal-message').textContent = message;
   $('#modal-destinations').innerHTML = state.selectedDestinations.map((id) => {
     const source = state.sources.find((item) => item.id === id);
@@ -402,13 +442,19 @@ function openSendPreview() {
     return `<div class="modal-destination" style="${providerStyle(source.provider)}">
       <span class="provider-logo">${provider.short}</span>
       <span><strong>${provider.name} · ${source.channel}</strong><small>${source.state}</small></span>
-      <span>Ready</span>
+      <span>${source.capabilities?.compose ? 'Ready' : 'Unavailable'}</span>
     </div>`;
   }).join('');
+  $('#simulate-send').textContent = state.feedMode === 'real' ? (state.replyToMessageId ? 'Send source-locked reply' : 'Send deliberately') : 'Simulate send';
+  $('#simulate-send').dataset.receiptMode = '';
+  $('#send-safety-note').innerHTML = state.feedMode === 'real'
+    ? '<span>✓</span> Every destination receives its own idempotent request and receipt. Partial failure never appears as a complete send.'
+    : '<span>✓</span> Synthetic preview mode never contacts a provider.';
   $('#send-modal').classList.remove('hidden');
 }
 
-function simulateSend() {
+async function simulateSend() {
+  if (state.feedMode === 'real') return dispatchComposer();
   const destinationNames = state.selectedDestinations.map((id) => state.sources.find((source) => source.id === id)?.channel).filter(Boolean);
   state.messages.push({
     id: `preview-${Date.now()}`, provider: 'spmt', channel: 'Operator preview', kind: 'chat', name: 'Mountain Crew',
@@ -421,6 +467,108 @@ function simulateSend() {
   renderMessages();
   $('#message-feed').scrollTop = $('#message-feed').scrollHeight;
   toast('Synthetic message added. No provider request was made.');
+}
+
+function dispatchDestination(source) {
+  return { platform: source.provider, channelId: source.channelId, channelName: source.channel };
+}
+
+async function requestCommlinkDispatch(body) {
+  const token = localStorage.getItem('spmt_token');
+  if (!token) throw new Error('Sign in to send through Commlink.');
+  const response = await fetch('/api/commlink/dispatch', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok && response.status !== 207) throw new Error(result.error || `Commlink dispatch returned ${response.status}`);
+  return result;
+}
+
+function renderDispatchReceipts(group) {
+  state.lastDispatchGroup = group;
+  $('#modal-destinations').innerHTML = (group.receipts || []).map((receipt) => {
+    const provider = providerFor(receipt.destination.platform);
+    const failed = receipt.status !== 'delivered';
+    return `<div class="modal-destination ${failed ? 'receipt-failed' : 'receipt-delivered'}" style="${providerStyle(receipt.destination.platform)}">
+      <span class="provider-logo">${provider.short}</span>
+      <span><strong>${provider.name} · ${escapeHtml(receipt.destination.channelName)}</strong><small>${failed ? escapeHtml(receipt.error?.message || 'Delivery failed') : 'Provider receipt recorded'}</small></span>
+      <span>${failed ? 'Failed' : 'Delivered'}</span>
+    </div>`;
+  }).join('');
+  $('#send-safety-note').innerHTML = `<span>${group.status === 'delivered' ? '✓' : '!'}</span> ${group.delivered} delivered · ${group.failed} failed.`;
+  $('#simulate-send').textContent = group.failed ? 'Retry failed only' : 'Done';
+  $('#simulate-send').dataset.receiptMode = group.failed ? 'retry' : 'done';
+}
+
+async function dispatchComposer() {
+  const button = $('#simulate-send');
+  if (button.dataset.receiptMode === 'done') {
+    $('#send-modal').classList.add('hidden');
+    button.dataset.receiptMode = '';
+    return;
+  }
+  if (button.dataset.receiptMode === 'retry') {
+    button.disabled = true;
+    try {
+      const token = localStorage.getItem('spmt_token');
+      const response = await fetch(`/api/commlink/dispatch/${encodeURIComponent(state.lastDispatchGroup.groupId)}/retry`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok && response.status !== 207) throw new Error(result.error || 'Retry failed');
+      renderDispatchReceipts(result);
+    } catch (error) {
+      toast(error.message || 'Retry failed');
+    } finally {
+      button.disabled = false;
+    }
+    return;
+  }
+
+  const sources = state.selectedDestinations.map((id) => state.sources.find((source) => source.id === id)).filter(Boolean);
+  button.disabled = true;
+  button.textContent = 'Dispatching…';
+  try {
+    const result = await requestCommlinkDispatch({
+      idempotencyKey: crypto.randomUUID(),
+      action: state.replyToMessageId ? 'reply' : 'compose',
+      message: $('#compose-input').value.trim(),
+      eventId: state.replyToMessageId || undefined,
+      destinations: sources.map(dispatchDestination),
+    });
+    renderDispatchReceipts(result);
+    if (result.delivered) {
+      $('#compose-input').value = '';
+      state.replyToMessageId = null;
+      $('#routing-note').textContent = 'Replies remain source-locked';
+    }
+  } catch (error) {
+    toast(error.message || 'Commlink dispatch failed');
+    button.textContent = state.replyToMessageId ? 'Send source-locked reply' : 'Send deliberately';
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function dispatchMessageAction(message, action) {
+  const source = state.sources.find((item) => item.id === message.sourceId);
+  if (!source) return toast('The source destination is no longer available.');
+  try {
+    const result = await requestCommlinkDispatch({
+      idempotencyKey: crypto.randomUUID(),
+      action,
+      eventId: message.id,
+      durationSeconds: action === 'timeout' ? 600 : undefined,
+      destinations: [dispatchDestination(source)],
+    });
+    const receipt = result.receipts?.[0];
+    toast(receipt?.status === 'delivered' ? `${action} completed with a provider receipt.` : receipt?.error?.message || `${action} failed.`);
+  } catch (error) {
+    toast(error.message || `${action} failed`);
+  }
 }
 
 function escapeHtml(value) {
@@ -490,6 +638,8 @@ function normalizeFeedItem(item) {
     sourceId: `${provider}:${item.channelId}`,
     provider,
     channel: String(item.channelName || item.sourceName || item.channelId || 'unknown'),
+    channelId: String(item.channelId || ''),
+    upstreamId: String(item.upstreamId || ''),
     kind: isChat ? 'chat' : 'event',
     event: isChat ? null : eventLabel(item),
     value: eventValue(item),
@@ -507,7 +657,11 @@ function normalizeFeedItem(item) {
     level: Number(item.meta?.spmtLevel || 1),
     queued: false,
     pinned: false,
-    capabilities: { reply: false, moderate: false, tts: false },
+    capabilities: {
+      reply: Boolean(item.routing?.canReply),
+      moderate: provider === 'twitch' || provider === 'discord',
+      tts: false,
+    },
   };
 }
 
@@ -521,9 +675,11 @@ function applyFeedSources(payload) {
       id: `${provider}:${channel.channelId}`,
       provider,
       channel: String(channel.channelName || channel.sourceName || channel.channelId),
-      state: `${String(health.status || 'idle')} · read only`,
+      channelId: String(channel.channelId || ''),
+      capabilities: channel.capabilities || { compose: false, reply: false, timeout: false, delete: false },
+      state: `${String(health.status || 'idle')} · ${channel.capabilities?.compose ? 'can send' : 'read only'}`,
       health: health.status || 'idle',
-      readOnly: true,
+      readOnly: !channel.capabilities?.compose,
     };
   });
   const unique = Array.from(new Map(channelSources.map((source) => [source.id, source])).values());
@@ -537,6 +693,7 @@ function applyFeedSources(payload) {
       state: `${health.status} · read only`,
       health: health.status,
       readOnly: true,
+      capabilities: { compose: false, reply: false, timeout: false, delete: false },
     });
   }
   state.sources = unique;
@@ -601,15 +758,15 @@ async function loadCommlinkFeed({ incremental = false, query = '', replayMinutes
     }
     const degraded = payload.upstream?.streamweaver?.status !== 'ready';
     setFeedBanner('real', degraded
-      ? 'SPMT records live · StreamWeaver feed degraded · provider writes disabled'
-      : 'Real Twitch, Kick, YouTube, Discord, and SPMT reads · provider writes disabled');
+      ? 'SPMT records live · StreamWeaver feed degraded · outbound adapters unavailable'
+      : 'Real Twitch, Kick, YouTube, Discord, and SPMT feeds · writes require exact receipts');
     $('#replay-button').textContent = state.replayActive ? '● Return live' : '↻ Replay 5m';
     renderAll();
   } catch {
     if (!state.liveMessages.length) {
       state.messages = initialMessages.map((message) => ({ ...message }));
       state.sources = structuredClone(defaultSources);
-      setFeedBanner('degraded', 'Real feed unavailable · labeled preview data shown · provider writes disabled');
+      setFeedBanner('degraded', 'Real feed unavailable · labeled preview data shown · no provider writes');
     }
     renderAll();
   } finally {
@@ -1030,13 +1187,7 @@ function wireEvents() {
   $('#close-send-modal').addEventListener('click', () => $('#send-modal').classList.add('hidden'));
   $('#cancel-send').addEventListener('click', () => $('#send-modal').classList.add('hidden'));
   $('#simulate-send').addEventListener('click', simulateSend);
-  $('#destination-edit').addEventListener('click', () => {
-    const next = activeSources().find((source) => !state.selectedDestinations.includes(source.id));
-    state.selectedDestinations = next ? [...state.selectedDestinations, next.id] : activeSources().map((source) => source.id);
-    rememberSpaceDestinations();
-    renderDestinations();
-    scheduleWorkspaceSave();
-  });
+  $('#destination-edit').addEventListener('click', () => showMentionMenu('toggle'));
   $('#settings-button').addEventListener('click', () => $('#settings-drawer').classList.remove('hidden'));
   $('#close-settings').addEventListener('click', () => $('#settings-drawer').classList.add('hidden'));
   $('#reload-profile').addEventListener('click', loadWorkspaceProfile);

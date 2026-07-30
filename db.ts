@@ -306,6 +306,27 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_commlink_dispatch_group
       ON commlink_dispatch_receipts(user_id, group_id, created_at);
 
+    CREATE TABLE IF NOT EXISTS commlink_operator_receipts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      source_app TEXT NOT NULL DEFAULT 'cosmo-commlink',
+      idempotency_key TEXT NOT NULL,
+      action TEXT NOT NULL,
+      event_id TEXT,
+      request_json TEXT NOT NULL,
+      status TEXT NOT NULL,
+      result_json TEXT,
+      error_code TEXT,
+      error_message TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(user_id, idempotency_key),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_commlink_operator_user
+      ON commlink_operator_receipts(user_id, created_at);
+
     CREATE TABLE IF NOT EXISTS user_discoveries (
       user_id TEXT NOT NULL,
       discovery_id TEXT NOT NULL,

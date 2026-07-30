@@ -3347,6 +3347,13 @@ function streamweaverCommlinkDispatchUrl() {
   return 'https://streamweaver-new.fly.dev/api/shared-chat/spmt-dispatch';
 }
 
+function streamweaverCommlinkOperatorUrl() {
+  if (!IS_PRODUCTION && process.env.NODE_ENV === 'test' && process.env.SPMT_TEST_STREAMWEAVER_OPERATOR_URL) {
+    return process.env.SPMT_TEST_STREAMWEAVER_OPERATOR_URL;
+  }
+  return 'https://streamweaver-new.fly.dev/api/shared-chat/spmt-operator';
+}
+
 const COMMLINK_EGRESS_CAPABILITIES: Record<string, Record<string, boolean>> = {
   twitch: { compose: true, reply: true, timeout: true, delete: false },
   discord: { compose: true, reply: false, timeout: false, delete: true },
@@ -3533,6 +3540,200 @@ app.post('/api/commlink/dispatch/:groupId/retry', authenticate, async (req: any,
   } catch (error: any) {
     return res.status(error?.statusCode || 500).json({ error: error?.message || 'Commlink retry failed' });
   }
+});
+
+const COMMLINK_OPERATOR_ACTIONS = new Set([
+  'pin', 'unpin', 'queue', 'unqueue', 'feature', 'next', 'clear',
+  'set-auto-show', 'set-feature-options', 'speak',
+]);
+
+function serializeCommlinkOperatorReceipt(row: any, duplicate = false) {
+  return {
+    version: 'commlink-operator-receipt.v1',
+    id: row.id,
+    idempotencyKey: row.idempotency_key,
+    action: row.action,
+    eventId: row.event_id || null,
+    status: row.status,
+    result: row.result_json ? JSON.parse(row.result_json) : null,
+    error: row.error_message ? { code: row.error_code || 'OPERATOR_ACTION_FAILED', message: row.error_message } : null,
+    duplicate,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+async function readCommlinkOperator(userId: string) {
+  const user = getUserById(userId);
+  if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
+  const tenantId = String(user.twitch_id || user.id);
+  const response = await fetch(streamweaverCommlinkOperatorUrl(), {
+    headers: {
+      'x-spmt-key': String(process.env.SYSTEM_API_KEY || ''),
+      'x-spmt-tenant-id': tenantId,
+      'x-spmt-user-id': user.id,
+    },
+    signal: AbortSignal.timeout(5_000),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error(commlinkFeedText(result?.error?.message || result?.error || 'Operator runtime unavailable', 500)), {
+    statusCode: response.status,
+  });
+  const streamweaverOrigin = new URL(streamweaverCommlinkOperatorUrl()).origin;
+  return {
+    ...result,
+    outputs: Array.isArray(result.outputs) ? result.outputs.map((output: any) => ({
+      ...output,
+      url: output?.path ? new URL(String(output.path), streamweaverOrigin).href : null,
+    })) : [],
+  };
+}
+
+async function dispatchCommlinkOperator(userId: string, sourceApp: string, input: any) {
+  const user = getUserById(userId);
+  if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
+  const action = commlinkFeedText(input?.action, 40).toLowerCase();
+  if (!COMMLINK_OPERATOR_ACTIONS.has(action)) throw Object.assign(new Error('Unsupported operator action'), { statusCode: 400 });
+  const idempotencyKey = commlinkFeedText(input?.idempotencyKey, 160);
+  if (idempotencyKey.length < 8) throw Object.assign(new Error('A stable idempotency key is required'), { statusCode: 400 });
+  const eventId = commlinkFeedText(input?.eventId, 240);
+  if (['pin', 'unpin', 'queue', 'unqueue', 'feature'].includes(action) && !eventId) {
+    throw Object.assign(new Error('A source event is required for this action'), { statusCode: 400 });
+  }
+  const message = commlinkFeedText(input?.message, 2_000);
+  if (action === 'speak' && !message) throw Object.assign(new Error('TTS text is required'), { statusCode: 400 });
+  const existing = db.prepare('SELECT * FROM commlink_operator_receipts WHERE user_id = ? AND idempotency_key = ?')
+    .get(user.id, idempotencyKey) as any;
+  if (existing) return serializeCommlinkOperatorReceipt(existing, true);
+
+  const requestBody = {
+    action,
+    eventId: eventId || undefined,
+    message: action === 'speak' ? message : undefined,
+    enabled: typeof input?.enabled === 'boolean' ? input.enabled : undefined,
+    autoAdvance: typeof input?.autoAdvance === 'boolean' ? input.autoAdvance : undefined,
+    durationSeconds: Number.isFinite(Number(input?.durationSeconds))
+      ? Math.min(300, Math.max(0, Math.floor(Number(input.durationSeconds))))
+      : undefined,
+    style: ['glass', 'solid', 'minimal'].includes(String(input?.style)) ? input.style : undefined,
+  };
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO commlink_operator_receipts (
+      id, user_id, source_app, idempotency_key, action, event_id,
+      request_json, status, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'dispatching', ?, ?)
+  `).run(id, user.id, sourceApp || 'cosmo-commlink', idempotencyKey, action, eventId || null, JSON.stringify(requestBody), now, now);
+
+  try {
+    const tenantId = String(user.twitch_id || user.id);
+    const response = await fetch(streamweaverCommlinkOperatorUrl(), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-spmt-key': String(process.env.SYSTEM_API_KEY || ''),
+        'x-spmt-tenant-id': tenantId,
+        'x-spmt-user-id': user.id,
+      },
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(action === 'speak' ? 30_000 : 8_000),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const errorMessage = commlinkFeedText(result?.error?.message || result?.error || `Operator runtime returned ${response.status}`, 500);
+      const errorCode = commlinkFeedText(result?.error?.code || 'OPERATOR_ACTION_FAILED', 80);
+      db.prepare(`
+        UPDATE commlink_operator_receipts
+        SET status = 'failed', result_json = ?, error_code = ?, error_message = ?, updated_at = ?
+        WHERE id = ?
+      `).run(JSON.stringify(result), errorCode, errorMessage, new Date().toISOString(), id);
+    } else {
+      const status = result?.status === 'skipped' ? 'skipped' : 'delivered';
+      db.prepare(`
+        UPDATE commlink_operator_receipts
+        SET status = ?, result_json = ?, updated_at = ?
+        WHERE id = ?
+      `).run(status, JSON.stringify(result), new Date().toISOString(), id);
+    }
+  } catch (error) {
+    db.prepare(`
+      UPDATE commlink_operator_receipts
+      SET status = 'failed', error_code = 'UPSTREAM_UNAVAILABLE', error_message = ?, updated_at = ?
+      WHERE id = ?
+    `).run(error instanceof Error ? error.message.slice(0, 500) : 'Operator runtime unavailable', new Date().toISOString(), id);
+  }
+  return serializeCommlinkOperatorReceipt(db.prepare('SELECT * FROM commlink_operator_receipts WHERE id = ?').get(id));
+}
+
+app.get('/api/commlink/operator', authenticate, async (req: any, res) => {
+  try {
+    return res.json(await readCommlinkOperator(req.user.id));
+  } catch (error: any) {
+    return res.status(error?.statusCode || 503).json({ error: error?.message || 'Operator runtime unavailable' });
+  }
+});
+
+app.post('/api/commlink/operator', authenticate, async (req: any, res) => {
+  try {
+    const result = await dispatchCommlinkOperator(req.user.id, 'cosmo-commlink', req.body);
+    return res.status(result.status === 'failed' ? 502 : 200).json(result);
+  } catch (error: any) {
+    return res.status(error?.statusCode || 500).json({ error: error?.message || 'Operator action failed' });
+  }
+});
+
+app.get('/api/commlink/integrations', authenticate, (_req: any, res) => {
+  res.json({
+    version: 'commlink-integrations.v1',
+    primarySurface: '/commlink/',
+    rollbackSurface: '/?legacyMessages=1#messages',
+    cleanupApproved: false,
+    adapters: [
+      {
+        appId: 'spmt',
+        owner: 'SPMT',
+        status: 'native',
+        capabilities: ['direct-messages', 'group-conversations', 'notifications', 'app-events', 'xp'],
+        deepLink: '/commlink/?lane=mail',
+      },
+      {
+        appId: 'streamweaver',
+        owner: 'StreamWeaver',
+        status: 'connected',
+        capabilities: ['twitch', 'kick', 'youtube-read', 'discord', 'tts', 'bots-ai', 'voice', 'translation', 'featured-output'],
+        deepLink: 'https://streamweaver-new.fly.dev/shared-chat',
+      },
+      {
+        appId: 'discord-stream-hub',
+        owner: 'DiscordStreamHub',
+        status: 'delegated',
+        capabilities: ['discord-channel-curation', 'advanced-discord-management', 'badges', 'xp'],
+        deepLink: 'https://discord-stream-hub-new.fly.dev',
+      },
+      {
+        appId: 'hearmeout',
+        owner: 'HearMeOut',
+        status: 'deep-link',
+        capabilities: ['voice-rooms', 'watch-sessions', 'media'],
+        deepLink: 'https://hearmeout-main.fly.dev',
+      },
+      {
+        appId: 'chat-tag',
+        owner: 'ChatTag',
+        status: 'sdk-events',
+        capabilities: ['game-events', 'notifications'],
+        deepLink: 'https://chat-tag-new.fly.dev',
+      },
+      {
+        appId: 'companion',
+        owner: 'SpaceMountain Companion',
+        status: 'paired-device',
+        capabilities: ['allowlisted-controls', 'obs', 'popouts', 'reviewed-workflows'],
+        deepLink: '/?view=apps',
+      },
+    ],
+  });
 });
 
 app.get('/api/commlink/feed', authenticate, async (req: any, res) => {

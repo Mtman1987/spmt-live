@@ -98,6 +98,11 @@ const apps = await spmt.apps.list();
 - `events`
 - `game`
 - `commlink`
+  - `feed()` reads the account-scoped unified timeline.
+  - `dispatch()` and `retryFailed()` return per-destination receipts.
+  - `operator()` discovers show state and named outputs.
+  - `control()` runs receipt-backed pin, queue, feature, TTS, and show actions.
+  - `integrations()` reports the capability owner, migration status, and native deep link for every current app adapter.
 - `athena`
 - `webhooks`
 

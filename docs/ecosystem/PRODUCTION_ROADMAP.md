@@ -891,6 +891,21 @@ destination-validated Twitch replies. Other reply/moderation adapters,
 shared-mixer routing, and explicit collaborator operator grants remain open and
 are labeled rather than simulated.
 
+2026-07-30 coordinated Pass 5–7 source status: the SPMT-owned Commlink surface
+now calls StreamWeaver's tenant-authenticated show-control bridge for
+pin/queue/feature/next/clear and listener-gated TTS. SPMT records idempotent
+operator receipts and persists panel roles, explicit sync groups, typed smart
+staging rules, and allowlisted control bindings in account app state. The
+production dock renders typed event counts, discovers the existing named
+featured-chat OBS output, drives paired Companion commands through the existing
+capability relay, and deep-links bot/AI, voice, translation, avatar, Discord,
+HearMeOut, and ChatTag capabilities to their owners. The SDK exposes feed,
+operator, control, and integration contracts. Commlink is now the primary SPMT
+messaging navigation; the old inbox is retained and labeled as rollback, and
+cleanup remains unapproved. Audible TTS, live paired-device execution,
+forced-reconnect behavior, and two simultaneous signed-in browser accounts
+remain operator proof rather than source-only claims.
+
 ### Step 3.5 — Add the featured-message output
 
 Create a clean scene widget and browser-source URL for the selected message. It must support labels, styling, duration, queue advance, clear, and a transparent empty state.

@@ -77,6 +77,73 @@ export type CommlinkDispatchGroupV1 = {
   receipts: CommlinkDispatchReceiptV1[];
 };
 
+export type CommlinkOperatorActionV1 =
+  | 'pin' | 'unpin' | 'queue' | 'unqueue' | 'feature'
+  | 'next' | 'clear' | 'set-auto-show' | 'set-feature-options' | 'speak';
+
+export type CommlinkOperatorInputV1 = {
+  idempotencyKey: string;
+  action: CommlinkOperatorActionV1;
+  eventId?: string;
+  message?: string;
+  enabled?: boolean;
+  autoAdvance?: boolean;
+  durationSeconds?: number;
+  style?: 'glass' | 'solid' | 'minimal';
+};
+
+export type CommlinkOperatorReceiptV1 = {
+  version: 'commlink-operator-receipt.v1';
+  id: string;
+  idempotencyKey: string;
+  action: CommlinkOperatorActionV1;
+  eventId?: string | null;
+  status: 'dispatching' | 'delivered' | 'skipped' | 'failed';
+  result?: Record<string, unknown> | null;
+  error?: { code: string; message: string } | null;
+  duplicate: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CommlinkOperatorStateV1 = {
+  version: 'commlink-operator.v1';
+  tenantId: string;
+  state: {
+    pinnedEventIds: string[];
+    queuedEventIds: string[];
+    featuredEventId: string | null;
+    autoShow: boolean;
+    autoAdvance: boolean;
+    featureDurationSeconds: number;
+    featureStyle: 'glass' | 'solid' | 'minimal';
+    featuredAt: string | null;
+    updatedAt: string;
+  };
+  outputs: Array<{
+    id: string;
+    label: string;
+    kind: string;
+    url: string | null;
+    readOnly: boolean;
+  }>;
+  capabilities: Record<string, boolean | string>;
+};
+
+export type CommlinkIntegrationsV1 = {
+  version: 'commlink-integrations.v1';
+  primarySurface: string;
+  rollbackSurface: string;
+  cleanupApproved: boolean;
+  adapters: Array<{
+    appId: string;
+    owner: string;
+    status: 'native' | 'connected' | 'delegated' | 'deep-link' | 'sdk-events' | 'paired-device';
+    capabilities: string[];
+    deepLink: string;
+  }>;
+};
+
 export type AthenaMemoryInput = {
   topic: string;
   content: string;
@@ -802,6 +869,19 @@ export class SpaceMountainClient {
     retryFailed: (groupId: string) => this.request(`/api/commlink/dispatch/${encodeURIComponent(groupId)}/retry`, {
       method: 'POST',
     }) as Promise<CommlinkDispatchGroupV1>,
+    feed: (query: { q?: string; platform?: string; since?: string; before?: string; limit?: number } = {}) => {
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined && value !== '') params.set(key, String(value));
+      }
+      return this.request(`/api/commlink/feed${params.size ? `?${params}` : ''}`);
+    },
+    operator: () => this.request('/api/commlink/operator') as Promise<CommlinkOperatorStateV1>,
+    integrations: () => this.request('/api/commlink/integrations') as Promise<CommlinkIntegrationsV1>,
+    control: (input: CommlinkOperatorInputV1) => this.request('/api/commlink/operator', {
+      method: 'POST',
+      body: input,
+    }) as Promise<CommlinkOperatorReceiptV1>,
   };
 
   athena = {

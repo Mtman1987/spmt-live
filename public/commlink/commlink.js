@@ -49,7 +49,7 @@ const initialMessages = [
     xp: 31977, level: 42, queued: false, pinned: false, capabilities: { reply: true, moderate: true, tts: true },
   },
   {
-    id: 'm2', sourceId: 'youtube-creatorb', provider: 'youtube', channel: 'creatorB', kind: 'event', event: 'Super Chat', name: 'NovaSkies',
+    id: 'm2', sourceId: 'youtube-creatorb', provider: 'youtube', channel: 'creatorB', kind: 'event', eventType: 'donation', event: 'Super Chat', name: 'NovaSkies',
     handle: '@novaskies', initials: 'NS', roles: ['MEMBER'], time: '8:42 PM', text: 'Can we get a tour of the new setup?', value: '$20.00',
     xp: 12840, level: 26, queued: true, pinned: true, capabilities: { reply: true, moderate: true, tts: true },
   },
@@ -65,12 +65,12 @@ const initialMessages = [
     capabilities: { reply: true, moderate: true, tts: true },
   },
   {
-    id: 'm5', sourceId: 'twitch-creatora', provider: 'twitch', channel: 'creatorA', kind: 'event', event: 'Channel Point Redeem', name: 'CometChaser',
+    id: 'm5', sourceId: 'twitch-creatora', provider: 'twitch', channel: 'creatorA', kind: 'event', eventType: 'reward', event: 'Channel Point Redeem', name: 'CometChaser',
     handle: '@cometchaser', initials: 'CC', roles: ['VIP'], time: '8:43 PM', text: 'Hydrate the captain', value: '5,000 points',
     xp: 18650, level: 31, queued: true, pinned: false, capabilities: { reply: true, moderate: true, tts: true },
   },
   {
-    id: 'm6', sourceId: 'spmt-xp', provider: 'spmt', channel: 'XP Ledger', kind: 'event', event: 'SPMT XP', name: 'PixelRanger',
+    id: 'm6', sourceId: 'spmt-xp', provider: 'spmt', channel: 'XP Ledger', kind: 'event', eventType: 'xp', event: 'SPMT XP', name: 'PixelRanger',
     handle: '@pixelranger', initials: 'PR', roles: ['VERIFIED'], time: '8:44 PM', text: 'Creator streak milestone', value: '+125 XP',
     xp: 32102, level: 42, queued: false, pinned: false, capabilities: { reply: false, moderate: false, tts: false },
   },
@@ -105,6 +105,13 @@ const defaultAppearance = {
   animation: { enabled: true, speed: 85, particles: true, shootingStars: true },
 };
 
+const defaultProduction = {
+  panelRole: 'owner',
+  syncGroupId: 'show-queue',
+  staging: { enabled: false, trigger: 'reward', action: 'queue' },
+  bindings: [],
+};
+
 const state = {
   activeSpace: 'friday',
   activeDesk: 'live-show',
@@ -135,6 +142,12 @@ const state = {
   etag: null,
   appearance: structuredClone(defaultAppearance),
   profileStatus: 'loading',
+  production: structuredClone(defaultProduction),
+  operator: null,
+  operatorStatus: 'loading',
+  stagedEventIds: new Set(),
+  companionDevices: [],
+  integrations: [],
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -324,7 +337,14 @@ function handleMessageAction(message, action) {
     return;
   }
   if (state.feedMode === 'real' && ['pin', 'queue', 'feature', 'tts'].includes(action)) {
-    return toast('This show-control action arrives in Pass 5. No provider request was made.');
+    const operatorAction = action === 'pin'
+      ? (message.pinned ? 'unpin' : 'pin')
+      : action === 'queue'
+        ? (message.queued ? 'unqueue' : 'queue')
+        : action === 'tts'
+          ? 'speak'
+          : action;
+    return runOperatorAction(operatorAction, message);
   }
   if (action === 'pin') message.pinned = !message.pinned;
   if (action === 'queue') message.queued = !message.queued;
@@ -356,13 +376,15 @@ function renderDesk() {
   const chatMessages = state.messages.filter((message) => message.kind === 'chat').slice(0, 5);
   const discordMessages = state.messages.filter((message) => message.provider === 'discord');
   const events = state.messages.filter((message) => message.kind === 'event');
+  const activeDesk = state.desks.find((desk) => desk.id === state.activeDesk) || state.desks[0];
+  const panels = activeDesk?.panels || [];
   $('#desk-grid').innerHTML = `
     <section class="desk-panel" data-constellation-panel="0">
-      <header class="desk-panel-header"><span><strong>Main Multistream</strong><small>Twitch · Kick · YouTube</small></span><button class="panel-label" type="button" data-constellation-step="0">main-chat</button></header>
+       <header class="desk-panel-header"><span><strong>Main Multistream</strong><small>${escapeHtml(panels[0]?.accessMode || 'owner')} · ${escapeHtml(panels[0]?.syncGroupId || 'not synced')}</small></span><button class="panel-label" type="button" data-constellation-step="0">main-chat</button></header>
       <div class="desk-panel-body">${chatMessages.map((message) => messageCard(message, true)).join('')}</div>
     </section>
     <section class="desk-panel" data-constellation-panel="1">
-      <header class="desk-panel-header"><span><strong>Discord Ops</strong><small>Helper controls</small></span><button class="panel-label" type="button" data-constellation-step="1">discord-ops</button></header>
+       <header class="desk-panel-header"><span><strong>Discord Ops</strong><small>${escapeHtml(panels[1]?.accessMode || 'helper')} controls</small></span><button class="panel-label" type="button" data-constellation-step="1">discord-ops</button></header>
       <div class="desk-panel-body">${discordMessages.map((message) => messageCard(message, true)).join('')}</div>
     </section>
     <section class="desk-panel" data-constellation-panel="2">
@@ -641,6 +663,7 @@ function normalizeFeedItem(item) {
     channelId: String(item.channelId || ''),
     upstreamId: String(item.upstreamId || ''),
     kind: isChat ? 'chat' : 'event',
+    eventType: String(item.type || 'message'),
     event: isChat ? null : eventLabel(item),
     value: eventValue(item),
     name: displayName,
@@ -657,10 +680,11 @@ function normalizeFeedItem(item) {
     level: Number(item.meta?.spmtLevel || 1),
     queued: false,
     pinned: false,
+    firstTime: Boolean(item.meta?.firstTime || item.meta?.first_time),
     capabilities: {
       reply: Boolean(item.routing?.canReply),
       moderate: provider === 'twitch' || provider === 'discord',
-      tts: false,
+      tts: provider !== 'spmt',
     },
   };
 }
@@ -755,6 +779,7 @@ async function loadCommlinkFeed({ incremental = false, query = '', replayMinutes
       if (incremental) mergeFeedMessages(normalized);
       else state.liveMessages = normalized;
       state.messages = [...state.liveMessages];
+      await applySmartStaging(normalized);
     }
     const degraded = payload.upstream?.streamweaver?.status !== 'ready';
     setFeedBanner('real', degraded
@@ -782,10 +807,243 @@ function clearHistoryMode() {
   loadCommlinkFeed();
 }
 
+function activePanel() {
+  const desk = state.desks.find((item) => item.id === state.activeDesk) || state.desks[0];
+  return desk?.panels?.find((panel) => panel.chatSpaceId === state.activeSpace) || desk?.panels?.[0] || null;
+}
+
+function canRunOperatorAction(action) {
+  const role = state.production.panelRole || activePanel()?.accessMode || 'owner';
+  if (role === 'view-only') return false;
+  if (role === 'queue-only') return ['queue', 'unqueue', 'next'].includes(action);
+  if (role === 'pinned-only') return ['pin', 'unpin'].includes(action);
+  if (role === 'helper') return ['pin', 'unpin', 'queue', 'unqueue', 'feature', 'next', 'clear', 'speak'].includes(action);
+  return true;
+}
+
+async function requestOperator(body) {
+  const token = localStorage.getItem('spmt_token');
+  if (!token) throw new Error('Sign in to use tenant show controls.');
+  const response = await fetch('/api/commlink/operator', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error?.message || result.error || `Operator action returned ${response.status}`);
+  return result;
+}
+
+function syncMessagesFromOperator() {
+  const operator = state.operator?.state;
+  if (!operator) return;
+  const pinned = new Set(operator.pinnedEventIds || []);
+  const queued = new Set(operator.queuedEventIds || []);
+  state.messages.forEach((message) => {
+    message.pinned = pinned.has(message.id);
+    message.queued = queued.has(message.id);
+  });
+}
+
+async function runOperatorAction(action, message = null, idempotencyKey = crypto.randomUUID()) {
+  if (!canRunOperatorAction(action)) return toast(`${state.production.panelRole} mode cannot run ${action}.`);
+  try {
+    const result = await requestOperator({
+      idempotencyKey,
+      action,
+      eventId: message?.id,
+      message: action === 'speak' ? String(message?.text || $('#tts-text')?.value || '').replace(/<[^>]+>/g, '') : undefined,
+    });
+    if (result.result?.state) state.operator = { ...(state.operator || {}), state: result.result.state };
+    if (result.status === 'skipped') toast(result.result?.reason || 'TTS skipped because no listener is active.');
+    else toast(`${action} completed with a durable operator receipt.`);
+    syncMessagesFromOperator();
+    renderAll();
+    renderProductionDock();
+    return result;
+  } catch (error) {
+    toast(error.message || `${action} failed`);
+    return null;
+  }
+}
+
+async function loadOperator() {
+  const token = localStorage.getItem('spmt_token');
+  if (!token) {
+    state.operatorStatus = 'signed-out';
+    renderProductionDock();
+    return;
+  }
+  state.operatorStatus = 'loading';
+  renderProductionDock();
+  try {
+    const response = await fetch('/api/commlink/operator', { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) throw new Error(`Operator runtime returned ${response.status}`);
+    state.operator = await response.json();
+    state.operatorStatus = 'ready';
+    syncMessagesFromOperator();
+  } catch (error) {
+    state.operatorStatus = 'degraded';
+    state.operator = { error: error.message };
+  }
+  renderAll();
+  renderProductionDock();
+}
+
+function stagingMatches(message, trigger) {
+  if (trigger === 'first-time') return message.firstTime === true;
+  if (trigger === 'reward') return ['reward', 'redeem'].includes(message.eventType);
+  return message.eventType === trigger;
+}
+
+async function applySmartStaging(messages) {
+  const rule = state.production.staging;
+  if (!rule?.enabled || state.searchQuery || state.replayActive) return;
+  const candidates = messages
+    .filter((message) => stagingMatches(message, rule.trigger))
+    .filter((message) => !state.stagedEventIds.has(`${rule.action}:${message.id}`))
+    .slice(0, 8);
+  for (const message of candidates) {
+    const key = `${rule.action}:${message.id}`;
+    state.stagedEventIds.add(key);
+    await runOperatorAction(rule.action, message, `staging:${state.activeSpace}:${key}`.slice(0, 160));
+  }
+}
+
+function dryRunStaging() {
+  const rule = state.production.staging;
+  const matches = state.messages.filter((message) => stagingMatches(message, rule.trigger));
+  $('#rule-result').textContent = matches.length
+    ? `${matches.length} typed match${matches.length === 1 ? '' : 'es'}: ${matches.slice(0, 4).map((item) => item.name).join(', ')}. No action was executed.`
+    : 'No typed events in the current bounded feed match this rule. No action was executed.';
+}
+
+function eventMetric(label, count) {
+  return `<div class="event-metric"><strong>${count}</strong><small>${label}</small></div>`;
+}
+
+function renderProductionDock() {
+  const health = $('#operator-health');
+  if (!health) return;
+  const ready = state.operatorStatus === 'ready';
+  health.className = `production-status ${ready ? 'live' : state.operatorStatus === 'degraded' ? 'degraded' : ''}`;
+  health.innerHTML = `<span class="live-pulse"></span><span><strong>${ready ? 'Tenant show controls ready' : state.operatorStatus === 'signed-out' ? 'Sign in for show controls' : state.operatorStatus === 'degraded' ? 'Show controls degraded' : 'Checking StreamWeaver controls'}</strong><small>${ready ? 'Actions return durable SPMT receipts.' : state.operator?.error || 'Pin, queue, feature, TTS, and OBS remain tenant scoped.'}</small></span>`;
+  $('#panel-role').value = state.production.panelRole;
+  $('#sync-group').value = state.production.syncGroupId || '';
+  $('#staging-enabled').checked = state.production.staging.enabled;
+  $('#staging-trigger').value = state.production.staging.trigger;
+  $('#staging-action').value = state.production.staging.action;
+
+  const operator = state.operator?.state || {};
+  $('#queue-health').textContent = ready ? 'Live' : 'Unavailable';
+  $('#show-stats').innerHTML = [
+    ['Pinned', operator.pinnedEventIds?.length || 0],
+    ['Queued', operator.queuedEventIds?.length || 0],
+    ['Featured', operator.featuredEventId ? 1 : 0],
+  ].map(([label, count]) => `<div class="show-stat"><strong>${count}</strong><small>${label}</small></div>`).join('');
+
+  const counts = state.messages.reduce((result, message) => {
+    const type = message.firstTime ? 'first-time' : message.eventType || (message.kind === 'event' ? 'event' : 'chat');
+    result[type] = (result[type] || 0) + 1;
+    return result;
+  }, {});
+  $('#event-metrics').innerHTML = [
+    eventMetric('Redeems', (counts.reward || 0) + (counts.redeem || 0)),
+    eventMetric('Donations', counts.donation || 0),
+    eventMetric('Members', counts.membership || 0),
+    eventMetric('Raids', counts.raid || 0),
+    eventMetric('First time', counts['first-time'] || 0),
+    eventMetric('SPMT events', state.messages.filter((message) => message.provider === 'spmt' && message.kind === 'event').length),
+  ].join('');
+
+  const outputs = state.operator?.outputs || [];
+  $('#named-outputs').innerHTML = outputs.length ? outputs.map((output) => `
+    <div class="output-item"><span><strong>${escapeHtml(output.label)}</strong><small>${escapeHtml(output.kind)} · ${output.readOnly ? 'read only' : 'controlled'}</small></span><a href="${escapeHtml(output.url)}" target="_blank" rel="noopener">Open output</a></div>
+  `).join('') : '<p class="setting-help">No named output is available for this account right now.</p>';
+  $('#companion-status').textContent = state.companionDevices.length
+    ? `${state.companionDevices.filter((device) => device.online).length} of ${state.companionDevices.length} paired devices online. ${state.production.bindings.length} binding(s) saved.`
+    : `No paired device detected. ${state.production.bindings.length} binding(s) saved for later.`;
+  $('#integration-list').innerHTML = state.integrations.length ? state.integrations.map((adapter) => `
+    <div class="integration-item"><span><strong>${escapeHtml(adapter.owner)}</strong><small>${escapeHtml(adapter.status)} · ${adapter.capabilities.map(escapeHtml).join(', ')}</small></span><a href="${escapeHtml(adapter.deepLink)}">Open</a></div>
+  `).join('') : '<p class="setting-help">App adapter status is unavailable. Native owner links remain above.</p>';
+}
+
+async function loadIntegrations() {
+  const token = localStorage.getItem('spmt_token');
+  if (!token) return;
+  try {
+    const response = await fetch('/api/commlink/integrations', { headers: { Authorization: `Bearer ${token}` } });
+    if (response.ok) state.integrations = (await response.json()).adapters || [];
+  } catch {}
+  renderProductionDock();
+}
+
+async function loadCompanionDevices() {
+  const token = localStorage.getItem('spmt_token');
+  if (!token) return;
+  try {
+    const response = await fetch('/api/companion/devices', { headers: { Authorization: `Bearer ${token}` } });
+    if (response.ok) state.companionDevices = (await response.json()).devices || [];
+  } catch {}
+  renderProductionDock();
+}
+
+function saveControlBinding() {
+  const input = $('#control-input').value;
+  const action = $('#control-action').value;
+  state.production.bindings = [
+    ...state.production.bindings.filter((binding) => binding.input !== input),
+    { input, action, panelLabel: activePanel()?.label || 'main-chat' },
+  ].slice(-24);
+  scheduleWorkspaceSave();
+  renderProductionDock();
+  toast('Scoped control binding saved to the Commlink workspace.');
+}
+
+async function runControlBinding() {
+  const action = $('#control-action').value;
+  if (action === 'feature-next') return runOperatorAction('next');
+  if (action === 'clear-feature') return runOperatorAction('clear');
+  const device = state.companionDevices.find((item) => item.online) || state.companionDevices[0];
+  if (!device) return toast('Pair and start Companion before running this mapping.');
+  const token = localStorage.getItem('spmt_token');
+  const payload = action === 'popout.show' ? { id: 1 } : {};
+  try {
+    const response = await fetch('/api/companion/commands', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ deviceId: device.id, action, capability: action === 'companion.status' ? 'companion.status' : 'overlay.control', payload }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || `Companion returned ${response.status}`);
+    $('#companion-status').textContent = `Command ${result.command.status}; receipt ${result.command.id}.`;
+  } catch (error) {
+    toast(error.message || 'Companion command failed');
+  }
+}
+
+function updateProductionSetting() {
+  state.production.panelRole = $('#panel-role').value;
+  state.production.syncGroupId = $('#sync-group').value.trim();
+  state.production.staging = {
+    enabled: $('#staging-enabled').checked,
+    trigger: $('#staging-trigger').value,
+    action: $('#staging-action').value,
+  };
+  const panel = activePanel();
+  if (panel) {
+    panel.accessMode = state.production.panelRole;
+    panel.syncGroupId = state.production.syncGroupId || undefined;
+  }
+  scheduleWorkspaceSave();
+  renderDesk();
+  renderProductionDock();
+}
+
 function currentWorkspaceData() {
   rememberSpaceDestinations();
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     chatSpaces: state.chatSpaces.map((space) => ({
       id: space.id,
       name: space.name,
@@ -799,6 +1057,7 @@ function currentWorkspaceData() {
     desks: state.desks,
     activeChatSpaceId: state.activeSpace,
     activeDeskId: state.activeDesk,
+    production: state.production,
   };
 }
 
@@ -815,7 +1074,7 @@ function setWorkspaceState(text, tone = 'normal') {
 
 function applyWorkspaceRecord(record, etag) {
   const data = record?.data;
-  if (data?.schemaVersion === 1 && Array.isArray(data.chatSpaces) && data.chatSpaces.length) {
+  if ([1, 2].includes(data?.schemaVersion) && Array.isArray(data.chatSpaces) && data.chatSpaces.length) {
     const validSpaces = data.chatSpaces.filter((space) => (
       space && typeof space.id === 'string' && typeof space.name === 'string' && Array.isArray(space.sources)
     )).slice(0, 40);
@@ -830,6 +1089,14 @@ function applyWorkspaceRecord(record, etag) {
     const active = state.chatSpaces.find((space) => space.id === state.activeSpace);
     state.selectedDestinations = active?.selectedDestinationIds?.filter((id) => active.sources.includes(id))
       || activeSources().map((source) => source.id);
+    if (data.schemaVersion >= 2 && data.production && typeof data.production === 'object') {
+      state.production = {
+        ...structuredClone(defaultProduction),
+        ...data.production,
+        staging: { ...defaultProduction.staging, ...(data.production.staging || {}) },
+        bindings: Array.isArray(data.production.bindings) ? data.production.bindings.slice(0, 24) : [],
+      };
+    }
   }
   state.workspaceRecord = record;
   state.workspaceEtag = etag;
@@ -890,7 +1157,7 @@ async function saveCommlinkWorkspace(create = false) {
     const response = await fetch('/api/app-state/cosmo-commlink/workspace', {
       method: 'PUT',
       headers,
-      body: JSON.stringify({ schemaVersion: 1, data: currentWorkspaceData() }),
+      body: JSON.stringify({ schemaVersion: 2, data: currentWorkspaceData() }),
     });
     if (response.status === 409) {
       setWorkspaceState('Changed on another device · reloading', 'error');
@@ -1190,6 +1457,28 @@ function wireEvents() {
   $('#destination-edit').addEventListener('click', () => showMentionMenu('toggle'));
   $('#settings-button').addEventListener('click', () => $('#settings-drawer').classList.remove('hidden'));
   $('#close-settings').addEventListener('click', () => $('#settings-drawer').classList.add('hidden'));
+  $('#production-button').addEventListener('click', () => {
+    $('#production-drawer').classList.remove('hidden');
+    loadOperator();
+    loadCompanionDevices();
+    loadIntegrations();
+  });
+  $('#close-production').addEventListener('click', () => $('#production-drawer').classList.add('hidden'));
+  ['panel-role', 'sync-group', 'staging-enabled', 'staging-trigger', 'staging-action'].forEach((id) => {
+    $(`#${id}`).addEventListener(id === 'sync-group' ? 'input' : 'change', updateProductionSetting);
+  });
+  $('#dry-run-rule').addEventListener('click', dryRunStaging);
+  $('#feature-next').addEventListener('click', () => runOperatorAction('next'));
+  $('#clear-feature').addEventListener('click', () => runOperatorAction('clear'));
+  $('#speak-tts').addEventListener('click', () => runOperatorAction('speak'));
+  $('#open-popout').addEventListener('click', () => {
+    const target = new URL('/commlink/', window.location.origin);
+    target.searchParams.set('popout', '1');
+    target.searchParams.set('chatSpace', state.activeSpace);
+    window.open(target, `commlink-${state.activeSpace}`, 'popup,width=720,height=900');
+  });
+  $('#save-binding').addEventListener('click', saveControlBinding);
+  $('#run-binding').addEventListener('click', runControlBinding);
   $('#reload-profile').addEventListener('click', loadWorkspaceProfile);
   $('#save-profile').addEventListener('click', saveWorkspaceProfile);
   $('#reset-preview').addEventListener('click', () => {
@@ -1263,8 +1552,17 @@ function wireEvents() {
 
 renderAll();
 wireEvents();
+const launchParams = new URLSearchParams(window.location.search);
+if (launchParams.get('popout') === '1') document.body.classList.add('popout-mode');
+if (launchParams.get('chatSpace') && state.chatSpaces.some((space) => space.id === launchParams.get('chatSpace'))) {
+  state.activeSpace = launchParams.get('chatSpace');
+}
+renderProductionDock();
 loadWorkspaceProfile();
 loadCommlinkWorkspace();
 loadDiscoveries();
 loadCommlinkFeed();
+loadOperator();
+loadCompanionDevices();
+loadIntegrations();
 window.addEventListener('beforeunload', () => clearTimeout(state.feedPollTimer));

@@ -95,6 +95,51 @@ const streamweaverMock = http.createServer(async (request, response) => {
     }));
     return;
   }
+  if (request.url?.startsWith('/api/shared-chat/spmt-operator')) {
+    if (request.method === 'GET') {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({
+        version: 'commlink-operator.v1',
+        tenantId,
+        state: {
+          pinnedEventIds: [],
+          queuedEventIds: [],
+          featuredEventId: null,
+          autoShow: false,
+          autoAdvance: false,
+          featureDurationSeconds: 15,
+          featureStyle: 'glass',
+          featuredAt: null,
+          updatedAt: new Date().toISOString(),
+        },
+        outputs: [{ id: 'featured-chat', label: 'Featured Chat', kind: 'obs-browser', path: `/overlay/shared-chat-featured?tenant=${tenantId}`, readOnly: true }],
+        capabilities: { pin: true, queue: true, feature: true, tts: true },
+      }));
+      return;
+    }
+    let rawBody = '';
+    for await (const chunk of request) rawBody += chunk;
+    const body = JSON.parse(rawBody || '{}');
+    streamweaverMockRequests.at(-1).body = body;
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({
+      version: 'commlink-operator-receipt.v1',
+      action: body.action,
+      status: 'delivered',
+      state: {
+        pinnedEventIds: [],
+        queuedEventIds: body.action === 'queue' ? [body.eventId] : [],
+        featuredEventId: null,
+        autoShow: false,
+        autoAdvance: false,
+        featureDurationSeconds: 15,
+        featureStyle: 'glass',
+        featuredAt: null,
+        updatedAt: new Date().toISOString(),
+      },
+    }));
+    return;
+  }
   const event = {
     version: 'shared-chat-event.v1',
     eventId: `evt_${tenantId}_twitch_real-1`,
@@ -172,6 +217,7 @@ const child = spawn(process.execPath, [entrypoint], {
     SYSTEM_API_KEY: 'smoke-system-key',
     SPMT_TEST_STREAMWEAVER_FEED_URL: `http://127.0.0.1:${streamweaverMockPort}/api/shared-chat/spmt-feed`,
     SPMT_TEST_STREAMWEAVER_DISPATCH_URL: `http://127.0.0.1:${streamweaverMockPort}/api/shared-chat/spmt-dispatch`,
+    SPMT_TEST_STREAMWEAVER_OPERATOR_URL: `http://127.0.0.1:${streamweaverMockPort}/api/shared-chat/spmt-operator`,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -205,15 +251,20 @@ try {
   assert.match(home, /Create an app-bound key/);
   assert.match(home, /request-recovery-code/);
   assert.match(home, /Generate \+ Show New Recovery Code/);
-  assert.match(home, /Commlink · Unified Messaging/);
+  assert.match(home, /Commlink · Messaging/);
+  assert.match(home, /Legacy inbox · rollback/);
+  assert.match(home, /Commlink is now the primary messaging workspace/);
 
   const commlinkResponse = await fetch(`${baseUrl}/commlink/`);
   const commlink = await commlinkResponse.text();
   assert.equal(commlinkResponse.status, 200);
-  assert.match(commlink, /Cosmo Commlink Preview/);
-  assert.match(commlink, /Pass 4 deliberate send/);
+  assert.match(commlink, /Cosmo Commlink/);
+  assert.match(commlink, /Passes 5–7 · production workspace/);
+  assert.match(commlink, /Production dock/);
+  assert.match(commlink, /Smart staging/);
+  assert.match(commlink, /Stream Deck · Companion · MIDI/);
   assert.match(commlink, /Send deliberately/);
-  assert.match(commlink, /writes require exact destinations and receipts/);
+  assert.match(commlink, /Every destination receives its own idempotent request and receipt/);
   assert.match(commlink, /id="settings-drawer"/);
   assert.match(commlink, /id="history-search"/);
   assert.match(commlink, /id="source-health-summary"/);
@@ -619,6 +670,46 @@ try {
   assert.equal(commlinkFeed.items.some((item) => item.text === 'account scoped SPMT event'), true);
   assert.equal(commlinkFeed.dedupe.inputCount > commlinkFeed.dedupe.outputCount, true);
   assert.equal(streamweaverMockRequests.some((request) => request.tenantId === registration.user.id && request.serviceKey === 'smoke-system-key'), true);
+
+  const unauthenticatedOperator = await fetch(`${baseUrl}/api/commlink/operator`);
+  assert.equal(unauthenticatedOperator.status, 401);
+  const operatorResponse = await fetch(`${baseUrl}/api/commlink/operator`, {
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const operator = await operatorResponse.json();
+  assert.equal(operatorResponse.status, 200);
+  assert.equal(operator.version, 'commlink-operator.v1');
+  assert.equal(operator.outputs[0].url.includes('/overlay/shared-chat-featured'), true);
+  const operatorAction = {
+    idempotencyKey: 'smoke-pass6-queue-action',
+    action: 'queue',
+    eventId: commlinkFeed.items.find((item) => item.text === 'real upstream chat').eventId,
+  };
+  const operatorActionResponse = await fetch(`${baseUrl}/api/commlink/operator`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify(operatorAction),
+  });
+  const operatorReceipt = await operatorActionResponse.json();
+  assert.equal(operatorActionResponse.status, 200);
+  assert.equal(operatorReceipt.status, 'delivered');
+  assert.equal(operatorReceipt.result.state.queuedEventIds[0], operatorAction.eventId);
+  const duplicateOperatorResponse = await fetch(`${baseUrl}/api/commlink/operator`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify(operatorAction),
+  });
+  assert.equal((await duplicateOperatorResponse.json()).duplicate, true);
+  assert.equal(streamweaverMockRequests.filter((request) => request.url?.startsWith('/api/shared-chat/spmt-operator') && request.method === 'POST').length, 1);
+  const integrationsResponse = await fetch(`${baseUrl}/api/commlink/integrations`, {
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const integrations = await integrationsResponse.json();
+  assert.equal(integrationsResponse.status, 200);
+  assert.equal(integrations.primarySurface, '/commlink/');
+  assert.equal(integrations.cleanupApproved, false);
+  assert.equal(integrations.adapters.some((adapter) => adapter.appId === 'streamweaver' && adapter.status === 'connected'), true);
+  assert.equal(integrations.adapters.some((adapter) => adapter.appId === 'hearmeout' && adapter.deepLink.includes('hearmeout')), true);
 
   const unauthenticatedDispatch = await fetch(`${baseUrl}/api/commlink/dispatch`, {
     method: 'POST',

@@ -8,13 +8,13 @@
     * { box-sizing: border-box; }
     :root {
       color-scheme: dark;
-      --bg: #07090d;
-      --panel: #10141c;
-      --panel-2: #151b26;
-      --line: rgba(255,255,255,0.1);
+      --bg: #070919;
+      --panel: rgba(15,18,42,.82);
+      --panel-2: rgba(24,28,58,.88);
+      --line: rgba(167,139,250,0.16);
       --text: #f8fafc;
       --muted: #94a3b8;
-      --orange: #f97316;
+      --orange: #a78bfa;
       --blue: #38bdf8;
       --green: #22c55e;
       --red: #ef4444;
@@ -22,20 +22,23 @@
     body {
       margin: 0;
       min-height: 100vh;
-      background: var(--bg);
+      background:
+        radial-gradient(circle at 16% 8%, rgba(124,58,237,.16), transparent 34rem),
+        radial-gradient(circle at 88% 78%, rgba(14,165,233,.11), transparent 32rem),
+        var(--bg);
       color: var(--text);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     button, input, textarea, select { font: inherit; }
     button { cursor: pointer; }
     .shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 100vh; }
-    .sidebar { border-right: 1px solid var(--line); background: #080b11; padding: 18px; position: sticky; top: 0; height: 100vh; }
+    .sidebar { border-right: 1px solid var(--line); background: rgba(7,9,25,.9); padding: 18px; position: sticky; top: 0; height: 100vh; backdrop-filter: blur(24px); }
     .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
-    .mark { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--orange); color: #111; font-weight: 900; }
+    .mark { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle, #fff 0 4%, #a78bfa 8% 31%, #312e81 34% 55%, #070919 58%); color: white; box-shadow: 0 0 24px rgba(167,139,250,.42); font-weight: 900; }
     h1 { font-size: 20px; margin: 0; letter-spacing: 0; }
     .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
     .nav { display: grid; gap: 6px; margin: 18px 0; }
-    .nav button { width: 100%; text-align: left; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); padding: 10px 12px; }
+    .nav button { width: 100%; text-align: left; border: 1px solid transparent; border-radius: 12px; background: transparent; color: var(--muted); padding: 10px 12px; }
     .nav button.active, .nav button:hover { background: var(--panel); color: var(--text); border-color: var(--line); }
     .account { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 12px; margin-top: 18px; }
     .main { padding: 22px; }
@@ -44,7 +47,7 @@
     .title p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
     .grid { display: grid; gap: 14px; }
     .cols { grid-template-columns: repeat(12, minmax(0, 1fr)); }
-    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; backdrop-filter: blur(18px); box-shadow: 0 18px 50px rgba(0,0,0,.16); }
     .span-4 { grid-column: span 4; }
     .span-5 { grid-column: span 5; }
     .span-7 { grid-column: span 7; }
@@ -58,7 +61,7 @@
     .badge.good { border-color: rgba(34,197,94,.35); color: #86efac; }
     .badge.warn { border-color: rgba(249,115,22,.35); color: #fdba74; }
     .btn { border: 1px solid var(--line); background: var(--panel-2); color: var(--text); border-radius: 8px; padding: 9px 12px; font-weight: 700; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-    .btn.primary { background: var(--orange); color: #111; border-color: var(--orange); }
+    .btn.primary { background: linear-gradient(135deg, #a78bfa, #38bdf8); color: #07101f; border-color: transparent; }
     .btn.blue { background: #0c4a6e; border-color: #075985; color: #e0f2fe; }
     .btn.danger { background: rgba(239,68,68,.12); color: #fecaca; border-color: rgba(239,68,68,.3); }
     input, textarea {
@@ -72,18 +75,18 @@
       margin-bottom: 10px;
     }
     textarea { min-height: 120px; resize: vertical; }
-    input:focus, textarea:focus { border-color: rgba(249,115,22,.55); }
+    input:focus, textarea:focus { border-color: rgba(167,139,250,.55); }
     .auth-wrap { max-width: 980px; margin: 0 auto; padding-top: 8vh; }
     .auth-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
     .tabs button { border: 0; background: transparent; color: var(--muted); padding: 10px; font-weight: 800; }
-    .tabs button.active { background: rgba(249,115,22,.16); color: #fdba74; }
+    .tabs button.active { background: rgba(167,139,250,.16); color: #ddd6fe; }
     .list { display: grid; gap: 8px; }
     .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #0b1018; }
     .item:hover { border-color: rgba(56,189,248,.35); }
     .message { display: grid; gap: 6px; }
     .hidden { display: none !important; }
-    .notice { color: #fdba74; font-size: 13px; min-height: 20px; margin-top: 10px; }
+    .notice { color: #ddd6fe; font-size: 13px; min-height: 20px; margin-top: 10px; }
     .ok { color: #86efac; }
     .err { color: #fca5a5; }
     .app-card h3, .card h3 { margin: 0 0 6px; font-size: 16px; }
@@ -95,9 +98,9 @@
     .field-help { color: var(--muted); font-size: 12px; line-height: 1.45; margin: -4px 0 10px; }
     .handle-field { display: flex; align-items: stretch; margin-bottom: 6px; }
     .handle-field input { min-width: 0; margin: 0; border-radius: 8px 0 0 8px; }
-    .handle-suffix { display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--line); border-left: 0; border-radius: 0 8px 8px 0; background: var(--panel-2); color: #fdba74; font-size: 13px; font-weight: 800; white-space: nowrap; }
+    .handle-suffix { display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--line); border-left: 0; border-radius: 0 8px 8px 0; background: var(--panel-2); color: #ddd6fe; font-size: 13px; font-weight: 800; white-space: nowrap; }
     .modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(2,6,12,.82); backdrop-filter: blur(5px); }
-    .modal-card { width: min(520px, 100%); max-height: calc(100vh - 40px); overflow: auto; background: var(--panel); border: 1px solid rgba(249,115,22,.42); border-radius: 12px; padding: 20px; box-shadow: 0 24px 80px rgba(0,0,0,.5); }
+    .modal-card { width: min(520px, 100%); max-height: calc(100vh - 40px); overflow: auto; background: var(--panel); border: 1px solid rgba(167,139,250,.42); border-radius: 12px; padding: 20px; box-shadow: 0 24px 80px rgba(0,0,0,.5); }
     .modal-card h2 { margin: 0 0 8px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
     .code-block { width: 100%; overflow: auto; white-space: pre-wrap; word-break: break-word; background: #05080d; border: 1px solid var(--line); border-radius: 8px; color: #bae6fd; padding: 12px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
@@ -196,8 +199,8 @@
       </div>
       <nav class="nav">
         <button data-view="dashboard" class="active" onclick="showView('dashboard')">Dashboard</button>
-        <button type="button" onclick="window.location.href='/commlink/'">Commlink · Unified Messaging</button>
-        <button data-view="messages" onclick="showView('messages')">Messages</button>
+        <button type="button" onclick="window.location.href='/commlink/'">Commlink · Messaging</button>
+        <button data-view="messages" onclick="showView('messages')">Legacy inbox · rollback</button>
         <button data-view="apps" onclick="showView('apps')">Apps + SSO</button>
         <button data-view="connections" onclick="showView('connections')">Connections</button>
         <button data-view="docs" onclick="showView('docs')">Docs</button>
@@ -258,6 +261,7 @@
 
       <section id="view-messages" class="hidden split">
         <div class="folder">
+          <a class="btn blue" href="/commlink/?lane=mail" style="width:100%;margin-bottom:8px">Open Commlink</a>
           <button class="btn primary" onclick="composeTo('')">Compose</button>
           <button class="btn" onclick="loadInbox()">Inbox</button>
           <button class="btn" onclick="loadSent()">Sent</button>
@@ -266,6 +270,10 @@
           <button class="btn" onclick="composeTo('chat-tag')">ChatTag</button>
         </div>
         <div class="grid">
+          <div class="card">
+            <h3>Compatibility inbox</h3>
+            <p class="muted small">Commlink is now the primary messaging workspace. This legacy view remains available during the observation and rollback window; historical messages are not deleted.</p>
+          </div>
           <div class="card">
             <h3>Compose</h3>
             <form onsubmit="sendMessage(event)">
@@ -469,7 +477,8 @@
     let sdkMetadata = null;
     let currentView = 'dashboard';
     const returnUrl = new URLSearchParams(window.location.search).get('return');
-    const initialView = new URLSearchParams(window.location.search).get('view');
+    const bootParams = new URLSearchParams(window.location.search);
+    const initialView = bootParams.get('legacyMessages') === '1' ? 'messages' : bootParams.get('view');
 
     function api(path, options = {}) {
       const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
@@ -618,7 +627,7 @@
       for (const btn of document.querySelectorAll('.nav button')) btn.classList.toggle('active', btn.dataset.view === view);
       const titles = {
         dashboard: ['Dashboard', 'Your SPMT account is the control point for the full suite.'],
-        messages: ['Messages', 'DMs, app messages, bot messages, and account notifications.'],
+        messages: ['Legacy inbox · rollback', 'Compatibility access while Commlink remains the primary messaging workspace.'],
         apps: ['Apps + SSO', 'Launch suite apps through SPMT and see which adapters are complete.'],
         connections: ['Connections', 'One place to authorize Twitch, Discord, YouTube, Kick, and future providers.'],
         docs: ['Docs', 'Platform guides, API routes, integration contracts, and the production roadmap.'],

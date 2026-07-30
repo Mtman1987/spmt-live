@@ -173,10 +173,48 @@ SPMT commit/push whenever possible.
 | 1 — deployed | Synthetic Cosmo Commlink UI, combined feed, Desk, destination preview, and portable appearance profile |
 | 2 — deployed | Durable ChatSpaces/Desks plus the three-discovery easter-egg and final reward system |
 | 3 — deployed | Real read-only Twitch, Kick, YouTube, Discord, and SPMT feeds with fidelity, history, replay, health, and dedupe |
-| 4 — this release | Scoped compose, source-locked reply, deliberate fan-out, partial receipts, moderation, Discord curation, and SDK dispatch |
-| 5 | Smart staging, operator roles/sync, TTS, bots/AI, voice, translation, avatar, and pop-outs |
-| 6 | Typed event panels, guarded rules, show tools, named OBS outputs, Stream Deck/Companion/MIDI controls |
-| 7 | Remaining app migrations, two-tenant/failure matrix, cutover, observation, rollback proof, and approved cleanup |
+| 4 — deployed | Scoped compose, source-locked reply, deliberate fan-out, partial receipts, moderation, Discord curation, and SDK dispatch |
+| 5 — implemented in coordinated release | Smart staging, panel roles/sync, receipt-backed TTS/show controls, native bot/AI/voice/translation/avatar links, and pop-outs |
+| 6 — implemented in coordinated release | Typed event panels, guarded typed staging rules, show tools, named OBS output discovery, and allowlisted Stream Deck/Companion/MIDI mappings |
+| 7 — implemented in coordinated release | Capability-truth app adapter matrix, SDK feed/control/integration contracts, Commlink-primary navigation, legacy rollback, failure tests, and cleanup held for approval |
+
+### Passes 5–7 coordinated release boundary
+
+The coordinated Pass 5–7 implementation deliberately reuses capability owners
+instead of copying their systems into the browser:
+
+- StreamWeaver owns tenant replay, pin/queue/feature state, the featured OBS
+  output, TTS generation/queueing, bots and AI, voice, translation, and avatar
+  presentation. Its SPMT service bridge validates tenant context and returns
+  explicit delivered, skipped, or failed results.
+- SPMT owns idempotency, durable operator receipts, saved panel roles, explicit
+  synchronization groups, staging rules, control bindings, adapter status, and
+  the primary Commlink navigation.
+- Smart staging accepts typed events only, is off by default, exposes dry run,
+  never runs during history/replay, and is limited to safe pin/queue actions.
+- Companion execution continues through its existing paired-device capability
+  allowlist. An offline or unpaired device is shown as unavailable; no browser
+  command is reported as complete without the SPMT command receipt.
+- Commlink is the primary messaging entry. The legacy inbox remains a labeled
+  rollback surface for the observation window. No historical record, old route,
+  Firebase data, or standalone Cosmo repository is deleted by this release.
+
+This release does **not** convert source validation into live operator proof.
+Audible TTS, a real paired Companion control, forced reconnect, concurrent
+two-account browser sessions, and cleanup approval remain operator/observation
+gates even when their automated isolation and failure fixtures pass.
+
+Local release evidence before the coordinated push:
+
+- StreamWeaver: 135/135 repository isolation tests, the automation-variable
+  persistence check, lint, typecheck, and a 221-route production build passed.
+- SPMT: typecheck, server build, SDK declaration/package build, and the
+  237-check smoke suite passed.
+- Browser QA: the unsigned local Commlink preview rendered at desktop and
+  390-pixel mobile widths; the production dock opened; the guarded redeem dry
+  run found one typed match without executing an action; the SPMT account shell
+  rendered with the shared Commlink visual system; and no browser console
+  warning or error was observed.
 
 ## Hidden Discovery And Reward Contract
 

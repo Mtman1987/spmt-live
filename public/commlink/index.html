@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>Cosmo Commlink Preview | SPMT</title>
+  <title>Cosmo Commlink | SPMT</title>
   <link rel="stylesheet" href="/commlink/commlink.css">
 </head>
 <body>
@@ -15,8 +15,8 @@
   </div>
 
   <div class="prototype-banner">
-    <span>Pass 4 deliberate send</span>
-    <span id="feed-banner-detail">Checking account sources · writes require exact destinations and receipts</span>
+    <span>Passes 5–7 · production workspace</span>
+    <span id="feed-banner-detail">Checking account sources, show controls, and device capabilities</span>
   </div>
 
   <main class="app-shell" id="app-shell">
@@ -79,6 +79,7 @@
             <button type="button" data-view="desk">Desk</button>
           </div>
           <button class="top-action" id="search-button" type="button" aria-label="Search messages">⌕</button>
+          <button class="top-action production-button" id="production-button" type="button" aria-label="Open production dock">LIVE</button>
           <button class="top-action" id="settings-button" type="button" aria-label="Open appearance settings">⚙</button>
           <button class="avatar-action" type="button" aria-label="Account menu">MT</button>
         </div>
@@ -166,6 +167,94 @@
     </form>
     <div class="history-search-status" id="history-search-status">Search is account-scoped and never triggers chat actions.</div>
     <button class="secondary-button" id="clear-search" type="button">Return to live feed</button>
+  </aside>
+
+  <aside class="production-drawer hidden" id="production-drawer" aria-label="Commlink production dock">
+    <div class="drawer-header">
+      <div>
+        <span class="eyebrow">Passes 5–7</span>
+        <h2>Production dock</h2>
+      </div>
+      <button class="icon-button" id="close-production" type="button" aria-label="Close production dock">×</button>
+    </div>
+    <div class="production-status" id="operator-health">
+      <span class="live-pulse"></span>
+      <span><strong>Checking StreamWeaver controls</strong><small>Pin, queue, feature, TTS, and OBS remain tenant scoped.</small></span>
+    </div>
+    <div class="settings-scroll production-scroll">
+      <section class="setting-section">
+        <div class="between"><h3>Panel role & sync</h3><span class="truth-badge">SPMT synced</span></div>
+        <div class="two-column-settings">
+          <label><span>Access mode</span><select id="panel-role"><option>owner</option><option>operator</option><option>helper</option><option>view-only</option><option>queue-only</option><option>pinned-only</option></select></label>
+          <label><span>Sync group</span><input id="sync-group" maxlength="60" value="show-queue" placeholder="None"></label>
+        </div>
+        <p class="setting-help">A panel joins synchronized show state only when both panels use the same named group.</p>
+      </section>
+
+      <section class="setting-section">
+        <div class="between"><h3>Smart staging</h3><span class="truth-badge guarded">Guarded</span></div>
+        <label class="inline-toggle"><span><strong>Enable typed staging</strong><small>Live feed only; replay never triggers actions</small></span><input id="staging-enabled" type="checkbox"></label>
+        <div class="two-column-settings">
+          <label><span>Typed trigger</span><select id="staging-trigger"><option value="reward">Redeems</option><option value="donation">Donations</option><option value="membership">Memberships</option><option value="raid">Raids</option><option value="first-time">First-time chatters</option></select></label>
+          <label><span>Safe action</span><select id="staging-action"><option value="queue">Queue</option><option value="pin">Pin</option></select></label>
+        </div>
+        <button class="secondary-button full-button" id="dry-run-rule" type="button">Dry run against this feed</button>
+        <div class="rule-result" id="rule-result">No rule has run yet.</div>
+      </section>
+
+      <section class="setting-section">
+        <div class="between"><h3>Show queue</h3><span class="truth-badge" id="queue-health">Loading</span></div>
+        <div class="show-stats" id="show-stats"></div>
+        <div class="button-grid">
+          <button class="secondary-button" id="feature-next" type="button">Feature next</button>
+          <button class="secondary-button" id="clear-feature" type="button">Clear feature</button>
+        </div>
+        <label><span>TTS text</span><textarea id="tts-text" rows="2" maxlength="2000" placeholder="Read a show note through the active tenant mixer…"></textarea></label>
+        <button class="primary-button full-button" id="speak-tts" type="button">Queue tenant TTS</button>
+        <p class="setting-help">Paid TTS is skipped with an explicit receipt when no tenant listener is active.</p>
+      </section>
+
+      <section class="setting-section">
+        <div class="between"><h3>Typed event panel</h3><span class="truth-badge">Events only</span></div>
+        <div class="event-metrics" id="event-metrics"></div>
+      </section>
+
+      <section class="setting-section">
+        <div class="between"><h3>Named outputs</h3><span class="truth-badge">Read only</span></div>
+        <div id="named-outputs" class="output-list"><p class="setting-help">Waiting for the tenant output contract.</p></div>
+        <button class="secondary-button full-button" id="open-popout" type="button">Open this ChatSpace pop-out</button>
+      </section>
+
+      <section class="setting-section">
+        <div class="between"><h3>Stream Deck · Companion · MIDI</h3><span class="truth-badge guarded">Allowlisted</span></div>
+        <div class="two-column-settings">
+          <label><span>Input</span><select id="control-input"><option value="streamdeck:1">Stream Deck key 1</option><option value="midi:60">MIDI note 60</option><option value="companion:test">Companion test</option></select></label>
+          <label><span>Action</span><select id="control-action"><option value="feature-next">Feature next</option><option value="clear-feature">Clear feature</option><option value="popout.show">Show Companion pop-out 1</option><option value="companion.status">Check Companion status</option></select></label>
+        </div>
+        <div class="button-grid">
+          <button class="secondary-button" id="save-binding" type="button">Save binding</button>
+          <button class="primary-button" id="run-binding" type="button">Run safely</button>
+        </div>
+        <div class="rule-result" id="companion-status">No paired device checked.</div>
+      </section>
+
+      <section class="setting-section">
+        <div class="between"><h3>Bots, voice & presentation</h3><span class="truth-badge">Owner surfaces</span></div>
+        <div class="capability-launches">
+          <a href="https://streamweaver-new.fly.dev/private-chat" target="_blank" rel="noopener">Bot & AI <small>StreamWeaver memory/persona</small></a>
+          <a href="https://streamweaver-new.fly.dev/voice-reply" target="_blank" rel="noopener">Voice & STT <small>Private readback workflow</small></a>
+          <a href="https://streamweaver-new.fly.dev/dashboard" target="_blank" rel="noopener">Translation <small>Tenant-owned settings</small></a>
+          <a href="https://streamweaver-new.fly.dev/dashboard" target="_blank" rel="noopener">Avatar & subtitles <small>Presentation owner</small></a>
+        </div>
+      </section>
+
+      <section class="setting-section">
+        <div class="between"><h3>Cutover & rollback</h3><span class="truth-badge">Commlink primary</span></div>
+        <p class="setting-help">New messaging opens here. The legacy inbox remains available during the observation window and no historical records are deleted.</p>
+        <div class="integration-list" id="integration-list"><p class="setting-help">Checking app adapter ownership…</p></div>
+        <a class="secondary-button full-button link-button" href="/?legacyMessages=1#messages">Open legacy inbox rollback</a>
+      </section>
+    </div>
   </aside>
 
   <aside class="settings-drawer hidden" id="settings-drawer" aria-label="Appearance and sync settings">

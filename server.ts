@@ -3092,6 +3092,367 @@ app.post('/api/discoveries/:discoveryId', authenticate, (req: any, res) => {
   return res.status(recorded.created ? 201 : 200).json({ created: recorded.created, ...status });
 });
 
+type CommlinkFeedItem = {
+  version: string;
+  eventId: string;
+  upstreamId: string;
+  platform: string;
+  sourceId: string;
+  sourceName?: string | null;
+  channelId: string;
+  channelName?: string | null;
+  type: string;
+  sender: {
+    id: string;
+    login?: string | null;
+    displayName: string;
+    avatarUrl?: string | null;
+    badges: Array<{ id: string; label?: string; imageUrl?: string; meta?: Record<string, unknown> }>;
+    roles: string[];
+  };
+  text: string;
+  media: Array<Record<string, unknown>>;
+  links: Array<Record<string, unknown>>;
+  donation?: Record<string, unknown>;
+  membership?: Record<string, unknown>;
+  reward?: Record<string, unknown>;
+  reply?: Record<string, unknown>;
+  originalTimestamp: string;
+  receivedTimestamp: string;
+  meta: Record<string, unknown>;
+  dedupeKey: string;
+  routing: {
+    mirrored: boolean;
+    reflected: boolean;
+    canReply: boolean;
+    botReadable: boolean;
+    botCanReply: boolean;
+    tenantIsolationKey: string;
+  };
+};
+
+function commlinkFeedText(value: unknown, max = 4_000) {
+  return String(value || '').trim().slice(0, max);
+}
+
+function commlinkTimestamp(value: unknown) {
+  const raw = commlinkFeedText(value, 80);
+  const parsed = raw ? new Date(raw) : new Date();
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+}
+
+function commlinkTimestampMs(value: unknown) {
+  const parsed = Date.parse(String(value || ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseStoredObject(value: unknown): Record<string, unknown> {
+  if (!value) return {};
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function parseStoredArray(value: unknown): Array<Record<string, unknown>> {
+  if (!value) return [];
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed)
+      ? parsed.filter((item) => item && typeof item === 'object').slice(0, 30) as Array<Record<string, unknown>>
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function commlinkRouting(userId: string, canReply = false) {
+  return {
+    mirrored: false,
+    reflected: false,
+    canReply,
+    botReadable: true,
+    botCanReply: false,
+    tenantIsolationKey: userId,
+  };
+}
+
+function listSpmtCommlinkItems(userId: string, limit: number): CommlinkFeedItem[] {
+  const messages = db.prepare(`
+    SELECT m.id, m.conversation_id, m.subject, m.body, m.channel, m.message_type,
+      m.metadata, m.attachments, m.created_at, m.from_id,
+      from_user.username AS from_user, from_user.display_name AS from_name, from_user.avatar_url AS from_avatar
+    FROM messages m
+    JOIN users from_user ON from_user.id = m.from_id
+    WHERE m.from_id = ? OR m.to_id = ?
+    ORDER BY datetime(m.created_at) DESC
+    LIMIT ?
+  `).all(userId, userId, limit) as any[];
+  const notifications = db.prepare(`
+    SELECT id, type, title, body, source_app, link_url, read_at, created_at
+    FROM notifications
+    WHERE user_id = ? AND type NOT IN ('message', 'voice_message', 'event')
+    ORDER BY datetime(created_at) DESC
+    LIMIT ?
+  `).all(userId, limit) as any[];
+  const events = db.prepare(`
+    SELECT id, type, timestamp, source_app, actor_user_id, actor_username,
+      actor_display_name, payload, links, created_at
+    FROM platform_events
+    WHERE created_by = ? OR visibility IN ('public', 'community', 'system')
+    ORDER BY datetime(timestamp) DESC
+    LIMIT ?
+  `).all(userId, limit) as any[];
+
+  const messageItems = messages.map((row): CommlinkFeedItem => {
+    const timestamp = commlinkTimestamp(row.created_at);
+    const metadata = parseStoredObject(row.metadata);
+    return {
+      version: 'commlink-feed.v1',
+      eventId: `spmt-message:${row.id}`,
+      upstreamId: row.id,
+      platform: 'spmt',
+      sourceId: 'spmt:messages',
+      sourceName: 'SPMT Messages',
+      channelId: row.conversation_id || row.channel || 'direct',
+      channelName: row.channel || 'Direct message',
+      type: row.message_type === 'voice' ? 'voice' : 'message',
+      sender: {
+        id: row.from_id,
+        login: row.from_user,
+        displayName: row.from_name || row.from_user,
+        avatarUrl: row.from_avatar || null,
+        badges: row.from_id === userId ? [{ id: 'you', label: 'You' }] : [],
+        roles: row.from_id === userId ? ['owner'] : ['viewer'],
+      },
+      text: [row.subject, row.body].filter(Boolean).join(row.subject ? ': ' : ''),
+      media: parseStoredArray(row.attachments),
+      links: [],
+      originalTimestamp: timestamp,
+      receivedTimestamp: timestamp,
+      meta: { ...metadata, spmtRecordType: 'message', outgoing: row.from_id === userId },
+      dedupeKey: `spmt:message:${row.id}`,
+      routing: commlinkRouting(userId, true),
+    };
+  });
+  const notificationItems = notifications.map((row): CommlinkFeedItem => {
+    const timestamp = commlinkTimestamp(row.created_at);
+    return {
+      version: 'commlink-feed.v1',
+      eventId: `spmt-notification:${row.id}`,
+      upstreamId: row.id,
+      platform: 'spmt',
+      sourceId: `spmt:${row.source_app || 'notifications'}`,
+      sourceName: row.source_app || 'SPMT',
+      channelId: 'notifications',
+      channelName: 'Notifications',
+      type: 'system',
+      sender: {
+        id: row.source_app || 'spmt',
+        login: row.source_app || 'spmt',
+        displayName: row.source_app || 'SPMT',
+        badges: [{ id: row.type || 'notification', label: row.type || 'Notification' }],
+        roles: ['bot'],
+      },
+      text: [row.title, row.body].filter(Boolean).join(': '),
+      media: [],
+      links: row.link_url ? [{ url: row.link_url, safe: true }] : [],
+      originalTimestamp: timestamp,
+      receivedTimestamp: timestamp,
+      meta: { spmtRecordType: 'notification', read: Boolean(row.read_at) },
+      dedupeKey: `spmt:notification:${row.id}`,
+      routing: commlinkRouting(userId),
+    };
+  });
+  const eventItems = events.map((row): CommlinkFeedItem => {
+    const timestamp = commlinkTimestamp(row.timestamp || row.created_at);
+    const payload = parseStoredObject(row.payload);
+    const summary = commlinkFeedText(payload.summary || payload.title || payload.message || row.type.replace(/\./g, ' '));
+    return {
+      version: 'commlink-feed.v1',
+      eventId: `spmt-event:${row.id}`,
+      upstreamId: row.id,
+      platform: 'spmt',
+      sourceId: `spmt:${row.source_app}`,
+      sourceName: row.source_app,
+      channelId: row.type,
+      channelName: row.type.replace(/\./g, ' '),
+      type: 'system',
+      sender: {
+        id: row.actor_user_id || row.source_app,
+        login: row.actor_username || row.source_app,
+        displayName: row.actor_display_name || row.actor_username || row.source_app,
+        badges: [{ id: 'app-event', label: 'App event' }],
+        roles: ['bot'],
+      },
+      text: summary,
+      media: [],
+      links: parseStoredArray(row.links),
+      originalTimestamp: timestamp,
+      receivedTimestamp: commlinkTimestamp(row.created_at),
+      meta: { ...payload, spmtRecordType: 'event', eventType: row.type },
+      dedupeKey: `spmt:event:${row.id}`,
+      routing: commlinkRouting(userId),
+    };
+  });
+  return [...messageItems, ...notificationItems, ...eventItems];
+}
+
+function isCommlinkFeedItem(value: unknown): value is CommlinkFeedItem {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as any;
+  return Boolean(
+    typeof item.eventId === 'string'
+    && typeof item.upstreamId === 'string'
+    && typeof item.platform === 'string'
+    && typeof item.channelId === 'string'
+    && typeof item.text === 'string'
+    && typeof item.originalTimestamp === 'string'
+    && item.sender
+    && typeof item.sender.displayName === 'string'
+  );
+}
+
+function dedupeCommlinkFeedItems(items: CommlinkFeedItem[]) {
+  const byKey = new Map<string, CommlinkFeedItem>();
+  for (const item of items) {
+    const rawProvider = item.platform === 'social-stream'
+      ? commlinkFeedText(item.meta?.rawProvider, 40).toLowerCase()
+      : item.platform;
+    const platform = ['twitch', 'discord', 'kick', 'youtube'].includes(rawProvider) ? rawProvider : item.platform;
+    const key = item.dedupeKey || [platform, item.channelId, item.upstreamId, item.sender.id].join(':');
+    const existing = byKey.get(key);
+    if (!existing || commlinkTimestampMs(item.receivedTimestamp) >= commlinkTimestampMs(existing.receivedTimestamp)) {
+      byKey.set(key, item);
+    }
+  }
+  return Array.from(byKey.values()).sort((a, b) => (
+    commlinkTimestampMs(a.originalTimestamp) - commlinkTimestampMs(b.originalTimestamp)
+  ));
+}
+
+function streamweaverCommlinkFeedUrl() {
+  if (!IS_PRODUCTION && process.env.NODE_ENV === 'test' && process.env.SPMT_TEST_STREAMWEAVER_FEED_URL) {
+    return process.env.SPMT_TEST_STREAMWEAVER_FEED_URL;
+  }
+  return 'https://streamweaver-new.fly.dev/api/shared-chat/spmt-feed';
+}
+
+app.get('/api/commlink/feed', authenticate, async (req: any, res) => {
+  const user = getUserById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const limit = Math.min(200, Math.max(1, Number(req.query.limit || 100) || 100));
+  const query = commlinkFeedText(req.query.q, 120).toLowerCase();
+  const platform = commlinkFeedText(req.query.platform, 40).toLowerCase();
+  const since = commlinkTimestampMs(req.query.since);
+  const before = commlinkTimestampMs(req.query.before);
+  const tenantId = String(user.twitch_id || user.id);
+  let streamweaver: any = null;
+  let streamweaverError: string | null = null;
+
+  try {
+    const target = new URL(streamweaverCommlinkFeedUrl());
+    target.searchParams.set('limit', '200');
+    if (query) target.searchParams.set('q', query);
+    if (platform && platform !== 'spmt') target.searchParams.set('platform', platform);
+    if (since) target.searchParams.set('since', new Date(since).toISOString());
+    if (before) target.searchParams.set('before', new Date(before).toISOString());
+    const response = await fetch(target, {
+      headers: {
+        'x-spmt-key': String(process.env.SYSTEM_API_KEY || ''),
+        'x-spmt-tenant-id': tenantId,
+        'x-spmt-user-id': user.id,
+      },
+      signal: AbortSignal.timeout(4_000),
+    });
+    if (!response.ok) throw new Error(`StreamWeaver feed returned ${response.status}`);
+    streamweaver = await response.json();
+  } catch (error) {
+    streamweaverError = error instanceof Error ? error.message : 'StreamWeaver feed unavailable';
+  }
+
+  const localItems = listSpmtCommlinkItems(user.id, 200);
+  const latestLocalTimestamp = localItems.reduce<string | null>((latest, item) => {
+    if (!latest || commlinkTimestampMs(item.originalTimestamp) > commlinkTimestampMs(latest)) {
+      return item.originalTimestamp;
+    }
+    return latest;
+  }, null);
+  const remoteItems = Array.isArray(streamweaver?.events)
+    ? streamweaver.events.filter(isCommlinkFeedItem).map((item: CommlinkFeedItem) => ({
+      ...item,
+      meta: { ...(item.meta || {}), feedOwner: 'streamweaver' },
+    }))
+    : [];
+  const filtered = dedupeCommlinkFeedItems([...remoteItems, ...localItems]).filter((item) => {
+    const eventTime = commlinkTimestampMs(item.originalTimestamp);
+    if (platform && item.platform !== platform && !(item.platform === 'social-stream' && item.meta?.rawProvider === platform)) return false;
+    if (since && eventTime <= since) return false;
+    if (before && eventTime >= before) return false;
+    if (query && !`${item.sender.displayName} ${item.sender.login || ''} ${item.text} ${item.channelName || ''}`.toLowerCase().includes(query)) return false;
+    return true;
+  });
+  const items = filtered.slice(-limit);
+  const localChannels = Array.from(new Map(localItems.map((item) => {
+    const id = `${item.platform}:${item.channelId}`;
+    return [id, {
+      id,
+      platform: item.platform,
+      sourceId: item.sourceId,
+      sourceName: item.sourceName || null,
+      channelId: item.channelId,
+      channelName: item.channelName || item.sourceName || item.channelId,
+      lastEventAt: item.originalTimestamp,
+      readOnly: true,
+    }];
+  })).values());
+  const remoteSources = Array.isArray(streamweaver?.sources) ? streamweaver.sources : [];
+  const unavailableSources = ['twitch', 'kick', 'youtube', 'discord'].map((sourcePlatform) => ({
+    platform: sourcePlatform,
+    status: 'unavailable',
+    runtimeConnected: false,
+    eventCount: 0,
+    lastEventAt: null,
+    readOnly: true,
+  }));
+
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.json({
+    schemaVersion: 1,
+    mode: 'live-read-only',
+    generatedAt: new Date().toISOString(),
+    count: items.length,
+    hasMore: filtered.length > items.length || Boolean(streamweaver?.hasMore),
+    nextSince: items.at(-1)?.originalTimestamp || req.query.since || null,
+    sources: [
+      ...(remoteSources.length ? remoteSources : unavailableSources),
+      {
+        platform: 'spmt',
+        status: 'live',
+        runtimeConnected: true,
+        eventCount: localItems.length,
+        lastEventAt: latestLocalTimestamp,
+        readOnly: true,
+      },
+    ],
+    channels: [
+      ...(Array.isArray(streamweaver?.channels) ? streamweaver.channels : []),
+      ...localChannels,
+    ],
+    upstream: {
+      streamweaver: streamweaverError ? { status: 'degraded', error: streamweaverError } : { status: 'ready' },
+      spmt: { status: 'ready' },
+    },
+    dedupe: {
+      inputCount: remoteItems.length + localItems.length,
+      outputCount: dedupeCommlinkFeedItems([...remoteItems, ...localItems]).length,
+    },
+    items,
+  });
+});
+
 function listVersionedWorkspaceRecords(table: 'workspace_overlay_scenes' | 'workspace_workflow_definitions', jsonColumn: 'scene_json' | 'workflow_json', userId: string) {
   return (db.prepare(`SELECT id, revision, name, ${jsonColumn} AS data_json, created_at, updated_at FROM ${table} WHERE user_id = ? ORDER BY datetime(updated_at) DESC`).all(userId) as any[])
     .map((row) => ({ id: row.id, revision: row.revision, name: row.name, data: JSON.parse(row.data_json), createdAt: row.created_at, updatedAt: row.updated_at }));

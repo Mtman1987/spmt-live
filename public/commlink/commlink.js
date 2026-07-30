@@ -4,9 +4,11 @@ const providers = {
   youtube: { name: 'YouTube', short: 'Y', rgb: '255, 54, 72' },
   discord: { name: 'Discord', short: 'D', rgb: '88, 101, 242' },
   spmt: { name: 'SPMT', short: 'S', rgb: '167, 139, 250' },
+  app: { name: 'App', short: 'A', rgb: '167, 139, 250' },
+  'social-stream': { name: 'Social Stream', short: 'SS', rgb: '56, 189, 248' },
 };
 
-const sources = [
+const defaultSources = [
   { id: 'twitch-creatora', provider: 'twitch', channel: 'creatorA', state: 'Live · can send' },
   { id: 'kick-creatorc', provider: 'kick', channel: 'creatorC', state: 'Live · can send' },
   { id: 'youtube-creatorb', provider: 'youtube', channel: 'creatorB', state: 'Live · can send' },
@@ -14,7 +16,7 @@ const sources = [
 ];
 
 const defaultChatSpaces = [
-  { id: 'friday', name: 'Friday Stream', detail: '4 sources · live', icon: 'FS', rgb: '167,139,250', unread: 7, sources: sources.map((source) => source.id) },
+  { id: 'friday', name: 'Friday Stream', detail: '4 sources · live', icon: 'FS', rgb: '167,139,250', unread: 7, sources: defaultSources.map((source) => source.id) },
   { id: 'partner', name: 'Partner Night', detail: '2 sources · live', icon: 'PN', rgb: '56,189,248', unread: 3, sources: ['twitch-creatora', 'youtube-creatorb'] },
   { id: 'mods', name: 'Mod Watch', detail: 'Discord · helper', icon: 'MW', rgb: '88,101,242', unread: 0, sources: ['discord-livechat'] },
   { id: 'redeems', name: 'Redeems + XP', detail: 'Events only', icon: 'XP', rgb: '52,211,153', unread: 2, sources: ['twitch-creatora', 'kick-creatorc'] },
@@ -42,38 +44,38 @@ const defaultDesks = [
 
 const initialMessages = [
   {
-    id: 'm1', provider: 'twitch', channel: 'creatorA', kind: 'chat', name: 'PixelRanger', handle: '@pixelranger',
+    id: 'm1', sourceId: 'twitch-creatora', provider: 'twitch', channel: 'creatorA', kind: 'chat', name: 'PixelRanger', handle: '@pixelranger',
     initials: 'PR', roles: ['MOD', 'SUB 18M'], time: '8:41 PM', text: 'That transition was ridiculously smooth <span class="emote">🔥</span>',
     xp: 31977, level: 42, queued: false, pinned: false, capabilities: { reply: true, moderate: true, tts: true },
   },
   {
-    id: 'm2', provider: 'youtube', channel: 'creatorB', kind: 'event', event: 'Super Chat', name: 'NovaSkies',
+    id: 'm2', sourceId: 'youtube-creatorb', provider: 'youtube', channel: 'creatorB', kind: 'event', event: 'Super Chat', name: 'NovaSkies',
     handle: '@novaskies', initials: 'NS', roles: ['MEMBER'], time: '8:42 PM', text: 'Can we get a tour of the new setup?', value: '$20.00',
     xp: 12840, level: 26, queued: true, pinned: true, capabilities: { reply: true, moderate: true, tts: true },
   },
   {
-    id: 'm3', provider: 'kick', channel: 'creatorC', kind: 'chat', name: 'OrbitFox', handle: '@orbitfox',
+    id: 'm3', sourceId: 'kick-creatorc', provider: 'kick', channel: 'creatorC', kind: 'chat', name: 'OrbitFox', handle: '@orbitfox',
     initials: 'OF', roles: ['OG', 'SUB'], time: '8:42 PM', text: 'All three chats in one place is going to be wild <span class="emote">🚀</span>',
     xp: 8740, level: 19, queued: false, pinned: false, capabilities: { reply: true, moderate: false, tts: true },
   },
   {
-    id: 'm4', provider: 'discord', channel: '#live-chat', kind: 'chat', name: 'Rin', handle: '@rin',
+    id: 'm4', sourceId: 'discord-livechat', provider: 'discord', channel: '#live-chat', kind: 'chat', name: 'Rin', handle: '@rin',
     initials: 'RI', roles: ['CREW', 'ARTIST'], time: '8:43 PM', reply: 'Replying to Mountain: “Show me the new overlay”',
     text: 'I dropped the updated scene mockup in the design thread.', xp: 22104, level: 35, queued: false, pinned: false,
     capabilities: { reply: true, moderate: true, tts: true },
   },
   {
-    id: 'm5', provider: 'twitch', channel: 'creatorA', kind: 'event', event: 'Channel Point Redeem', name: 'CometChaser',
+    id: 'm5', sourceId: 'twitch-creatora', provider: 'twitch', channel: 'creatorA', kind: 'event', event: 'Channel Point Redeem', name: 'CometChaser',
     handle: '@cometchaser', initials: 'CC', roles: ['VIP'], time: '8:43 PM', text: 'Hydrate the captain', value: '5,000 points',
     xp: 18650, level: 31, queued: true, pinned: false, capabilities: { reply: true, moderate: true, tts: true },
   },
   {
-    id: 'm6', provider: 'spmt', channel: 'XP Ledger', kind: 'event', event: 'SPMT XP', name: 'PixelRanger',
+    id: 'm6', sourceId: 'spmt-xp', provider: 'spmt', channel: 'XP Ledger', kind: 'event', event: 'SPMT XP', name: 'PixelRanger',
     handle: '@pixelranger', initials: 'PR', roles: ['VERIFIED'], time: '8:44 PM', text: 'Creator streak milestone', value: '+125 XP',
     xp: 32102, level: 42, queued: false, pinned: false, capabilities: { reply: false, moderate: false, tts: false },
   },
   {
-    id: 'm7', provider: 'youtube', channel: 'creatorB', kind: 'chat', name: 'MochiByte', handle: '@mochibyte',
+    id: 'm7', sourceId: 'youtube-creatorb', provider: 'youtube', channel: 'creatorB', kind: 'chat', name: 'MochiByte', handle: '@mochibyte',
     initials: 'MB', roles: ['NEW'], time: '8:45 PM', text: 'First stream here—do the XP levels carry between apps?',
     xp: 0, level: 1, queued: false, pinned: false, firstTime: true, capabilities: { reply: true, moderate: true, tts: true },
   },
@@ -108,8 +110,16 @@ const state = {
   activeDesk: 'live-show',
   activeFilter: 'all',
   activeView: 'focus',
+  sources: structuredClone(defaultSources),
+  sourceHealth: [],
+  feedMode: 'synthetic',
+  feedCursor: null,
+  feedPollTimer: null,
+  liveMessages: [],
+  searchQuery: '',
+  replayActive: false,
   selectedMessage: null,
-  selectedDestinations: sources.map((source) => source.id),
+  selectedDestinations: defaultSources.map((source) => source.id),
   messages: initialMessages.map((message) => ({ ...message })),
   chatSpaces: structuredClone(defaultChatSpaces),
   desks: structuredClone(defaultDesks),
@@ -127,10 +137,12 @@ const state = {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
-const providerStyle = (provider) => `--provider-rgb:${providers[provider].rgb}`;
+const providerFor = (provider) => providers[provider] || providers.app;
+const providerStyle = (provider) => `--provider-rgb:${providerFor(provider).rgb}`;
 const activeSources = () => {
   const space = state.chatSpaces.find((item) => item.id === state.activeSpace) || state.chatSpaces[0];
-  return sources.filter((source) => space.sources.includes(source.id));
+  const selected = state.sources.filter((source) => space.sources.includes(source.id));
+  return selected.length || state.feedMode === 'synthetic' ? selected : state.sources;
 };
 
 function toast(message) {
@@ -163,36 +175,53 @@ function renderSpaces() {
 
 function renderSourceChips() {
   const current = activeSources();
-  $('#source-count').textContent = `${current.length} source${current.length === 1 ? '' : 's'} live`;
+  const live = current.filter((source) => source.health === 'live' || source.health === 'recent').length;
+  $('#source-count').textContent = state.feedMode === 'synthetic'
+    ? `${current.length} preview source${current.length === 1 ? '' : 's'}`
+    : `${current.length} source${current.length === 1 ? '' : 's'} · ${live} active`;
   $('#source-chips').innerHTML = current.map((source) => {
-    const provider = providers[source.provider];
+    const provider = providerFor(source.provider);
     return `<span class="source-chip" style="${providerStyle(source.provider)}" title="${source.state}">
-      <span class="provider-logo">${provider.short}</span>${provider.name} · ${source.channel}<span class="source-state"></span>
+      <span class="provider-logo">${provider.short}</span>${provider.name} · ${escapeHtml(source.channel)}<span class="source-state ${source.health || ''}"></span>
     </span>`;
   }).join('');
+  const degraded = state.sourceHealth.filter((source) => source.status === 'unavailable').map((source) => providerFor(source.platform).name);
+  $('#source-health-summary').textContent = state.feedMode === 'synthetic'
+    ? 'Preview data'
+    : degraded.length
+      ? `Unavailable: ${degraded.join(', ')}`
+      : 'No source outages reported';
 }
 
 function messageCard(message, compact = false) {
-  const provider = providers[message.provider];
+  const provider = providerFor(message.provider);
   const stateTags = [
     message.pinned ? '<span class="state-tag">Pinned</span>' : '',
     message.queued ? '<span class="state-tag">Queued</span>' : '',
     message.firstTime ? '<span class="state-tag">First time</span>' : '',
   ].filter(Boolean).join('');
-  const roles = message.roles.map((role, index) => `<span class="role-badge" style="--badge-rgb:${index % 2 ? '56,189,248' : provider.rgb}">${role}</span>`).join('');
+  const roles = message.roles.map((role, index) => `<span class="role-badge" style="--badge-rgb:${index % 2 ? '56,189,248' : provider.rgb}">${escapeHtml(role)}</span>`).join('');
+  const avatar = message.avatarUrl
+    ? `<img src="${escapeHtml(message.avatarUrl)}" alt="" loading="lazy">`
+    : escapeHtml(message.initials);
+  const media = (message.media || []).slice(0, 4).map((item) => {
+    if (!item?.url || !['image', 'emote', 'sticker'].includes(item.type)) return '';
+    return `<img class="message-media" src="${escapeHtml(item.url)}" alt="${escapeHtml(item.alt || item.type)}" loading="lazy">`;
+  }).join('');
   if (compact) {
     return `<div class="mini-message" style="${providerStyle(message.provider)}">
-      <span class="message-avatar">${message.initials}</span>
-      <span><strong>${message.name} · ${provider.name}</strong><p>${message.event ? `${message.event}: ` : ''}${message.text.replace(/<[^>]+>/g, '')}</p></span>
+      <span class="message-avatar">${avatar}</span>
+      <span><strong>${escapeHtml(message.name)} · ${provider.name}</strong><p>${message.event ? `${escapeHtml(message.event)}: ` : ''}${message.text.replace(/<[^>]+>/g, '')}</p></span>
     </div>`;
   }
   return `<article class="message-card ${message.kind === 'event' ? 'event' : ''} ${message.id === state.selectedMessage ? 'selected' : ''}" data-message="${message.id}" style="${providerStyle(message.provider)}">
-    <span class="message-avatar">${message.initials}<span class="provider-mini">${provider.short}</span></span>
+    <span class="message-avatar">${avatar}<span class="provider-mini">${provider.short}</span></span>
     <div class="message-main">
-      ${message.kind === 'event' ? `<div class="event-title">${message.event}${message.value ? `<span class="event-value">${message.value}</span>` : ''}</div>` : ''}
-      <div class="message-meta"><span class="message-name">${message.name}</span>${roles}<span class="channel-label">${provider.name} · ${message.channel}</span><span class="message-time">${message.time}</span></div>
-      ${message.reply ? `<div class="reply-context">${message.reply}</div>` : ''}
+      ${message.kind === 'event' ? `<div class="event-title">${escapeHtml(message.event)}${message.value ? `<span class="event-value">${escapeHtml(message.value)}</span>` : ''}</div>` : ''}
+      <div class="message-meta"><span class="message-name">${escapeHtml(message.name)}</span>${roles}<span class="channel-label">${provider.name} · ${escapeHtml(message.channel)}</span><span class="message-time">${escapeHtml(message.time)}</span></div>
+      ${message.reply ? `<div class="reply-context">${escapeHtml(message.reply)}</div>` : ''}
       <p class="message-text">${message.text}</p>
+      ${media ? `<div class="message-media-row">${media}</div>` : ''}
       ${stateTags ? `<div class="state-tags">${stateTags}</div>` : ''}
     </div>
     ${message.kind !== 'event' ? '<div class="message-tools"><button type="button" aria-label="Message actions">•••</button></div>' : ''}
@@ -201,16 +230,25 @@ function messageCard(message, compact = false) {
 
 function renderMessages() {
   const sourceIds = new Set(activeSources().map((source) => source.id));
-  const providerChannels = new Set(activeSources().map((source) => `${source.provider}:${source.channel}`));
   const visible = state.messages.filter((message) => {
-    const belongs = message.provider === 'spmt' || providerChannels.has(`${message.provider}:${message.channel}`);
+    const belongs = sourceIds.has(message.sourceId) || message.provider === 'spmt';
+    if (!belongs && state.feedMode !== 'synthetic') return false;
     if (!belongs && state.activeSpace !== 'friday') return false;
     if (state.activeFilter === 'chat') return message.kind === 'chat';
     if (state.activeFilter === 'events') return message.kind === 'event';
     if (state.activeFilter === 'queued') return message.queued;
     return true;
   });
-  $('#message-feed').innerHTML = `<div class="date-separator">Live now · synthetic preview</div>${visible.map((message) => messageCard(message)).join('') || '<div class="feed-empty">No messages match this view.</div>'}`;
+  const modeLabel = state.searchQuery
+    ? `History search · “${escapeHtml(state.searchQuery)}”`
+    : state.replayActive
+      ? 'Safe replay · last 5 minutes · automations disabled'
+      : state.feedMode === 'real'
+        ? 'Live read-only feed · provider actions disabled'
+        : state.feedMode === 'degraded'
+          ? 'Feed degraded · preview data shown'
+          : 'Synthetic preview · sign in for real sources';
+  $('#message-feed').innerHTML = `<div class="date-separator">${modeLabel}</div>${visible.map((message) => messageCard(message)).join('') || '<div class="feed-empty">No messages match this view. The source is connected, but this bounded window is empty.</div>'}`;
   $$('.message-card').forEach((card) => card.addEventListener('click', () => {
     state.selectedMessage = card.dataset.message;
     renderMessages();
@@ -224,14 +262,14 @@ function renderContext() {
   $('#context-empty').classList.toggle('hidden', Boolean(message));
   $('#context-content').classList.toggle('hidden', !message);
   if (!message) return;
-  const provider = providers[message.provider];
+  const provider = providerFor(message.provider);
   const xpPercent = Math.min(100, Math.max(4, (message.xp % 1000) / 10));
   $('#context-content').innerHTML = `
     <div class="context-profile" style="${providerStyle(message.provider)}">
-      <span class="context-avatar">${message.initials}</span>
-      <h2>${message.name}</h2>
-      <p>${message.handle} · ${provider.name}</p>
-      <p>${message.roles.join(' · ')}</p>
+      <span class="context-avatar">${message.avatarUrl ? `<img src="${escapeHtml(message.avatarUrl)}" alt="">` : escapeHtml(message.initials)}</span>
+      <h2>${escapeHtml(message.name)}</h2>
+      <p>${escapeHtml(message.handle)} · ${provider.name}</p>
+      <p>${message.roles.map(escapeHtml).join(' · ')}</p>
     </div>
     <div class="xp-card">
       <div class="between"><span>SPMT level ${message.level}</span><strong>${message.xp.toLocaleString()} XP</strong></div>
@@ -250,9 +288,9 @@ function renderContext() {
       <h3>${provider.name} capabilities</h3>
       <div class="capability-list">
         <div class="capability"><span>Receive rich chat</span><span>Available</span></div>
-        <div class="capability ${message.capabilities.reply ? '' : 'unavailable'}"><span>Reply to source</span><span>${message.capabilities.reply ? 'Available' : 'Read only'}</span></div>
-        <div class="capability ${message.capabilities.moderate ? '' : 'unavailable'}"><span>Moderation</span><span>${message.capabilities.moderate ? 'Available' : 'Unavailable'}</span></div>
-        <div class="capability"><span>Connection</span><span>Healthy</span></div>
+        <div class="capability unavailable"><span>Reply to source</span><span>Pass 4</span></div>
+        <div class="capability unavailable"><span>Moderation</span><span>Pass 4</span></div>
+        <div class="capability"><span>Connection</span><span>${state.feedMode === 'real' ? 'Read only' : 'Preview'}</span></div>
       </div>
     </section>
     <section class="context-section">
@@ -263,6 +301,9 @@ function renderContext() {
 }
 
 function handleMessageAction(message, action) {
+  if (state.feedMode === 'real' && ['pin', 'queue', 'feature', 'tts'].includes(action)) {
+    return toast('Pass 3 is read-only. This action did not contact a provider or trigger automation.');
+  }
   if (action === 'pin') message.pinned = !message.pinned;
   if (action === 'queue') message.queued = !message.queued;
   if (action === 'feature') toast(`Preview: ${message.name}'s message targeted to “main-feature”`);
@@ -275,8 +316,9 @@ function renderDestinations() {
   const active = activeSources();
   state.selectedDestinations = state.selectedDestinations.filter((id) => active.some((source) => source.id === id));
   $('#destination-chips').innerHTML = state.selectedDestinations.map((id) => {
-    const source = sources.find((item) => item.id === id);
-    const provider = providers[source.provider];
+    const source = state.sources.find((item) => item.id === id);
+    if (!source) return '';
+    const provider = providerFor(source.provider);
     return `<span class="destination-chip" style="${providerStyle(source.provider)}">${provider.name}/${source.channel}<button type="button" data-remove-destination="${id}" aria-label="Remove ${provider.name} ${source.channel}">×</button></span>`;
   }).join('');
   $('#send-label').textContent = `Send → ${state.selectedDestinations.length}`;
@@ -329,7 +371,7 @@ function renderAll() {
 function showMentionMenu() {
   const menu = $('#mention-menu');
   menu.innerHTML = activeSources().map((source) => {
-    const provider = providers[source.provider];
+    const provider = providerFor(source.provider);
     return `<button class="mention-option" type="button" data-mention="${source.id}" style="${providerStyle(source.provider)}">
       <span class="provider-logo">${provider.short}</span><span>${provider.name}/${source.channel}<small>Target only this destination</small></span><small>${source.state}</small>
     </button>`;
@@ -354,8 +396,9 @@ function openSendPreview() {
   if (!state.selectedDestinations.length) return toast('Select at least one destination.');
   $('#modal-message').textContent = message;
   $('#modal-destinations').innerHTML = state.selectedDestinations.map((id) => {
-    const source = sources.find((item) => item.id === id);
-    const provider = providers[source.provider];
+    const source = state.sources.find((item) => item.id === id);
+    if (!source) return '';
+    const provider = providerFor(source.provider);
     return `<div class="modal-destination" style="${providerStyle(source.provider)}">
       <span class="provider-logo">${provider.short}</span>
       <span><strong>${provider.name} · ${source.channel}</strong><small>${source.state}</small></span>
@@ -366,7 +409,7 @@ function openSendPreview() {
 }
 
 function simulateSend() {
-  const destinationNames = state.selectedDestinations.map((id) => sources.find((source) => source.id === id)?.channel).filter(Boolean);
+  const destinationNames = state.selectedDestinations.map((id) => state.sources.find((source) => source.id === id)?.channel).filter(Boolean);
   state.messages.push({
     id: `preview-${Date.now()}`, provider: 'spmt', channel: 'Operator preview', kind: 'chat', name: 'Mountain Crew',
     handle: '@mountaincrew', initials: 'MT', roles: ['OPERATOR', 'PREVIEW'], time: 'Now',
@@ -382,8 +425,204 @@ function simulateSend() {
 
 function escapeHtml(value) {
   const node = document.createElement('div');
-  node.textContent = value;
+  node.textContent = String(value ?? '');
   return node.innerHTML;
+}
+
+function canonicalProvider(item) {
+  const raw = item?.platform === 'social-stream'
+    ? String(item?.meta?.rawProvider || '').toLowerCase()
+    : String(item?.platform || '').toLowerCase();
+  if (providers[raw]) return raw === 'app' ? 'spmt' : raw;
+  return item?.platform === 'app' ? 'spmt' : 'social-stream';
+}
+
+function safeHttpUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
+function eventLabel(item) {
+  const labels = {
+    donation: 'Donation',
+    membership: 'Membership',
+    reward: 'Channel Point Redeem',
+    raid: 'Raid',
+    follow: 'Follow',
+    delete: 'Message deleted',
+    edit: 'Message edited',
+    system: 'App event',
+    voice: 'Voice message',
+  };
+  return labels[item.type] || String(item.type || 'Event').replaceAll('-', ' ');
+}
+
+function eventValue(item) {
+  if (item.donation?.display) return String(item.donation.display);
+  if (item.donation?.amount != null) return `${item.donation.amount} ${item.donation.currency || ''}`.trim();
+  if (item.membership?.tier) return String(item.membership.tier);
+  if (item.reward?.cost != null) return `${Number(item.reward.cost).toLocaleString()} points`;
+  return '';
+}
+
+function normalizeFeedItem(item) {
+  const provider = canonicalProvider(item);
+  const timestamp = new Date(item.originalTimestamp || item.receivedTimestamp || Date.now());
+  const displayName = String(item.sender?.displayName || item.sender?.login || 'Unknown');
+  const badgeLabels = (item.sender?.badges || []).map((badge) => badge.label || badge.id);
+  const roles = Array.from(new Set([...(item.sender?.roles || []), ...badgeLabels]))
+    .filter(Boolean)
+    .slice(0, 8)
+    .map((role) => String(role).replaceAll('_', ' ').toUpperCase());
+  const avatarUrl = safeHttpUrl(item.sender?.avatarUrl);
+  const media = (item.media || []).map((entry) => ({
+    ...entry,
+    url: safeHttpUrl(entry.url),
+    thumbnailUrl: safeHttpUrl(entry.thumbnailUrl),
+  })).filter((entry) => entry.url);
+  const isChat = ['message', 'action', 'reply', 'edit'].includes(item.type);
+  return {
+    id: String(item.eventId),
+    sourceId: `${provider}:${item.channelId}`,
+    provider,
+    channel: String(item.channelName || item.sourceName || item.channelId || 'unknown'),
+    kind: isChat ? 'chat' : 'event',
+    event: isChat ? null : eventLabel(item),
+    value: eventValue(item),
+    name: displayName,
+    handle: item.sender?.login ? `@${item.sender.login}` : displayName,
+    initials: displayName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || '?',
+    avatarUrl,
+    roles,
+    time: Number.isNaN(timestamp.getTime()) ? 'Unknown' : timestamp.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    timestamp: Number.isNaN(timestamp.getTime()) ? null : timestamp.toISOString(),
+    reply: item.reply?.text ? `Replying to ${item.reply.senderName || 'message'}: “${item.reply.text}”` : '',
+    text: escapeHtml(item.text || '').replaceAll('\n', '<br>'),
+    media,
+    xp: Number(item.meta?.spmtXp || 0),
+    level: Number(item.meta?.spmtLevel || 1),
+    queued: false,
+    pinned: false,
+    capabilities: { reply: false, moderate: false, tts: false },
+  };
+}
+
+function applyFeedSources(payload) {
+  state.sourceHealth = Array.isArray(payload.sources) ? payload.sources : [];
+  const healthByProvider = new Map(state.sourceHealth.map((source) => [source.platform, source]));
+  const channelSources = (Array.isArray(payload.channels) ? payload.channels : []).map((channel) => {
+    const provider = canonicalProvider({ platform: channel.platform });
+    const health = healthByProvider.get(channel.platform) || healthByProvider.get(provider) || {};
+    return {
+      id: `${provider}:${channel.channelId}`,
+      provider,
+      channel: String(channel.channelName || channel.sourceName || channel.channelId),
+      state: `${String(health.status || 'idle')} · read only`,
+      health: health.status || 'idle',
+      readOnly: true,
+    };
+  });
+  const unique = Array.from(new Map(channelSources.map((source) => [source.id, source])).values());
+  for (const health of state.sourceHealth) {
+    const provider = canonicalProvider({ platform: health.platform });
+    if (!providers[provider] || unique.some((source) => source.provider === provider)) continue;
+    unique.push({
+      id: `${provider}:status`,
+      provider,
+      channel: health.status === 'live' ? 'Connected · awaiting messages' : 'No recent channel',
+      state: `${health.status} · read only`,
+      health: health.status,
+      readOnly: true,
+    });
+  }
+  state.sources = unique;
+  state.selectedDestinations = state.selectedDestinations.filter((id) => unique.some((source) => source.id === id));
+}
+
+function setFeedBanner(mode, detail) {
+  state.feedMode = mode;
+  $('#feed-banner-detail').textContent = detail;
+}
+
+function mergeFeedMessages(incoming) {
+  const byId = new Map(state.liveMessages.map((message) => [message.id, message]));
+  incoming.forEach((message) => byId.set(message.id, message));
+  state.liveMessages = Array.from(byId.values())
+    .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')))
+    .slice(-200);
+}
+
+function scheduleFeedPoll() {
+  clearTimeout(state.feedPollTimer);
+  if (!localStorage.getItem('spmt_token') || state.searchQuery || state.replayActive) return;
+  state.feedPollTimer = setTimeout(() => loadCommlinkFeed({ incremental: true }), 5_000);
+}
+
+async function loadCommlinkFeed({ incremental = false, query = '', replayMinutes = 0 } = {}) {
+  const token = localStorage.getItem('spmt_token');
+  if (!token) {
+    setFeedBanner('synthetic', 'Synthetic preview · sign in for account-scoped live feeds');
+    renderAll();
+    return;
+  }
+  const params = new URLSearchParams({ limit: query ? '100' : '200' });
+  if (query) params.set('q', query);
+  if (replayMinutes) params.set('since', new Date(Date.now() - replayMinutes * 60_000).toISOString());
+  if (incremental && state.feedCursor) params.set('since', state.feedCursor);
+  if (!incremental) setFeedBanner(state.feedMode, query ? 'Searching bounded account history…' : replayMinutes ? 'Loading safe five-minute replay…' : 'Loading real account feeds…');
+  try {
+    const response = await fetch(`/api/commlink/feed?${params}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(`Commlink feed returned ${response.status}`);
+    const payload = await response.json();
+    const normalized = (payload.items || []).map(normalizeFeedItem);
+    applyFeedSources(payload);
+    state.feedCursor = payload.nextSince || state.feedCursor;
+    if (query) {
+      state.searchQuery = query;
+      state.replayActive = false;
+      state.messages = normalized;
+      $('#history-search-status').textContent = `${normalized.length} result${normalized.length === 1 ? '' : 's'} in the bounded account history window.`;
+    } else if (replayMinutes) {
+      state.searchQuery = '';
+      state.replayActive = true;
+      state.messages = normalized;
+    } else {
+      state.searchQuery = '';
+      state.replayActive = false;
+      if (incremental) mergeFeedMessages(normalized);
+      else state.liveMessages = normalized;
+      state.messages = [...state.liveMessages];
+    }
+    const degraded = payload.upstream?.streamweaver?.status !== 'ready';
+    setFeedBanner('real', degraded
+      ? 'SPMT records live · StreamWeaver feed degraded · provider writes disabled'
+      : 'Real Twitch, Kick, YouTube, Discord, and SPMT reads · provider writes disabled');
+    $('#replay-button').textContent = state.replayActive ? '● Return live' : '↻ Replay 5m';
+    renderAll();
+  } catch {
+    if (!state.liveMessages.length) {
+      state.messages = initialMessages.map((message) => ({ ...message }));
+      state.sources = structuredClone(defaultSources);
+      setFeedBanner('degraded', 'Real feed unavailable · labeled preview data shown · provider writes disabled');
+    }
+    renderAll();
+  } finally {
+    scheduleFeedPoll();
+  }
+}
+
+function clearHistoryMode() {
+  state.searchQuery = '';
+  state.replayActive = false;
+  $('#history-query').value = '';
+  $('#history-search').classList.add('hidden');
+  loadCommlinkFeed();
 }
 
 function currentWorkspaceData() {
@@ -397,7 +636,7 @@ function currentWorkspaceData() {
       icon: space.icon,
       rgb: space.rgb,
       unread: Number(space.unread || 0),
-      sources: space.sources.filter((id) => sources.some((source) => source.id === id)),
+      sources: [...space.sources],
       selectedDestinationIds: (space.selectedDestinationIds || []).filter((id) => space.sources.includes(id)),
     })),
     desks: state.desks,
@@ -514,7 +753,7 @@ async function saveCommlinkWorkspace(create = false) {
 function createChatSpace() {
   const sequence = state.chatSpaces.length + 1;
   const id = `chatspace-${Date.now().toString(36)}`;
-  const seedSources = sources.slice(0, 2).map((source) => source.id);
+  const seedSources = state.sources.slice(0, 2).map((source) => source.id);
   state.chatSpaces.push({
     id,
     name: `Untitled ChatSpace ${sequence}`,
@@ -535,15 +774,15 @@ function createChatSpace() {
 function addSourceToActiveSpace() {
   const space = state.chatSpaces.find((item) => item.id === state.activeSpace);
   if (!space) return;
-  const next = sources.find((source) => !space.sources.includes(source.id));
-  if (!next) return toast('All available preview sources are already in this ChatSpace.');
+  const next = state.sources.find((source) => !space.sources.includes(source.id));
+  if (!next) return toast('All available sources are already in this ChatSpace.');
   space.sources.push(next.id);
   space.selectedDestinationIds = [...(space.selectedDestinationIds || []), next.id];
   state.selectedDestinations = [...space.selectedDestinationIds];
   space.detail = `${space.sources.length} sources · saved`;
   renderAll();
   scheduleWorkspaceSave();
-  toast(`${providers[next.provider].name}/${next.channel} added to ${space.name}.`);
+  toast(`${providerFor(next.provider).name}/${next.channel} added to ${space.name}.`);
 }
 
 function renderDiscoveryStatus(status, showUnlock = false) {
@@ -811,10 +1050,25 @@ function wireEvents() {
     state.appearance.density = state.appearance.density === 'compact' ? 'comfortable' : 'compact';
     markAppearanceDirty();
   });
-  $('#replay-button').addEventListener('click', () => toast('Preview: replay requested without re-triggering XP, TTS, or automation.'));
+  $('#replay-button').addEventListener('click', () => {
+    if (!localStorage.getItem('spmt_token')) return toast('Sign in to replay real account history.');
+    if (state.replayActive) clearHistoryMode();
+    else loadCommlinkFeed({ replayMinutes: 5 });
+  });
   $('#add-source').addEventListener('click', addSourceToActiveSpace);
   $('#create-space').addEventListener('click', createChatSpace);
-  $('#search-button').addEventListener('click', () => toast('Pass 3 will add bounded history search.'));
+  $('#search-button').addEventListener('click', () => {
+    $('#history-search').classList.remove('hidden');
+    $('#history-query').focus();
+  });
+  $('#close-search').addEventListener('click', () => $('#history-search').classList.add('hidden'));
+  $('#clear-search').addEventListener('click', clearHistoryMode);
+  $('#history-search-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const query = $('#history-query').value.trim();
+    if (query.length < 2) return toast('Enter at least two characters to search history.');
+    loadCommlinkFeed({ query });
+  });
   $('#cosmo-logo').addEventListener('click', openBlackHoleGame);
   $('#black-hole-close').addEventListener('click', () => $('#black-hole-game').classList.add('hidden'));
   $$('.cosmic-artifact').forEach((artifact) => artifact.addEventListener('click', () => captureBlackHoleArtifact(artifact)));
@@ -861,3 +1115,5 @@ wireEvents();
 loadWorkspaceProfile();
 loadCommlinkWorkspace();
 loadDiscoveries();
+loadCommlinkFeed();
+window.addEventListener('beforeunload', () => clearTimeout(state.feedPollTimer));

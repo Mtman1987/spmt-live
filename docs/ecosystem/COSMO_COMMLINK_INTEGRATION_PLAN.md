@@ -2,9 +2,9 @@
 
 Updated: 2026-07-30
 
-Status: canonical, comprehensive UI/UX-first integration plan; Pass 1 is
-deployed and Pass 2 combines durable ChatSpace/Desk state with the hidden
-discovery/reward system; provider side effects remain gated
+Status: canonical, comprehensive UI/UX-first integration plan; Passes 1 and 2
+are deployed, and Pass 3 adds the account-scoped real read layer while all
+provider writes remain gated
 
 Owners:
 
@@ -109,6 +109,29 @@ Pass 2 delivery on 2026-07-30:
   `Count Puzzle` hidden chatbot personality contract.
 - Keep provider sends synthetic during this pass.
 
+Pass 3 delivery on 2026-07-30:
+
+- StreamWeaver remains the live-chat authority and exports its existing
+  tenant-isolated `shared-chat-event.v1` replay through a service-key-protected,
+  read-only SPMT route.
+- Twitch and Discord retain their existing ingestion paths. Kick and YouTube
+  now record their real incoming messages through the same normalized replay
+  contract instead of stopping at the in-memory multi-platform event emitter.
+- SPMT merges the StreamWeaver window with the signed-in account's real direct,
+  group, voice, app-event, and non-duplicate notification records.
+- The merger applies tenant isolation, bounded limits, timestamp search/replay,
+  native-versus-bridge deduplication, source health, channel discovery, and
+  degraded-upstream reporting.
+- Commlink polls this account feed read-only, preserves provider identity,
+  avatars, roles, badges, media, donations, memberships, rewards, replies, and
+  SPMT records, and exposes bounded history search plus a side-effect-free
+  five-minute replay.
+- Signed-out users retain the labeled synthetic preview. Signed-in users see an
+  explicitly labeled degraded preview only when the real feed cannot load.
+- Compose, reply, moderation, TTS, feature, queue, and provider-send actions
+  remain disabled or synthetic until Pass 4/5; replay never re-triggers XP,
+  TTS, bots, moderation, or automation.
+
 ### Compressed release-pass plan
 
 Target: seven total deploy-and-test passes, with a permitted range of six to
@@ -118,8 +141,8 @@ SPMT commit/push whenever possible.
 | Pass | Testable delivery |
 | --- | --- |
 | 1 — deployed | Synthetic Cosmo Commlink UI, combined feed, Desk, destination preview, and portable appearance profile |
-| 2 — this release | Durable ChatSpaces/Desks plus the three-discovery easter-egg and final reward system |
-| 3 | Real read-only Twitch, Kick, YouTube, Discord, and SPMT feeds with fidelity, history, replay, health, and dedupe |
+| 2 — deployed | Durable ChatSpaces/Desks plus the three-discovery easter-egg and final reward system |
+| 3 — this release | Real read-only Twitch, Kick, YouTube, Discord, and SPMT feeds with fidelity, history, replay, health, and dedupe |
 | 4 | Scoped compose, source-locked reply, deliberate fan-out, partial receipts, moderation, and Discord curation |
 | 5 | Smart staging, operator roles/sync, TTS, bots/AI, voice, translation, avatar, and pop-outs |
 | 6 | Typed event panels, guarded rules, show tools, named OBS outputs, Stream Deck/Companion/MIDI controls |

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import fs from 'node:fs';
+import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -62,6 +63,80 @@ assert.match(
 );
 
 const port = await getFreePort();
+const streamweaverMockPort = await getFreePort();
+const streamweaverMockRequests = [];
+const streamweaverMock = http.createServer((request, response) => {
+  const tenantId = String(request.headers['x-spmt-tenant-id'] || '');
+  const serviceKey = String(request.headers['x-spmt-key'] || '');
+  streamweaverMockRequests.push({ tenantId, serviceKey, url: request.url });
+  if (serviceKey !== 'smoke-system-key' || !tenantId) {
+    response.writeHead(401, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ error: 'unauthorized' }));
+    return;
+  }
+  const event = {
+    version: 'shared-chat-event.v1',
+    eventId: `evt_${tenantId}_twitch_real-1`,
+    upstreamId: 'real-1',
+    tenantId,
+    platform: 'twitch',
+    sourceId: 'twitch:smoke-channel',
+    sourceName: 'smoke-channel',
+    channelId: 'room-smoke',
+    channelName: 'smoke-channel',
+    type: 'message',
+    sender: {
+      id: 'viewer-real',
+      login: 'realviewer',
+      displayName: 'Real Viewer',
+      badges: [{ id: 'subscriber', label: 'Subscriber' }],
+      roles: ['subscriber'],
+    },
+    text: 'real upstream chat',
+    media: [],
+    links: [],
+    originalTimestamp: '2026-07-30T02:00:00.000Z',
+    receivedTimestamp: '2026-07-30T02:00:01.000Z',
+    meta: { rawProvider: 'tmi' },
+    dedupeKey: `${tenantId}:twitch:real-1`,
+    routing: {
+      mirrored: false,
+      reflected: false,
+      canReply: true,
+      botReadable: true,
+      botCanReply: false,
+      tenantIsolationKey: tenantId,
+    },
+  };
+  response.writeHead(200, { 'content-type': 'application/json' });
+  response.end(JSON.stringify({
+    schemaVersion: 1,
+    mode: 'read-only',
+    count: 2,
+    hasMore: false,
+    sources: [
+      { platform: 'twitch', status: 'live', runtimeConnected: true, eventCount: 1, lastEventAt: event.originalTimestamp, readOnly: true },
+      { platform: 'kick', status: 'idle', runtimeConnected: false, eventCount: 0, lastEventAt: null, readOnly: true },
+      { platform: 'youtube', status: 'idle', runtimeConnected: false, eventCount: 0, lastEventAt: null, readOnly: true },
+      { platform: 'discord', status: 'live', runtimeConnected: true, eventCount: 0, lastEventAt: null, readOnly: true },
+    ],
+    channels: [{
+      id: 'twitch:room-smoke',
+      platform: 'twitch',
+      sourceId: event.sourceId,
+      sourceName: event.sourceName,
+      channelId: event.channelId,
+      channelName: event.channelName,
+      lastEventAt: event.originalTimestamp,
+      readOnly: true,
+    }],
+    events: [event, { ...event, receivedTimestamp: '2026-07-30T02:00:02.000Z' }],
+  }));
+});
+await new Promise((resolve, reject) => {
+  streamweaverMock.once('error', reject);
+  streamweaverMock.listen(streamweaverMockPort, '127.0.0.1', resolve);
+});
 const databasePath = path.join(tempRoot, 'runtime', 'spmt.db');
 let output = '';
 const child = spawn(process.execPath, [entrypoint], {
@@ -73,6 +148,8 @@ const child = spawn(process.execPath, [entrypoint], {
     DATABASE_PATH: databasePath,
     JWT_SECRET: 'smoke-only-secret',
     BUILD_SHA: 'smoke-build',
+    SYSTEM_API_KEY: 'smoke-system-key',
+    SPMT_TEST_STREAMWEAVER_FEED_URL: `http://127.0.0.1:${streamweaverMockPort}/api/shared-chat/spmt-feed`,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -111,8 +188,11 @@ try {
   const commlink = await commlinkResponse.text();
   assert.equal(commlinkResponse.status, 200);
   assert.match(commlink, /Cosmo Commlink Preview/);
-  assert.match(commlink, /Synthetic chat data/);
+  assert.match(commlink, /Pass 3 read-only/);
+  assert.match(commlink, /provider writes remain disabled/);
   assert.match(commlink, /id="settings-drawer"/);
+  assert.match(commlink, /id="history-search"/);
+  assert.match(commlink, /id="source-health-summary"/);
   assert.match(commlink, /id="destination-chips"/);
   assert.match(commlink, /id="workspace-state"/);
   assert.match(commlink, /id="black-hole-game"/);
@@ -478,6 +558,56 @@ try {
   assert.equal(secondWorkspaceResponse.status, 200);
   assert.equal(secondWorkspace.profile.appearance.themeId, 'solar-flare');
   assert.notEqual(secondWorkspace.profile.dockSlots[0].title, 'Smoke Overlay');
+
+  const commlinkUnauthenticatedResponse = await fetch(`${baseUrl}/api/commlink/feed`);
+  assert.equal(commlinkUnauthenticatedResponse.status, 401);
+
+  const commlinkMessageResponse = await fetch(`${baseUrl}/api/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ to: 'workspace-user-two', subject: 'Pass 3', body: 'account scoped SPMT message' }),
+  });
+  assert.equal(commlinkMessageResponse.status, 201);
+  const commlinkEventResponse = await fetch(`${baseUrl}/api/events`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({
+      type: 'commlink.smoke',
+      sourceApp: 'spmt',
+      visibility: 'private',
+      payload: { summary: 'account scoped SPMT event', notify: false },
+    }),
+  });
+  assert.equal(commlinkEventResponse.status, 201);
+
+  const commlinkFeedResponse = await fetch(`${baseUrl}/api/commlink/feed?limit=100`, {
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const commlinkFeed = await commlinkFeedResponse.json();
+  assert.equal(commlinkFeedResponse.status, 200);
+  assert.equal(commlinkFeed.mode, 'live-read-only');
+  assert.equal(commlinkFeed.upstream.streamweaver.status, 'ready');
+  assert.equal(commlinkFeed.sources.some((source) => source.platform === 'twitch' && source.status === 'live'), true);
+  assert.equal(commlinkFeed.sources.some((source) => source.platform === 'spmt' && source.status === 'live'), true);
+  assert.equal(commlinkFeed.channels.some((channel) => channel.channelName === 'smoke-channel'), true);
+  assert.equal(commlinkFeed.items.filter((item) => item.text === 'real upstream chat').length, 1);
+  assert.equal(commlinkFeed.items.some((item) => item.text.includes('account scoped SPMT message')), true);
+  assert.equal(commlinkFeed.items.some((item) => item.text === 'account scoped SPMT event'), true);
+  assert.equal(commlinkFeed.dedupe.inputCount > commlinkFeed.dedupe.outputCount, true);
+  assert.equal(streamweaverMockRequests.some((request) => request.tenantId === registration.user.id && request.serviceKey === 'smoke-system-key'), true);
+
+  const searchedCommlinkFeedResponse = await fetch(`${baseUrl}/api/commlink/feed?q=upstream&limit=20`, {
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const searchedCommlinkFeed = await searchedCommlinkFeedResponse.json();
+  assert.equal(searchedCommlinkFeed.items.length, 1);
+  assert.equal(searchedCommlinkFeed.items[0].text, 'real upstream chat');
+
+  const isolatedCommlinkFeedResponse = await fetch(`${baseUrl}/api/commlink/feed?platform=spmt`, {
+    headers: { Authorization: `Bearer ${secondRegistration.token}` },
+  });
+  const isolatedCommlinkFeed = await isolatedCommlinkFeedResponse.json();
+  assert.equal(isolatedCommlinkFeed.items.some((item) => item.text.includes('account scoped SPMT event')), false);
 
   const appStateCreateResponse = await fetch(`${baseUrl}/api/app-state/hearmeout/preferences`, {
     method: 'PUT',
@@ -995,7 +1125,7 @@ try {
   assert.equal(conversation.stored, true);
   assert.equal(conversation.routed, false);
 
-  console.log(JSON.stringify({ status: 'passed', checks: 216 }));
+  console.log(JSON.stringify({ status: 'passed', checks: 237 }));
 } catch (error) {
   const detail = error instanceof Error
     ? `${error.stack || error.message}${error.cause ? `\nCause: ${error.cause}` : ''}`
@@ -1006,5 +1136,6 @@ try {
     child.kill();
     await once(child, 'exit');
   }
+  await new Promise((resolve) => streamweaverMock.close(resolve));
   fs.rmSync(tempRoot, { recursive: true, force: true });
 }

@@ -15,8 +15,8 @@
   </div>
 
   <div class="prototype-banner">
-    <span>Pass 2 preview</span>
-    Synthetic chat data · no provider messages are sent
+    <span>Pass 3 read-only</span>
+    <span id="feed-banner-detail">Checking account sources · provider writes remain disabled</span>
   </div>
 
   <main class="app-shell" id="app-shell">
@@ -89,6 +89,7 @@
           <span class="live-pulse"></span>
           <strong id="source-count">4 sources live</strong>
           <span id="workspace-state">Loading saved workspace…</span>
+          <span id="source-health-summary">Checking source health…</span>
         </div>
         <div class="source-chips" id="source-chips"></div>
         <button class="add-source" type="button" id="add-source">＋ Add source</button>
@@ -147,6 +148,25 @@
       </section>
     </section>
   </main>
+
+  <aside class="history-search hidden" id="history-search" aria-label="Search bounded Commlink history">
+    <div class="drawer-header">
+      <div>
+        <span class="eyebrow">Read-only history</span>
+        <h2>Search Commlink</h2>
+      </div>
+      <button class="icon-button" id="close-search" type="button" aria-label="Close search">×</button>
+    </div>
+    <form class="history-search-form" id="history-search-form">
+      <label for="history-query">Search the latest 500 StreamWeaver events and recent SPMT records</label>
+      <div>
+        <input id="history-query" type="search" minlength="2" maxlength="120" placeholder="Name, channel, message, event…" autocomplete="off">
+        <button class="primary-button" type="submit">Search</button>
+      </div>
+    </form>
+    <div class="history-search-status" id="history-search-status">Search is account-scoped and never triggers chat actions.</div>
+    <button class="secondary-button" id="clear-search" type="button">Return to live feed</button>
+  </aside>
 
   <aside class="settings-drawer hidden" id="settings-drawer" aria-label="Appearance and sync settings">
     <div class="drawer-header">
@@ -210,7 +230,7 @@
       <h2 id="send-modal-title">Preview message routing</h2>
       <p class="modal-message" id="modal-message"></p>
       <div class="modal-destinations" id="modal-destinations"></div>
-      <div class="safety-note"><span>✓</span> This Pass 1 prototype will add a synthetic operator card only. It will not contact Twitch, Kick, YouTube, or Discord.</div>
+      <div class="safety-note"><span>✓</span> Pass 3 reads real account feeds, but this preview still adds a local operator card only. It will not contact Twitch, Kick, YouTube, or Discord.</div>
       <div class="modal-actions">
         <button class="secondary-button" id="cancel-send" type="button">Keep editing</button>
         <button class="primary-button" id="simulate-send" type="button">Simulate send</button>

@@ -15,7 +15,7 @@
   </div>
 
   <div class="prototype-banner">
-    <span>Passes 5–7 · production workspace</span>
+    <span>Canonical SPMT messaging workspace</span>
     <span id="feed-banner-detail">Checking account sources, show controls, and device capabilities</span>
   </div>
 
@@ -38,15 +38,9 @@
 
       <div class="rail-heading desk-heading">
         <span>Saved Desks</span>
+        <button class="icon-button" id="create-desk" type="button" aria-label="Create Desk">＋</button>
       </div>
-      <button class="desk-card active" type="button" data-desk="live-show">
-        <span class="desk-icon">⌘</span>
-        <span><strong>Live Show</strong><small>3 panels · synced</small></span>
-      </button>
-      <button class="desk-card" type="button" data-desk="mod-shift">
-        <span class="desk-icon">◫</span>
-        <span><strong>Mod Shift</strong><small>2 panels · helper</small></span>
-      </button>
+      <nav class="desk-list" id="desk-list"></nav>
       <button class="desk-card secret-bot hidden" id="count-puzzle-card" type="button">
         <span class="desk-icon">?</span>
         <span><strong>Count Puzzle</strong><small>Hidden personality unlocked</small></span>
@@ -59,7 +53,7 @@
 
       <div class="account-card">
         <span class="account-avatar">MT</span>
-        <span><strong id="account-title">Mountain Crew</strong><small id="sync-summary">Checking SPMT sync…</small></span>
+        <span><strong id="account-title">Mountain Crew</strong><small id="account-xp">Loading account XP…</small><small id="sync-summary">Checking SPMT sync…</small></span>
         <span class="presence-dot" title="Online"></span>
       </div>
     </aside>
@@ -93,7 +87,7 @@
           <span id="source-health-summary">Checking source health…</span>
         </div>
         <div class="source-chips" id="source-chips"></div>
-        <button class="add-source" type="button" id="add-source">＋ Add source</button>
+        <button class="add-source" type="button" id="add-source">Manage connections</button>
       </section>
 
       <section class="focus-view" id="focus-view">
@@ -103,9 +97,11 @@
               <button class="active" type="button" data-filter="all">All</button>
               <button type="button" data-filter="chat">Chat</button>
               <button type="button" data-filter="events">Events</button>
+              <button type="button" data-filter="streamweaver">StreamWeaver</button>
               <button type="button" data-filter="queued">Queue <span id="queue-count">2</span></button>
             </div>
             <div class="feed-actions">
+              <button class="toolbar-button" id="command-button" type="button">⌘ Commands</button>
               <button class="toolbar-button" id="compact-toggle" type="button">Compact</button>
               <button class="toolbar-button" id="replay-button" type="button">↻ Replay 5m</button>
             </div>
@@ -117,15 +113,16 @@
             <div class="destination-row">
               <span class="destination-label">Destinations</span>
               <div class="destination-chips" id="destination-chips"></div>
-              <button class="destination-edit" id="destination-edit" type="button">Edit</button>
               <span class="routing-note" id="routing-note">Replies remain source-locked</span>
             </div>
             <div class="compose-row">
-              <button class="compose-tool" type="button" aria-label="Add attachment">＋</button>
+              <button class="compose-tool" id="emoji-button" type="button" aria-label="Insert emoji">☺</button>
               <div class="compose-input-wrap">
                 <textarea id="compose-input" rows="1" placeholder="Message selected destinations… Type @ to target one channel" aria-label="Compose message"></textarea>
                 <div class="mention-menu hidden" id="mention-menu"></div>
+                <div class="emoji-menu hidden" id="emoji-menu"></div>
               </div>
+              <button class="compose-tool mic-tool" id="voice-input" type="button" aria-label="Voice to text">🎙</button>
               <button class="preview-button" id="preview-send" type="button">
                 <span>Review</span>
                 <strong id="send-label">Send → 4</strong>
@@ -145,10 +142,40 @@
       </section>
 
       <section class="desk-view hidden" id="desk-view">
+        <div class="desk-tabs" id="desk-tabs"></div>
         <div class="desk-grid" id="desk-grid"></div>
       </section>
     </section>
   </main>
+
+  <section class="stream-dock hidden" id="stream-dock" aria-label="Stream player">
+    <header>
+      <span><strong id="stream-dock-title">Stream</strong><small id="stream-dock-mode">Audio and video</small></span>
+      <div>
+        <button type="button" id="stream-audio-mode">Audio</button>
+        <button type="button" id="stream-video-mode">Video</button>
+        <button type="button" id="stream-close" aria-label="Close stream">×</button>
+      </div>
+    </header>
+    <iframe id="stream-frame" title="Connected channel stream player" allow="autoplay; fullscreen" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  </section>
+
+  <div class="modal-backdrop hidden" id="workspace-modal" role="dialog" aria-modal="true" aria-labelledby="workspace-modal-title">
+    <div class="workspace-modal-card">
+      <button class="modal-close" id="close-workspace-modal" type="button" aria-label="Close workspace editor">×</button>
+      <span class="eyebrow">Synced workspace structure</span>
+      <h2 id="workspace-modal-title">Edit ChatSpace</h2>
+      <label class="workspace-field"><span>Name</span><input id="workspace-name" maxlength="60"></label>
+      <p class="setting-help" id="workspace-modal-help"></p>
+      <div id="workspace-source-editor" class="workspace-source-editor"></div>
+      <div id="workspace-panel-editor" class="workspace-panel-editor"></div>
+      <div class="safety-note"><span>↔</span> Bridge membership combines only the highlighted chats. Other connected chats remain separate and independently replyable.</div>
+      <div class="modal-actions">
+        <button class="secondary-button" id="delete-workspace-item" type="button">Delete</button>
+        <button class="primary-button" id="save-workspace-item" type="button">Save workspace</button>
+      </div>
+    </div>
+  </div>
 
   <aside class="history-search hidden" id="history-search" aria-label="Search bounded Commlink history">
     <div class="drawer-header">

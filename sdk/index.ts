@@ -133,6 +133,8 @@ export type CommlinkOperatorStateV1 = {
 export type CommlinkIntegrationsV1 = {
   version: 'commlink-integrations.v1';
   primarySurface: string;
+  embeddedSurface: string;
+  popoutSurface: string;
   rollbackSurface: string;
   cleanupApproved: boolean;
   adapters: Array<{
@@ -844,6 +846,14 @@ export class SpaceMountainClient {
   };
 
   commlink = {
+    workspaceUrl: (mode: 'shell' | 'embedded' | 'popout' = 'shell') => {
+      const path = mode === 'embedded'
+        ? '/commlink/?embedded=1'
+        : mode === 'popout'
+          ? '/commlink/'
+          : '/?view=commlink';
+      return `${this.baseUrl}${path}`;
+    },
     notify: (input: NotificationInput) => this.request('/api/system/message', {
       method: 'POST',
       body: {

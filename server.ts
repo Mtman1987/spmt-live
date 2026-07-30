@@ -3321,7 +3321,7 @@ function dedupeCommlinkFeedItems(items: CommlinkFeedItem[]) {
     const rawProvider = item.platform === 'social-stream'
       ? commlinkFeedText(item.meta?.rawProvider, 40).toLowerCase()
       : item.platform;
-    const platform = ['twitch', 'discord', 'kick', 'youtube'].includes(rawProvider) ? rawProvider : item.platform;
+    const platform = ['twitch', 'discord', 'kick', 'youtube', 'tiktok'].includes(rawProvider) ? rawProvider : item.platform;
     const key = item.dedupeKey || [platform, item.channelId, item.upstreamId, item.sender.id].join(':');
     const existing = byKey.get(key);
     if (!existing || commlinkTimestampMs(item.receivedTimestamp) >= commlinkTimestampMs(existing.receivedTimestamp)) {
@@ -3331,6 +3331,54 @@ function dedupeCommlinkFeedItems(items: CommlinkFeedItem[]) {
   return Array.from(byKey.values()).sort((a, b) => (
     commlinkTimestampMs(a.originalTimestamp) - commlinkTimestampMs(b.originalTimestamp)
   ));
+}
+
+function enrichCommlinkFeedXp(items: CommlinkFeedItem[]) {
+  const identityCache = new Map<string, any>();
+  const xpCache = new Map<string, { xp: number; level: number }>();
+  return items.map((item): CommlinkFeedItem => {
+    const rawProvider = item.platform === 'social-stream'
+      ? commlinkFeedText(item.meta?.rawProvider, 40).toLowerCase()
+      : item.platform;
+    const senderId = commlinkFeedText(item.sender?.id, 120);
+    const senderLogin = commlinkFeedText(item.sender?.login || item.sender?.displayName, 160).replace(/^@/, '').toLowerCase();
+    const cacheKey = `${rawProvider}:${senderId}:${senderLogin}`;
+    let linked = identityCache.get(cacheKey);
+    if (linked === undefined) {
+      if (rawProvider === 'discord') {
+        linked = senderId
+          ? db.prepare('SELECT id FROM users WHERE discord_id = ? OR lower(discord_username) = ? LIMIT 1').get(senderId, senderLogin)
+          : db.prepare('SELECT id FROM users WHERE lower(discord_username) = ? LIMIT 1').get(senderLogin);
+      } else if (rawProvider === 'twitch') {
+        linked = senderId
+          ? db.prepare('SELECT id FROM users WHERE twitch_id = ? OR lower(twitch_username) = ? LIMIT 1').get(senderId, senderLogin)
+          : db.prepare('SELECT id FROM users WHERE lower(twitch_username) = ? LIMIT 1').get(senderLogin);
+      } else if (rawProvider === 'spmt') {
+        linked = db.prepare('SELECT id FROM users WHERE id = ? OR lower(username) = ? LIMIT 1').get(senderId, senderLogin);
+      } else {
+        linked = null;
+      }
+      identityCache.set(cacheKey, linked || null);
+    }
+    if (!linked?.id) return item;
+    let balance = xpCache.get(linked.id);
+    if (!balance) {
+      const row = db.prepare('SELECT COALESCE(SUM(delta), 0) AS xp FROM xp_ledger WHERE user_id = ?').get(linked.id) as any;
+      const xp = Number(row?.xp || 0);
+      balance = { xp, level: Math.floor(Math.sqrt(Math.max(0, xp) / 100)) + 1 };
+      xpCache.set(linked.id, balance);
+    }
+    return {
+      ...item,
+      meta: {
+        ...(item.meta || {}),
+        spmtIdentityLinked: true,
+        spmtUserId: linked.id,
+        spmtXp: balance.xp,
+        spmtLevel: balance.level,
+      },
+    };
+  });
 }
 
 function streamweaverCommlinkFeedUrl() {
@@ -3359,6 +3407,7 @@ const COMMLINK_EGRESS_CAPABILITIES: Record<string, Record<string, boolean>> = {
   discord: { compose: true, reply: false, timeout: false, delete: true },
   kick: { compose: true, reply: false, timeout: false, delete: false },
   youtube: { compose: false, reply: false, timeout: false, delete: false },
+  tiktok: { compose: false, reply: false, timeout: false, delete: false },
   spmt: { compose: false, reply: false, timeout: false, delete: false },
 };
 
@@ -3686,7 +3735,9 @@ app.post('/api/commlink/operator', authenticate, async (req: any, res) => {
 app.get('/api/commlink/integrations', authenticate, (_req: any, res) => {
   res.json({
     version: 'commlink-integrations.v1',
-    primarySurface: '/commlink/',
+    primarySurface: '/?view=commlink',
+    embeddedSurface: '/commlink/?embedded=1',
+    popoutSurface: '/commlink/',
     rollbackSurface: '/?legacyMessages=1#messages',
     cleanupApproved: false,
     adapters: [
@@ -3701,29 +3752,29 @@ app.get('/api/commlink/integrations', authenticate, (_req: any, res) => {
         appId: 'streamweaver',
         owner: 'StreamWeaver',
         status: 'connected',
-        capabilities: ['twitch', 'kick', 'youtube-read', 'discord', 'tts', 'bots-ai', 'voice', 'translation', 'featured-output'],
-        deepLink: 'https://streamweaver-new.fly.dev/shared-chat',
+        capabilities: ['twitch', 'kick', 'youtube-read', 'discord', 'tts', 'bots-ai', 'voice', 'translation', 'featured-output', 'stream-audio-video'],
+        deepLink: 'https://streamweaver-new.fly.dev/chat',
       },
       {
         appId: 'discord-stream-hub',
         owner: 'DiscordStreamHub',
         status: 'delegated',
-        capabilities: ['discord-channel-curation', 'advanced-discord-management', 'badges', 'xp'],
-        deepLink: 'https://discord-stream-hub-new.fly.dev',
+        capabilities: ['discord-channel-curation', 'discord-all-channel-read', 'advanced-discord-management', 'badges', 'xp'],
+        deepLink: 'https://discord-stream-hub-new.fly.dev/messages',
       },
       {
         appId: 'hearmeout',
         owner: 'HearMeOut',
         status: 'deep-link',
         capabilities: ['voice-rooms', 'watch-sessions', 'media'],
-        deepLink: 'https://hearmeout-main.fly.dev',
+        deepLink: 'https://hearmeout-main.fly.dev/messages',
       },
       {
         appId: 'chat-tag',
         owner: 'ChatTag',
         status: 'sdk-events',
         capabilities: ['game-events', 'notifications'],
-        deepLink: 'https://chat-tag-new.fly.dev',
+        deepLink: 'https://chat-tag-new.fly.dev/messages',
       },
       {
         appId: 'companion',
@@ -3782,7 +3833,7 @@ app.get('/api/commlink/feed', authenticate, async (req: any, res) => {
       meta: { ...(item.meta || {}), feedOwner: 'streamweaver' },
     }))
     : [];
-  const filtered = dedupeCommlinkFeedItems([...remoteItems, ...localItems]).filter((item) => {
+  const filtered = enrichCommlinkFeedXp(dedupeCommlinkFeedItems([...remoteItems, ...localItems])).filter((item) => {
     const eventTime = commlinkTimestampMs(item.originalTimestamp);
     if (platform && item.platform !== platform && !(item.platform === 'social-stream' && item.meta?.rawProvider === platform)) return false;
     if (since && eventTime <= since) return false;
@@ -3806,7 +3857,7 @@ app.get('/api/commlink/feed', authenticate, async (req: any, res) => {
     }];
   })).values());
   const remoteSources = Array.isArray(streamweaver?.sources) ? streamweaver.sources : [];
-  const unavailableSources = ['twitch', 'kick', 'youtube', 'discord'].map((sourcePlatform) => ({
+  const unavailableSources = ['twitch', 'kick', 'youtube', 'discord', 'tiktok'].map((sourcePlatform) => ({
     platform: sourcePlatform,
     status: 'unavailable',
     runtimeConnected: false,
@@ -3851,6 +3902,17 @@ app.get('/api/commlink/feed', authenticate, async (req: any, res) => {
       streamweaver: streamweaverError ? { status: 'degraded', error: streamweaverError } : { status: 'ready' },
       spmt: { status: 'ready' },
     },
+    commands: Array.isArray(streamweaver?.commands)
+      ? streamweaver.commands.slice(0, 250).map((command: any) => ({
+          id: commlinkFeedText(command.id, 120),
+          name: commlinkFeedText(command.name, 160),
+          command: commlinkFeedText(command.command, 120),
+          description: commlinkFeedText(command.description, 500),
+          aliases: Array.isArray(command.aliases) ? command.aliases.map((alias: any) => commlinkFeedText(alias, 120)).filter(Boolean).slice(0, 20) : [],
+          permissions: Array.isArray(command.permissions) ? command.permissions.map((permission: any) => commlinkFeedText(permission, 80)).filter(Boolean).slice(0, 20) : [],
+          group: commlinkFeedText(command.group || 'custom', 80),
+        })).filter((command: any) => command.id && command.command)
+      : [],
     dedupe: {
       inputCount: remoteItems.length + localItems.length,
       outputCount: dedupeCommlinkFeedItems([...remoteItems, ...localItems]).length,

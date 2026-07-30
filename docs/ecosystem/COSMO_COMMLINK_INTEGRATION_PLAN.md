@@ -216,6 +216,69 @@ Local release evidence before the coordinated push:
   rendered with the shared Commlink visual system; and no browser console
   warning or error was observed.
 
+### Canonical workspace correction after Pass 7
+
+The first user test of the coordinated release exposed a usability gap: the
+capability contracts were present, but `/commlink/` still behaved too much like
+a separate application. The correction makes the SPMT shell and Commlink
+workspace the canonical path without deleting the standalone route:
+
+- the SPMT sidebar opens Commlink inside the signed-in SPMT header/sidebar
+  context; `/?view=commlink` is the primary surface, `/commlink/?embedded=1` is
+  the SDK/app iframe surface, and `/commlink/` remains the pop-out surface;
+- ChatSpaces and Desks can be created, renamed, edited, and deleted; Desks can
+  contain selected ChatSpaces; workspace changes continue to use the
+  revision-protected SPMT app-state record;
+- a new ChatSpace starts empty. Its editor lists real account/provider
+  connections, points to SPMT Connections for sign-in, and allows source
+  membership to be checked or unchecked instead of inventing an SPMT direct
+  destination;
+- compose-capable destinations stay visible and are highlighted/unhighlighted
+  for fast targeting. Read-only destinations stay visible but disabled, and
+  therefore never inflate the send count;
+- `bridgeSourceIds` saves which sources are intentionally combined in a
+  ChatSpace. Incoming viewer messages are still never copied between provider
+  chats;
+- Desk mode derives provider tabs from connected sources, saves hide/show state
+  per Desk, and displays the ChatSpaces assigned to that Desk;
+- the ChatSpace source editor exposes each discovered Discord channel plus an
+  `All Discord channels` read lane, and does the same for an all-Twitch read
+  lane. Aggregate lanes never become a dangerous compose fan-out; selecting a
+  message still replies to its exact source channel;
+- Focus mode has no permanent empty inspector column. Selecting a message slides
+  its context rail in; closing or toggling the selection slides it out;
+- rich message cards render bounded images, GIFs, video, audio, emotes, and
+  links; Discord `<@userID>` text resolves from supplied mention metadata and
+  remains unchanged when no verified display name exists;
+- the composer includes an emoji picker and browser speech-to-text when
+  supported; provider tabs can open supported Twitch, YouTube, and Kick
+  audio/video players, and connected-source chips expose separate Twitch
+  `Audio` and `Video` controls so an operator can hear or see the streamer react
+  without leaving the chat. The UI does not pretend an unsupported TikTok embed
+  exists;
+- the authenticated account XP endpoint supplies the current user balance.
+  Message-level SPMT XP is shown only after an identity mapping is verified;
+- StreamWeaver's tenant-scoped command catalog, points/level, cards, and
+  command-invocation metadata enrich the tenant's Commlink event stream.
+  Command events and provider-native redeems retain typed, filterable event
+  treatment instead of becoming plain chat text.
+- DiscordStreamHub `/messages`, StreamWeaver `/chat`, HearMeOut `/messages`, and
+  Chat Tag `/messages` now host the canonical embedded Commlink surface inside
+  their existing app chrome. Each includes a full SPMT-workspace link, while
+  DSH and StreamWeaver retain explicit links to their native advanced tools.
+
+#### Global and tenant-scoped viewer data
+
+- Gym badges are global SPMT achievements. They may appear in every tenant's
+  Commlink context and must be labeled `Global gym badges`.
+- Stream/channel points and StreamWeaver cards remain tenant-scoped and are
+  labeled with the owning tenant/channel context. They must not be silently
+  summed or exposed to another tenant.
+- A future moderator-only `Other streams` dropdown may show cross-tenant point
+  summaries only after an explicit user/creator sharing policy, a role-gated
+  API contract, audit logging, and two-tenant privacy tests exist. This release
+  deliberately does not add that disclosure.
+
 ## Hidden Discovery And Reward Contract
 
 The easter eggs remain discoverable through interaction, not a visible menu or
@@ -729,6 +792,9 @@ versioned typed field.
 ## SPMT XP Behavior
 
 - Show XP/level only for a verified SPMT identity mapping.
+- Treat global SPMT gym badges separately from tenant-owned StreamWeaver
+  points/cards; global badge visibility does not authorize cross-tenant point
+  disclosure.
 - Award XP through the canonical SPMT ledger with the immutable upstream
   provider event/message ID as the idempotency source.
 - Replay, reconnect, mirrored Twitch shared chat, and multi-source ingestion

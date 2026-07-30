@@ -3,6 +3,7 @@ const providers = {
   kick: { name: 'Kick', short: 'K', rgb: '83, 252, 24' },
   youtube: { name: 'YouTube', short: 'Y', rgb: '255, 54, 72' },
   discord: { name: 'Discord', short: 'D', rgb: '88, 101, 242' },
+  tiktok: { name: 'TikTok', short: 'TT', rgb: '37, 244, 238' },
   spmt: { name: 'SPMT', short: 'S', rgb: '167, 139, 250' },
   app: { name: 'App', short: 'A', rgb: '167, 139, 250' },
   'social-stream': { name: 'Social Stream', short: 'SS', rgb: '56, 189, 248' },
@@ -13,10 +14,12 @@ const defaultSources = [
   { id: 'kick-creatorc', provider: 'kick', channelId: 'creatorC', channel: 'creatorC', state: 'Live · can send', capabilities: { compose: true, reply: false, timeout: false, delete: false } },
   { id: 'youtube-creatorb', provider: 'youtube', channelId: 'creatorB', channel: 'creatorB', state: 'Read only', capabilities: { compose: false, reply: false, timeout: false, delete: false } },
   { id: 'discord-livechat', provider: 'discord', channelId: 'live-chat', channel: '#live-chat', state: 'Live · can send', capabilities: { compose: true, reply: false, timeout: false, delete: true } },
+  { id: 'tiktok-creatora', provider: 'tiktok', channelId: 'creatorA', channel: 'creatorA', state: 'Preview · adapter required', capabilities: { compose: false, reply: false, timeout: false, delete: false } },
+  { id: 'spmt-direct', provider: 'spmt', channelId: 'direct', channel: 'Direct messages', state: 'Preview · read only', capabilities: { compose: false, reply: false, timeout: false, delete: false } },
 ];
 
 const defaultChatSpaces = [
-  { id: 'friday', name: 'Friday Stream', detail: '4 sources · live', icon: 'FS', rgb: '167,139,250', unread: 7, sources: defaultSources.map((source) => source.id) },
+  { id: 'friday', name: 'Friday Stream', detail: '6 sources · preview', icon: 'FS', rgb: '167,139,250', unread: 7, sources: defaultSources.map((source) => source.id), bridgeSourceIds: ['twitch-creatora', 'kick-creatorc', 'youtube-creatorb'] },
   { id: 'partner', name: 'Partner Night', detail: '2 sources · live', icon: 'PN', rgb: '56,189,248', unread: 3, sources: ['twitch-creatora', 'youtube-creatorb'] },
   { id: 'mods', name: 'Mod Watch', detail: 'Discord · helper', icon: 'MW', rgb: '88,101,242', unread: 0, sources: ['discord-livechat'] },
   { id: 'redeems', name: 'Redeems + XP', detail: 'Events only', icon: 'XP', rgb: '52,211,153', unread: 2, sources: ['twitch-creatora', 'kick-creatorc'] },
@@ -31,6 +34,7 @@ const defaultDesks = [
       { panelId: 'discord-ops', label: 'discord-ops', chatSpaceId: 'mods', accessMode: 'helper' },
       { panelId: 'redeems', label: 'redeems', chatSpaceId: 'redeems', accessMode: 'queue-only', syncGroupId: 'show-queue' },
     ],
+    hiddenSourceIds: [],
   },
   {
     id: 'mod-shift',
@@ -39,6 +43,7 @@ const defaultDesks = [
       { panelId: 'mod-main', label: 'mod-main', chatSpaceId: 'mods', accessMode: 'operator' },
       { panelId: 'partner-watch', label: 'partner-watch', chatSpaceId: 'partner', accessMode: 'view-only' },
     ],
+    hiddenSourceIds: [],
   },
 ];
 
@@ -128,8 +133,8 @@ const state = {
   selectedMessage: null,
   replyToMessageId: null,
   lastDispatchGroup: null,
-  selectedDestinations: defaultSources.map((source) => source.id),
-  messages: initialMessages.map((message) => ({ ...message })),
+  selectedDestinations: defaultSources.filter((source) => source.capabilities.compose).map((source) => source.id),
+  messages: initialMessages.map((message) => ({ ...message, xpLinked: message.xp > 0 })),
   chatSpaces: structuredClone(defaultChatSpaces),
   desks: structuredClone(defaultDesks),
   workspaceRecord: null,
@@ -148,6 +153,10 @@ const state = {
   stagedEventIds: new Set(),
   companionDevices: [],
   integrations: [],
+  commands: [],
+  accountXp: null,
+  workspaceEditor: null,
+  streamSourceId: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -159,6 +168,9 @@ const activeSources = () => {
   const selected = state.sources.filter((source) => space.sources.includes(source.id));
   return selected.length || state.feedMode === 'synthetic' ? selected : state.sources;
 };
+const composeDestinationIds = () => activeSources()
+  .filter((source) => source.capabilities?.compose)
+  .map((source) => source.id);
 
 function toast(message) {
   const item = document.createElement('div');
@@ -170,22 +182,26 @@ function toast(message) {
 
 function renderSpaces() {
   $('#space-list').innerHTML = state.chatSpaces.map((space) => `
-    <button class="space-button ${space.id === state.activeSpace ? 'active' : ''}" type="button" data-space="${space.id}">
-      <span class="space-icon" style="--space-rgb:${space.rgb}">${space.icon}</span>
-      <span><strong>${space.name}</strong><small>${space.detail}</small></span>
-      ${space.unread ? `<span class="unread">${space.unread}</span>` : ''}
-    </button>
+    <div class="space-entry">
+      <button class="space-button ${space.id === state.activeSpace ? 'active' : ''}" type="button" data-space="${space.id}">
+        <span class="space-icon" style="--space-rgb:${space.rgb}">${space.icon}</span>
+        <span><strong>${escapeHtml(space.name)}</strong><small>${escapeHtml(space.detail)}</small></span>
+        ${space.unread ? `<span class="unread">${space.unread}</span>` : ''}
+      </button>
+      <button class="entry-edit" type="button" data-edit-space="${space.id}" aria-label="Edit ${escapeHtml(space.name)}">✎</button>
+    </div>
   `).join('');
   $$('.space-button').forEach((button) => button.addEventListener('click', () => {
     state.activeSpace = button.dataset.space;
     const selectedSpace = state.chatSpaces.find((space) => space.id === state.activeSpace);
     state.selectedDestinations = selectedSpace?.selectedDestinationIds?.filter((id) => selectedSpace.sources.includes(id))
-      || activeSources().map((source) => source.id);
+      || composeDestinationIds();
     state.selectedMessage = null;
     renderAll();
     scheduleWorkspaceSave();
     document.body.classList.remove('rail-open');
   }));
+  $$('[data-edit-space]').forEach((button) => button.addEventListener('click', () => openWorkspaceEditor('chatspace', button.dataset.editSpace)));
 }
 
 function renderSourceChips() {
@@ -196,10 +212,19 @@ function renderSourceChips() {
     : `${current.length} source${current.length === 1 ? '' : 's'} · ${live} active`;
   $('#source-chips').innerHTML = current.map((source) => {
     const provider = providerFor(source.provider);
-    return `<span class="source-chip" style="${providerStyle(source.provider)}" title="${source.state}">
+    const canWatch = !source.aggregate && ['twitch', 'youtube', 'kick'].includes(source.provider);
+    return `<span class="source-chip ${source.aggregate ? 'aggregate' : ''}" style="${providerStyle(source.provider)}" title="${source.state}">
       <span class="provider-logo">${provider.short}</span>${provider.name} · ${escapeHtml(source.channel)}<span class="source-state ${source.health || ''}"></span>
+      ${canWatch ? `<span class="source-stream-actions">
+        <button type="button" data-open-stream="${source.id}" data-stream-mode="audio" aria-label="Listen to ${escapeHtml(source.channel)}">Audio</button>
+        <button type="button" data-open-stream="${source.id}" data-stream-mode="video" aria-label="Watch ${escapeHtml(source.channel)}">Video</button>
+      </span>` : ''}
     </span>`;
   }).join('');
+  $$('[data-open-stream]').forEach((button) => button.addEventListener('click', () => {
+    openStreamDock(button.dataset.openStream);
+    if (button.dataset.streamMode) setStreamMode(button.dataset.streamMode);
+  }));
   const degraded = state.sourceHealth.filter((source) => source.status === 'unavailable').map((source) => providerFor(source.platform).name);
   $('#source-health-summary').textContent = state.feedMode === 'synthetic'
     ? 'Preview data'
@@ -214,14 +239,24 @@ function messageCard(message, compact = false) {
     message.pinned ? '<span class="state-tag">Pinned</span>' : '',
     message.queued ? '<span class="state-tag">Queued</span>' : '',
     message.firstTime ? '<span class="state-tag">First time</span>' : '',
+    message.streamweaver?.command ? `<span class="state-tag">Command · ${escapeHtml(message.streamweaver.command.command)}</span>` : '',
   ].filter(Boolean).join('');
   const roles = message.roles.map((role, index) => `<span class="role-badge" style="--badge-rgb:${index % 2 ? '56,189,248' : provider.rgb}">${escapeHtml(role)}</span>`).join('');
   const avatar = message.avatarUrl
     ? `<img src="${escapeHtml(message.avatarUrl)}" alt="" loading="lazy">`
     : escapeHtml(message.initials);
   const media = (message.media || []).slice(0, 4).map((item) => {
-    if (!item?.url || !['image', 'emote', 'sticker'].includes(item.type)) return '';
-    return `<img class="message-media" src="${escapeHtml(item.url)}" alt="${escapeHtml(item.alt || item.type)}" loading="lazy">`;
+    if (!item?.url) return '';
+    if (['image', 'emote', 'sticker'].includes(item.type)) {
+      return `<img class="message-media" src="${escapeHtml(item.url)}" alt="${escapeHtml(item.alt || item.type)}" loading="lazy">`;
+    }
+    if (item.type === 'video') {
+      return `<video class="message-media message-media-video" src="${escapeHtml(item.url)}" ${item.thumbnailUrl ? `poster="${escapeHtml(item.thumbnailUrl)}"` : ''} controls playsinline preload="metadata"></video>`;
+    }
+    if (item.type === 'audio') {
+      return `<audio class="message-media-audio" src="${escapeHtml(item.url)}" controls preload="metadata"></audio>`;
+    }
+    return `<a class="message-media-link" href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${escapeHtml(item.alt || 'Open link preview')}</a>`;
   }).join('');
   if (compact) {
     return `<div class="mini-message" style="${providerStyle(message.provider)}">
@@ -245,12 +280,19 @@ function messageCard(message, compact = false) {
 
 function renderMessages() {
   const sourceIds = new Set(activeSources().map((source) => source.id));
+  const aggregateProviders = new Set(activeSources().filter((source) => source.aggregate).map((source) => source.provider));
   const visible = state.messages.filter((message) => {
-    const belongs = sourceIds.has(message.sourceId) || message.provider === 'spmt';
+    const belongs = sourceIds.has(message.sourceId) || aggregateProviders.has(message.provider) || message.provider === 'spmt';
     if (!belongs && state.feedMode !== 'synthetic') return false;
     if (!belongs && state.activeSpace !== 'friday') return false;
     if (state.activeFilter === 'chat') return message.kind === 'chat';
     if (state.activeFilter === 'events') return message.kind === 'event';
+    if (state.activeFilter === 'streamweaver') return Boolean(message.streamweaver && (
+      message.streamweaver.command
+      || Number(message.streamweaver.points || 0) > 0
+      || (message.streamweaver.globalBadges || []).length
+      || Number(message.streamweaver.cards?.total || 0) > 0
+    ));
     if (state.activeFilter === 'queued') return message.queued;
     return true;
   });
@@ -265,7 +307,7 @@ function renderMessages() {
           : 'Synthetic preview · sign in for real sources';
   $('#message-feed').innerHTML = `<div class="date-separator">${modeLabel}</div>${visible.map((message) => messageCard(message)).join('') || '<div class="feed-empty">No messages match this view. The source is connected, but this bounded window is empty.</div>'}`;
   $$('.message-card').forEach((card) => card.addEventListener('click', () => {
-    state.selectedMessage = card.dataset.message;
+    state.selectedMessage = state.selectedMessage === card.dataset.message ? null : card.dataset.message;
     renderMessages();
     renderContext();
   }));
@@ -274,12 +316,14 @@ function renderMessages() {
 
 function renderContext() {
   const message = state.messages.find((item) => item.id === state.selectedMessage);
+  $('#focus-view').classList.toggle('context-open', Boolean(message));
   $('#context-empty').classList.toggle('hidden', Boolean(message));
   $('#context-content').classList.toggle('hidden', !message);
   if (!message) return;
   const provider = providerFor(message.provider);
   const xpPercent = Math.min(100, Math.max(4, (message.xp % 1000) / 10));
   $('#context-content').innerHTML = `
+    <button class="context-close" id="context-close" type="button" aria-label="Close message context">×</button>
     <div class="context-profile" style="${providerStyle(message.provider)}">
       <span class="context-avatar">${message.avatarUrl ? `<img src="${escapeHtml(message.avatarUrl)}" alt="">` : escapeHtml(message.initials)}</span>
       <h2>${escapeHtml(message.name)}</h2>
@@ -287,9 +331,18 @@ function renderContext() {
       <p>${message.roles.map(escapeHtml).join(' · ')}</p>
     </div>
     <div class="xp-card">
-      <div class="between"><span>SPMT level ${message.level}</span><strong>${message.xp.toLocaleString()} XP</strong></div>
+      <div class="between"><span>${message.xpLinked ? `SPMT level ${message.level}` : 'SPMT identity'}</span><strong>${message.xpLinked ? `${message.xp.toLocaleString()} XP` : 'Not linked'}</strong></div>
       <div class="xp-bar"><span style="width:${xpPercent}%"></span></div>
     </div>
+    ${message.streamweaver ? `<section class="context-section streamweaver-context">
+      <h3>Tenant StreamWeaver</h3>
+      <div class="capability-list">
+        <div class="capability"><span>Points</span><span>${escapeHtml(message.streamweaver.pointsDisplay || String(message.streamweaver.points || 0))} · level ${Number(message.streamweaver.level || 1)}</span></div>
+        <div class="capability"><span>Global gym badges</span><span>${Number(message.streamweaver.globalBadges?.length || 0)}</span></div>
+        <div class="capability"><span>Tenant cards</span><span>${Number(message.streamweaver.cards?.total || 0)} total · ${Number(message.streamweaver.cards?.rare || 0)} rare</span></div>
+        ${message.streamweaver.command ? `<div class="capability"><span>Command event</span><span>${escapeHtml(message.streamweaver.command.command)}</span></div>` : ''}
+      </div>
+    </section>` : ''}
     <section class="context-section">
       <h3>Operator actions</h3>
       <div class="context-actions">
@@ -315,6 +368,11 @@ function renderContext() {
       <h3>Identity boundary</h3>
       <p class="message-text">Provider identity is shown separately. SPMT XP appears only for a verified link in production.</p>
     </section>`;
+  $('#context-close').addEventListener('click', () => {
+    state.selectedMessage = null;
+    renderMessages();
+    renderContext();
+  });
   $$('.context-actions button').forEach((button) => button.addEventListener('click', () => handleMessageAction(message, button.dataset.action)));
 }
 
@@ -356,16 +414,27 @@ function handleMessageAction(message, action) {
 
 function renderDestinations() {
   const active = activeSources();
+  const replyMessage = state.replyToMessageId
+    ? state.messages.find((message) => message.id === state.replyToMessageId)
+    : null;
+  const replySource = replyMessage
+    ? state.sources.find((source) => source.id === replyMessage.sourceId)
+    : null;
+  if (replySource && !active.some((source) => source.id === replySource.id)) active.unshift(replySource);
   state.selectedDestinations = state.selectedDestinations.filter((id) => active.some((source) => source.id === id));
-  $('#destination-chips').innerHTML = state.selectedDestinations.map((id) => {
-    const source = state.sources.find((item) => item.id === id);
-    if (!source) return '';
+  $('#destination-chips').innerHTML = active.map((source) => {
     const provider = providerFor(source.provider);
-    return `<span class="destination-chip" style="${providerStyle(source.provider)}">${provider.name}/${source.channel}<button type="button" data-remove-destination="${id}" aria-label="Remove ${provider.name} ${source.channel}">×</button></span>`;
+    const selected = state.selectedDestinations.includes(source.id);
+    const sendable = Boolean(source.capabilities?.compose);
+    return `<button class="destination-chip ${selected ? '' : 'inactive'}" style="${providerStyle(source.provider)}" type="button" data-toggle-destination="${source.id}" ${sendable ? '' : 'disabled'} title="${sendable ? 'Highlight to include in the next message' : 'Connected read-only source'}">${provider.name}/${escapeHtml(source.channel)}</button>`;
   }).join('');
   $('#send-label').textContent = `${state.replyToMessageId ? 'Reply' : 'Send'} → ${state.selectedDestinations.length}`;
-  $$('[data-remove-destination]').forEach((button) => button.addEventListener('click', () => {
-    state.selectedDestinations = state.selectedDestinations.filter((id) => id !== button.dataset.removeDestination);
+  $$('[data-toggle-destination]').forEach((button) => button.addEventListener('click', () => {
+    const id = button.dataset.toggleDestination;
+    state.replyToMessageId = null;
+    state.selectedDestinations = state.selectedDestinations.includes(id)
+      ? state.selectedDestinations.filter((item) => item !== id)
+      : [...state.selectedDestinations, id];
     rememberSpaceDestinations();
     renderDestinations();
     scheduleWorkspaceSave();
@@ -373,31 +442,77 @@ function renderDestinations() {
 }
 
 function renderDesk() {
-  const chatMessages = state.messages.filter((message) => message.kind === 'chat').slice(0, 5);
-  const discordMessages = state.messages.filter((message) => message.provider === 'discord');
-  const events = state.messages.filter((message) => message.kind === 'event');
   const activeDesk = state.desks.find((desk) => desk.id === state.activeDesk) || state.desks[0];
   const panels = activeDesk?.panels || [];
-  $('#desk-grid').innerHTML = `
-    <section class="desk-panel" data-constellation-panel="0">
-       <header class="desk-panel-header"><span><strong>Main Multistream</strong><small>${escapeHtml(panels[0]?.accessMode || 'owner')} · ${escapeHtml(panels[0]?.syncGroupId || 'not synced')}</small></span><button class="panel-label" type="button" data-constellation-step="0">main-chat</button></header>
-      <div class="desk-panel-body">${chatMessages.map((message) => messageCard(message, true)).join('')}</div>
-    </section>
-    <section class="desk-panel" data-constellation-panel="1">
-       <header class="desk-panel-header"><span><strong>Discord Ops</strong><small>${escapeHtml(panels[1]?.accessMode || 'helper')} controls</small></span><button class="panel-label" type="button" data-constellation-step="1">discord-ops</button></header>
-      <div class="desk-panel-body">${discordMessages.map((message) => messageCard(message, true)).join('')}</div>
-    </section>
-    <section class="desk-panel" data-constellation-panel="2">
-      <header class="desk-panel-header"><span><strong>Redeems + XP</strong><small>Events only · synced queue</small></span><button class="panel-label" type="button" data-constellation-step="2">redeems</button></header>
-      <div class="desk-panel-body event-list">${events.map((message) => messageCard(message)).join('')}</div>
+  const hidden = new Set(activeDesk?.hiddenSourceIds || []);
+  const deskSourceIds = new Set(panels.flatMap((panel) => state.chatSpaces.find((space) => space.id === panel.chatSpaceId)?.sources || []));
+  const deskSources = state.sources.filter((source) => deskSourceIds.has(source.id));
+  $('#desk-tabs').innerHTML = deskSources.map((source) => {
+    const provider = providerFor(source.provider);
+    return `<span class="desk-tab-wrap">
+      <button class="desk-tab ${hidden.has(source.id) ? 'hidden-source' : ''}" type="button" data-toggle-desk-source="${source.id}" style="${providerStyle(source.provider)}">
+        <span class="provider-logo">${provider.short}</span>${provider.name} · ${escapeHtml(source.channel)}
+      </button>
+      ${['twitch', 'youtube', 'kick', 'tiktok'].includes(source.provider) ? `<button class="desk-listen" type="button" data-open-stream="${source.id}" aria-label="Listen to ${escapeHtml(source.channel)}">▶</button>` : ''}
+    </span>`;
+  }).join('') || '<span class="feed-empty">Add a ChatSpace to this Desk to expose its connected tabs.</span>';
+  $('#desk-grid').innerHTML = panels.map((panel, index) => {
+    const space = state.chatSpaces.find((item) => item.id === panel.chatSpaceId);
+    if (!space) return '';
+    const sourceIds = new Set(space.sources.filter((id) => !hidden.has(id)));
+    const aggregateProviders = new Set(state.sources
+      .filter((source) => source.aggregate && sourceIds.has(source.id))
+      .map((source) => source.provider));
+    const visibleMessages = state.messages.filter((message) => (
+      sourceIds.has(message.sourceId)
+      || aggregateProviders.has(message.provider)
+      || (message.provider === 'spmt' && sourceIds.has('spmt-direct'))
+    )).slice(-30);
+    const bridgeCount = (space.bridgeSourceIds || []).filter((id) => sourceIds.has(id)).length;
+    return `<section class="desk-panel" data-constellation-panel="${index}">
+      <header class="desk-panel-header">
+        <span><strong>${escapeHtml(space.name)}</strong><small>${escapeHtml(panel.accessMode || 'owner')} · ${bridgeCount > 1 ? `${bridgeCount} bridged` : 'separate chats'}</small></span>
+        <span class="desk-panel-actions">
+          <button type="button" data-open-space="${space.id}">Open</button>
+          <button type="button" data-constellation-step="${index}">${escapeHtml(panel.label || `panel-${index + 1}`)}</button>
+        </span>
+      </header>
+      <div class="desk-panel-body">${visibleMessages.map((message) => messageCard(message, true)).join('') || '<div class="feed-empty">No messages in this ChatSpace yet.</div>'}</div>
     </section>`;
+  }).join('') || '<div class="feed-empty">This Desk is empty. Edit it to add one or more ChatSpaces.</div>';
+  $$('[data-toggle-desk-source]').forEach((button) => button.addEventListener('click', () => {
+    const id = button.dataset.toggleDeskSource;
+    activeDesk.hiddenSourceIds = hidden.has(id) ? [...hidden].filter((item) => item !== id) : [...hidden, id];
+    renderDesk();
+    scheduleWorkspaceSave();
+  }));
+  $$('#desk-tabs [data-open-stream]').forEach((button) => button.addEventListener('click', () => openStreamDock(button.dataset.openStream)));
+  $$('[data-open-space]').forEach((button) => button.addEventListener('click', () => {
+    state.activeSpace = button.dataset.openSpace;
+    state.activeView = 'focus';
+    updateView();
+    renderAll();
+  }));
   $$('[data-constellation-step]').forEach((button) => button.addEventListener('click', () => handleConstellationStep(Number(button.dataset.constellationStep))));
 }
 
 function renderDeskSelection() {
   const activeDesk = state.desks.find((desk) => desk.id === state.activeDesk);
   $('#desk-name').textContent = activeDesk?.name || 'Live Show';
-  $$('[data-desk]').forEach((button) => button.classList.toggle('active', button.dataset.desk === state.activeDesk));
+  $('#desk-list').innerHTML = state.desks.map((desk) => `
+    <div class="space-entry">
+      <button class="desk-card ${desk.id === state.activeDesk ? 'active' : ''}" type="button" data-desk="${desk.id}">
+        <span class="desk-icon">⌘</span>
+        <span><strong>${escapeHtml(desk.name)}</strong><small>${desk.panels.length} ChatSpace${desk.panels.length === 1 ? '' : 's'}</small></span>
+      </button>
+      <button class="entry-edit" type="button" data-edit-desk="${desk.id}" aria-label="Edit ${escapeHtml(desk.name)}">✎</button>
+    </div>`).join('');
+  $$('[data-desk]').forEach((button) => button.addEventListener('click', () => {
+    state.activeDesk = button.dataset.desk;
+    renderAll();
+    scheduleWorkspaceSave();
+  }));
+  $$('[data-edit-desk]').forEach((button) => button.addEventListener('click', () => openWorkspaceEditor('desk', button.dataset.editDesk)));
 }
 
 function renderAll() {
@@ -444,6 +559,22 @@ function showMentionMenu(mode = 'single') {
     renderDestinations();
     scheduleWorkspaceSave();
     input.focus();
+  }));
+}
+
+function showCommandMenu() {
+  const menu = $('#mention-menu');
+  menu.innerHTML = state.commands.map((command) => `
+    <button class="mention-option" type="button" data-command="${escapeHtml(command.command)}">
+      <span class="provider-logo" style="--provider-rgb:167,139,250">⌘</span>
+      <span>${escapeHtml(command.command)}<small>${escapeHtml(command.description || command.name)}</small></span>
+      <small>${escapeHtml(command.group || 'custom')}</small>
+    </button>`).join('') || '<div class="feed-empty">No enabled tenant commands were returned by StreamWeaver.</div>';
+  menu.classList.remove('hidden');
+  $$('[data-command]').forEach((button) => button.addEventListener('click', () => {
+    $('#compose-input').value = `${button.dataset.command} `;
+    menu.classList.add('hidden');
+    $('#compose-input').focus();
   }));
 }
 
@@ -599,6 +730,35 @@ function escapeHtml(value) {
   return node.innerHTML;
 }
 
+function normalizeProviderMentions(text, item) {
+  let normalized = String(text || '');
+  const candidates = [
+    item?.mentions,
+    item?.meta?.mentions,
+    item?.meta?.mentionedUsers,
+    item?.meta?.mentioned_users,
+  ];
+  const directory = new Map();
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      candidate.forEach((mention) => {
+        const id = String(mention?.id || mention?.userId || '').trim();
+        const name = String(mention?.displayName || mention?.global_name || mention?.username || mention?.name || '').trim();
+        if (id && name) directory.set(id, name);
+      });
+    } else if (candidate && typeof candidate === 'object') {
+      Object.entries(candidate).forEach(([id, value]) => {
+        const name = typeof value === 'string'
+          ? value
+          : String(value?.displayName || value?.global_name || value?.username || value?.name || '').trim();
+        if (id && name) directory.set(String(id), name);
+      });
+    }
+  }
+  normalized = normalized.replace(/<@!?(\d+)>/g, (token, id) => directory.has(id) ? `@${directory.get(id)}` : token);
+  return normalized;
+}
+
 function canonicalProvider(item) {
   const raw = item?.platform === 'social-stream'
     ? String(item?.meta?.rawProvider || '').toLowerCase()
@@ -674,10 +834,12 @@ function normalizeFeedItem(item) {
     time: Number.isNaN(timestamp.getTime()) ? 'Unknown' : timestamp.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
     timestamp: Number.isNaN(timestamp.getTime()) ? null : timestamp.toISOString(),
     reply: item.reply?.text ? `Replying to ${item.reply.senderName || 'message'}: “${item.reply.text}”` : '',
-    text: escapeHtml(item.text || '').replaceAll('\n', '<br>'),
+    text: escapeHtml(normalizeProviderMentions(item.text, item)).replaceAll('\n', '<br>'),
     media,
+    streamweaver: item.meta?.streamweaver && typeof item.meta.streamweaver === 'object' ? item.meta.streamweaver : null,
     xp: Number(item.meta?.spmtXp || 0),
     level: Number(item.meta?.spmtLevel || 1),
+    xpLinked: Boolean(item.meta && Object.prototype.hasOwnProperty.call(item.meta, 'spmtXp')),
     queued: false,
     pinned: false,
     firstTime: Boolean(item.meta?.firstTime || item.meta?.first_time),
@@ -690,6 +852,7 @@ function normalizeFeedItem(item) {
 }
 
 function applyFeedSources(payload) {
+  const previousSources = new Map(state.sources.map((source) => [source.id, source]));
   state.sourceHealth = Array.isArray(payload.sources) ? payload.sources : [];
   const healthByProvider = new Map(state.sourceHealth.map((source) => [source.platform, source]));
   const channelSources = (Array.isArray(payload.channels) ? payload.channels : []).map((channel) => {
@@ -707,9 +870,24 @@ function applyFeedSources(payload) {
     };
   });
   const unique = Array.from(new Map(channelSources.map((source) => [source.id, source])).values());
+  for (const provider of ['discord', 'twitch']) {
+    const providerSources = unique.filter((source) => source.provider === provider);
+    if (!providerSources.length) continue;
+    unique.unshift({
+      id: `${provider}:all`,
+      provider,
+      channel: `All ${providerFor(provider).name} channels`,
+      channelId: '',
+      capabilities: { compose: false, reply: true, timeout: false, delete: false },
+      state: 'Combined read view · replies stay source-locked',
+      health: providerSources.some((source) => source.health === 'live') ? 'live' : 'recent',
+      readOnly: true,
+      aggregate: true,
+    });
+  }
   for (const health of state.sourceHealth) {
     const provider = canonicalProvider({ platform: health.platform });
-    if (!providers[provider] || unique.some((source) => source.provider === provider)) continue;
+    if (!health.runtimeConnected || !providers[provider] || unique.some((source) => source.provider === provider)) continue;
     unique.push({
       id: `${provider}:status`,
       provider,
@@ -720,6 +898,18 @@ function applyFeedSources(payload) {
       capabilities: { compose: false, reply: false, timeout: false, delete: false },
     });
   }
+  const sourceByProviderChannel = new Map(unique.map((source) => [`${source.provider}:${String(source.channelId || source.channel).toLowerCase()}`, source.id]));
+  state.chatSpaces.forEach((space) => {
+    const remap = (ids) => Array.from(new Set((ids || []).map((id) => {
+      if (unique.some((source) => source.id === id)) return id;
+      const previous = previousSources.get(id);
+      return previous ? sourceByProviderChannel.get(`${previous.provider}:${String(previous.channelId || previous.channel).toLowerCase()}`) : null;
+    }).filter(Boolean)));
+    space.sources = remap(space.sources);
+    space.selectedDestinationIds = remap(space.selectedDestinationIds);
+    space.bridgeSourceIds = remap(space.bridgeSourceIds);
+    space.detail = `${space.sources.length} connection${space.sources.length === 1 ? '' : 's'} · ${(space.bridgeSourceIds || []).length > 1 ? `${space.bridgeSourceIds.length} bridged` : 'separate'}`;
+  });
   state.sources = unique;
   state.selectedDestinations = state.selectedDestinations.filter((id) => unique.some((source) => source.id === id));
 }
@@ -761,6 +951,7 @@ async function loadCommlinkFeed({ incremental = false, query = '', replayMinutes
     });
     if (!response.ok) throw new Error(`Commlink feed returned ${response.status}`);
     const payload = await response.json();
+    state.commands = Array.isArray(payload.commands) ? payload.commands : state.commands;
     const normalized = (payload.items || []).map(normalizeFeedItem);
     applyFeedSources(payload);
     state.feedCursor = payload.nextSince || state.feedCursor;
@@ -1043,7 +1234,7 @@ function updateProductionSetting() {
 function currentWorkspaceData() {
   rememberSpaceDestinations();
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     chatSpaces: state.chatSpaces.map((space) => ({
       id: space.id,
       name: space.name,
@@ -1053,6 +1244,7 @@ function currentWorkspaceData() {
       unread: Number(space.unread || 0),
       sources: [...space.sources],
       selectedDestinationIds: (space.selectedDestinationIds || []).filter((id) => space.sources.includes(id)),
+      bridgeSourceIds: (space.bridgeSourceIds || []).filter((id) => space.sources.includes(id)),
     })),
     desks: state.desks,
     activeChatSpaceId: state.activeSpace,
@@ -1074,7 +1266,7 @@ function setWorkspaceState(text, tone = 'normal') {
 
 function applyWorkspaceRecord(record, etag) {
   const data = record?.data;
-  if ([1, 2].includes(data?.schemaVersion) && Array.isArray(data.chatSpaces) && data.chatSpaces.length) {
+  if ([1, 2, 3].includes(data?.schemaVersion) && Array.isArray(data.chatSpaces) && data.chatSpaces.length) {
     const validSpaces = data.chatSpaces.filter((space) => (
       space && typeof space.id === 'string' && typeof space.name === 'string' && Array.isArray(space.sources)
     )).slice(0, 40);
@@ -1088,7 +1280,7 @@ function applyWorkspaceRecord(record, etag) {
       : state.desks[0]?.id || 'live-show';
     const active = state.chatSpaces.find((space) => space.id === state.activeSpace);
     state.selectedDestinations = active?.selectedDestinationIds?.filter((id) => active.sources.includes(id))
-      || activeSources().map((source) => source.id);
+      || composeDestinationIds();
     if (data.schemaVersion >= 2 && data.production && typeof data.production === 'object') {
       state.production = {
         ...structuredClone(defaultProduction),
@@ -1157,7 +1349,7 @@ async function saveCommlinkWorkspace(create = false) {
     const response = await fetch('/api/app-state/cosmo-commlink/workspace', {
       method: 'PUT',
       headers,
-      body: JSON.stringify({ schemaVersion: 2, data: currentWorkspaceData() }),
+      body: JSON.stringify({ schemaVersion: 3, data: currentWorkspaceData() }),
     });
     if (response.status === 409) {
       setWorkspaceState('Changed on another device · reloading', 'error');
@@ -1177,36 +1369,139 @@ async function saveCommlinkWorkspace(create = false) {
 function createChatSpace() {
   const sequence = state.chatSpaces.length + 1;
   const id = `chatspace-${Date.now().toString(36)}`;
-  const seedSources = state.sources.slice(0, 2).map((source) => source.id);
   state.chatSpaces.push({
     id,
     name: `Untitled ChatSpace ${sequence}`,
-    detail: `${seedSources.length} sources · new`,
+    detail: '0 connections · new',
     icon: `C${sequence}`,
     rgb: '251,146,60',
     unread: 0,
-    sources: seedSources,
-    selectedDestinationIds: [...seedSources],
+    sources: [],
+    selectedDestinationIds: [],
+    bridgeSourceIds: [],
   });
   state.activeSpace = id;
-  state.selectedDestinations = [...seedSources];
+  state.selectedDestinations = [];
   renderAll();
   scheduleWorkspaceSave();
-  toast('New ChatSpace created and queued for SPMT sync.');
+  openWorkspaceEditor('chatspace', id);
 }
 
 function addSourceToActiveSpace() {
-  const space = state.chatSpaces.find((item) => item.id === state.activeSpace);
-  if (!space) return;
-  const next = state.sources.find((source) => !space.sources.includes(source.id));
-  if (!next) return toast('All available sources are already in this ChatSpace.');
-  space.sources.push(next.id);
-  space.selectedDestinationIds = [...(space.selectedDestinationIds || []), next.id];
-  state.selectedDestinations = [...space.selectedDestinationIds];
-  space.detail = `${space.sources.length} sources · saved`;
+  openWorkspaceEditor('chatspace', state.activeSpace);
+}
+
+function createDesk() {
+  const sequence = state.desks.length + 1;
+  const id = `desk-${Date.now().toString(36)}`;
+  state.desks.push({ id, name: `Untitled Desk ${sequence}`, panels: [], hiddenSourceIds: [] });
+  state.activeDesk = id;
+  state.activeView = 'desk';
+  updateView();
   renderAll();
   scheduleWorkspaceSave();
-  toast(`${providerFor(next.provider).name}/${next.channel} added to ${space.name}.`);
+  openWorkspaceEditor('desk', id);
+}
+
+function renderWorkspaceEditor() {
+  const editor = state.workspaceEditor;
+  if (!editor) return;
+  const isSpace = editor.type === 'chatspace';
+  const item = isSpace
+    ? state.chatSpaces.find((entry) => entry.id === editor.id)
+    : state.desks.find((entry) => entry.id === editor.id);
+  if (!item) return;
+  $('#workspace-modal-title').textContent = isSpace ? 'Edit ChatSpace' : 'Edit Desk';
+  $('#workspace-name').value = item.name;
+  $('#workspace-modal-help').textContent = isSpace
+    ? 'Choose every connection visible in this ChatSpace. Highlight Bridge only for chats that should share one combined lane.'
+    : 'Choose which saved ChatSpaces appear as panels. Every connected provider inside those ChatSpaces remains available as a hide/show tab.';
+  $('#workspace-source-editor').classList.toggle('hidden', !isSpace);
+  $('#workspace-panel-editor').classList.toggle('hidden', isSpace);
+  if (isSpace) {
+    const members = new Set(item.sources || []);
+    const bridged = new Set(item.bridgeSourceIds || []);
+    $('#workspace-source-editor').innerHTML = state.sources.map((source) => {
+      const provider = providerFor(source.provider);
+      return `<div class="workspace-source-row" style="${providerStyle(source.provider)}">
+        <span class="provider-logo">${provider.short}</span>
+        <span><strong>${provider.name} · ${escapeHtml(source.channel)}</strong><small>${escapeHtml(source.state)}</small></span>
+        <label><input type="checkbox" data-space-source="${source.id}" ${members.has(source.id) ? 'checked' : ''}> In ChatSpace</label>
+        <label><input type="checkbox" data-bridge-source="${source.id}" ${bridged.has(source.id) ? 'checked' : ''} ${members.has(source.id) ? '' : 'disabled'}> Bridge</label>
+      </div>`;
+    }).join('') + `<a class="secondary-button full-button link-button" href="/?view=connections" target="_top">Open the SPMT Connections hub</a>`;
+  } else {
+    const selected = new Set((item.panels || []).map((panel) => panel.chatSpaceId));
+    $('#workspace-panel-editor').innerHTML = state.chatSpaces.map((space) => `
+      <label class="workspace-panel-row">
+        <span><strong>${escapeHtml(space.name)}</strong><small>${space.sources.length} connection${space.sources.length === 1 ? '' : 's'}</small></span>
+        <input type="checkbox" data-desk-space="${space.id}" ${selected.has(space.id) ? 'checked' : ''}>
+      </label>`).join('') || '<div class="feed-empty">Create a ChatSpace before adding Desk panels.</div>';
+  }
+}
+
+function openWorkspaceEditor(type, id) {
+  state.workspaceEditor = { type, id };
+  renderWorkspaceEditor();
+  $('#workspace-modal').classList.remove('hidden');
+}
+
+function saveWorkspaceEditor() {
+  const editor = state.workspaceEditor;
+  if (!editor) return;
+  const name = $('#workspace-name').value.trim();
+  if (!name) return toast('Give this workspace item a name.');
+  if (editor.type === 'chatspace') {
+    const space = state.chatSpaces.find((item) => item.id === editor.id);
+    if (!space) return;
+    const sources = $$('[data-space-source]:checked').map((input) => input.dataset.spaceSource);
+    const sourceSet = new Set(sources);
+    space.name = name;
+    space.sources = sources;
+    space.bridgeSourceIds = $$('[data-bridge-source]:checked').map((input) => input.dataset.bridgeSource).filter((id) => sourceSet.has(id));
+    space.selectedDestinationIds = (space.selectedDestinationIds || []).filter((id) => sourceSet.has(id));
+    space.detail = `${sources.length} connection${sources.length === 1 ? '' : 's'} · ${space.bridgeSourceIds.length > 1 ? `${space.bridgeSourceIds.length} bridged` : 'separate'}`;
+    if (space.id === state.activeSpace) state.selectedDestinations = [...space.selectedDestinationIds];
+  } else {
+    const desk = state.desks.find((item) => item.id === editor.id);
+    if (!desk) return;
+    const previous = new Map((desk.panels || []).map((panel) => [panel.chatSpaceId, panel]));
+    desk.name = name;
+    desk.panels = $$('[data-desk-space]:checked').map((input, index) => {
+      const prior = previous.get(input.dataset.deskSpace);
+      return prior || {
+        panelId: `${desk.id}-${input.dataset.deskSpace}`,
+        label: `panel-${index + 1}`,
+        chatSpaceId: input.dataset.deskSpace,
+        accessMode: 'owner',
+      };
+    });
+  }
+  $('#workspace-modal').classList.add('hidden');
+  state.workspaceEditor = null;
+  renderAll();
+  scheduleWorkspaceSave();
+  toast('Workspace changes saved and queued for SPMT sync.');
+}
+
+function deleteWorkspaceEditor() {
+  const editor = state.workspaceEditor;
+  if (!editor) return;
+  if (editor.type === 'chatspace') {
+    if (state.chatSpaces.length === 1) return toast('Keep at least one ChatSpace.');
+    state.chatSpaces = state.chatSpaces.filter((item) => item.id !== editor.id);
+    state.desks.forEach((desk) => { desk.panels = desk.panels.filter((panel) => panel.chatSpaceId !== editor.id); });
+    if (state.activeSpace === editor.id) state.activeSpace = state.chatSpaces[0].id;
+  } else {
+    if (state.desks.length === 1) return toast('Keep at least one Desk.');
+    state.desks = state.desks.filter((item) => item.id !== editor.id);
+    if (state.activeDesk === editor.id) state.activeDesk = state.desks[0].id;
+  }
+  state.workspaceEditor = null;
+  $('#workspace-modal').classList.add('hidden');
+  renderAll();
+  scheduleWorkspaceSave();
+  toast('Workspace item removed. Connected accounts were not disconnected.');
 }
 
 function renderDiscoveryStatus(status, showUnlock = false) {
@@ -1430,6 +1725,85 @@ function markAppearanceDirty() {
   else setSyncState('signed-out', 'Local preview', 'Sign in at spmt.live to sync settings.');
 }
 
+function updateView() {
+  $$('.view-switch button').forEach((item) => item.classList.toggle('active', item.dataset.view === state.activeView));
+  $('#focus-view').classList.toggle('hidden', state.activeView !== 'focus');
+  $('#desk-view').classList.toggle('hidden', state.activeView !== 'desk');
+  if (state.activeView === 'desk') renderDesk();
+}
+
+async function loadAccountXp() {
+  const token = localStorage.getItem('spmt_token');
+  if (!token) {
+    $('#account-xp').textContent = 'Sign in for account XP';
+    return;
+  }
+  try {
+    const response = await fetch('/api/xp', { headers: { Authorization: `Bearer ${token}` } });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error('XP unavailable');
+    state.accountXp = result;
+    $('#account-xp').textContent = `${Number(result.xp || 0).toLocaleString()} XP · level ${Number(result.level || 1)}`;
+  } catch {
+    $('#account-xp').textContent = 'Account XP unavailable';
+  }
+}
+
+function streamEmbedUrl(source) {
+  const channel = encodeURIComponent(source.channelId || source.channel.replace(/^[@#]/, ''));
+  const parent = encodeURIComponent(window.location.hostname);
+  if (source.provider === 'twitch') return `https://player.twitch.tv/?channel=${channel}&parent=${parent}&autoplay=true`;
+  if (source.provider === 'youtube') return `https://www.youtube.com/embed/live_stream?channel=${channel}&autoplay=1`;
+  if (source.provider === 'kick') return `https://player.kick.com/${channel}?autoplay=true`;
+  return '';
+}
+
+function openStreamDock(sourceId) {
+  const source = state.sources.find((item) => item.id === sourceId);
+  if (!source) return;
+  const url = streamEmbedUrl(source);
+  if (!url) return toast(`${providerFor(source.provider).name} does not expose an embeddable channel player for this connection yet.`);
+  state.streamSourceId = sourceId;
+  $('#stream-dock-title').textContent = `${providerFor(source.provider).name} · ${source.channel}`;
+  $('#stream-frame').src = url;
+  $('#stream-dock').classList.remove('hidden', 'audio-only');
+  $('#stream-dock-mode').textContent = 'Audio and video';
+}
+
+function setStreamMode(mode) {
+  $('#stream-dock').classList.toggle('audio-only', mode === 'audio');
+  $('#stream-dock-mode').textContent = mode === 'audio' ? 'Audio only' : 'Audio and video';
+}
+
+function setupEmojiMenu() {
+  const emojis = ['😀', '😂', '😍', '🔥', '💜', '🚀', '🎉', '👏', '❤️', '👍', '👀', '✨', '🎙️', '🎮', '💯', '🌌', '🫡', '🤣'];
+  $('#emoji-menu').innerHTML = emojis.map((emoji) => `<button type="button" data-emoji="${emoji}">${emoji}</button>`).join('');
+  $$('[data-emoji]').forEach((button) => button.addEventListener('click', () => {
+    const input = $('#compose-input');
+    const start = input.selectionStart ?? input.value.length;
+    input.value = `${input.value.slice(0, start)}${button.dataset.emoji}${input.value.slice(input.selectionEnd ?? start)}`;
+    $('#emoji-menu').classList.add('hidden');
+    input.focus();
+  }));
+}
+
+function startVoiceInput() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return toast('Voice typing is not supported by this browser.');
+  const recognition = new SpeechRecognition();
+  recognition.interimResults = false;
+  recognition.continuous = false;
+  recognition.lang = document.documentElement.lang || 'en-US';
+  $('#voice-input').classList.add('listening');
+  recognition.onresult = (event) => {
+    const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+    if (transcript) $('#compose-input').value = `${$('#compose-input').value}${$('#compose-input').value ? ' ' : ''}${transcript}`;
+  };
+  recognition.onerror = () => toast('Voice typing could not hear a complete message.');
+  recognition.onend = () => $('#voice-input').classList.remove('listening');
+  recognition.start();
+}
+
 function wireEvents() {
   $$('.filter-tabs button').forEach((button) => button.addEventListener('click', () => {
     state.activeFilter = button.dataset.filter;
@@ -1438,10 +1812,7 @@ function wireEvents() {
   }));
   $$('.view-switch button').forEach((button) => button.addEventListener('click', () => {
     state.activeView = button.dataset.view;
-    $$('.view-switch button').forEach((item) => item.classList.toggle('active', item === button));
-    $('#focus-view').classList.toggle('hidden', state.activeView !== 'focus');
-    $('#desk-view').classList.toggle('hidden', state.activeView !== 'desk');
-    if (state.activeView === 'desk') renderDesk();
+    updateView();
   }));
   $('#compose-input').addEventListener('input', (event) => {
     const value = event.target.value;
@@ -1454,7 +1825,9 @@ function wireEvents() {
   $('#close-send-modal').addEventListener('click', () => $('#send-modal').classList.add('hidden'));
   $('#cancel-send').addEventListener('click', () => $('#send-modal').classList.add('hidden'));
   $('#simulate-send').addEventListener('click', simulateSend);
-  $('#destination-edit').addEventListener('click', () => showMentionMenu('toggle'));
+  $('#emoji-button').addEventListener('click', () => $('#emoji-menu').classList.toggle('hidden'));
+  $('#command-button').addEventListener('click', showCommandMenu);
+  $('#voice-input').addEventListener('click', startVoiceInput);
   $('#settings-button').addEventListener('click', () => $('#settings-drawer').classList.remove('hidden'));
   $('#close-settings').addEventListener('click', () => $('#settings-drawer').classList.add('hidden'));
   $('#production-button').addEventListener('click', () => {
@@ -1497,6 +1870,22 @@ function wireEvents() {
   });
   $('#add-source').addEventListener('click', addSourceToActiveSpace);
   $('#create-space').addEventListener('click', createChatSpace);
+  $('#create-desk').addEventListener('click', createDesk);
+  $('#close-workspace-modal').addEventListener('click', () => $('#workspace-modal').classList.add('hidden'));
+  $('#save-workspace-item').addEventListener('click', saveWorkspaceEditor);
+  $('#delete-workspace-item').addEventListener('click', deleteWorkspaceEditor);
+  $('#workspace-source-editor').addEventListener('change', (event) => {
+    if (!event.target.matches('[data-space-source]')) return;
+    const bridge = $(`[data-bridge-source="${CSS.escape(event.target.dataset.spaceSource)}"]`);
+    bridge.disabled = !event.target.checked;
+    if (!event.target.checked) bridge.checked = false;
+  });
+  $('#stream-audio-mode').addEventListener('click', () => setStreamMode('audio'));
+  $('#stream-video-mode').addEventListener('click', () => setStreamMode('video'));
+  $('#stream-close').addEventListener('click', () => {
+    $('#stream-frame').src = 'about:blank';
+    $('#stream-dock').classList.add('hidden');
+  });
   $('#search-button').addEventListener('click', () => {
     $('#history-search').classList.remove('hidden');
     $('#history-query').focus();
@@ -1520,12 +1909,6 @@ function wireEvents() {
     const bot = state.discoveryStatus?.reward?.chatbotPersonality;
     toast(bot ? `${bot.name}: “Direct answers are dreadfully dull. Bring me a worthy riddle.”` : 'The hidden personality is still out of phase.');
   });
-  $$('[data-desk]').forEach((button) => button.addEventListener('click', () => {
-    state.activeDesk = button.dataset.desk;
-    renderDeskSelection();
-    scheduleWorkspaceSave();
-  }));
-
   $$('[data-theme]').forEach((button) => button.addEventListener('click', () => {
     state.appearance.themeId = button.dataset.theme;
     markAppearanceDirty();
@@ -1552,13 +1935,16 @@ function wireEvents() {
 
 renderAll();
 wireEvents();
+setupEmojiMenu();
 const launchParams = new URLSearchParams(window.location.search);
+if (launchParams.get('embedded') === '1') document.body.classList.add('embedded-mode');
 if (launchParams.get('popout') === '1') document.body.classList.add('popout-mode');
 if (launchParams.get('chatSpace') && state.chatSpaces.some((space) => space.id === launchParams.get('chatSpace'))) {
   state.activeSpace = launchParams.get('chatSpace');
 }
 renderProductionDock();
 loadWorkspaceProfile();
+loadAccountXp();
 loadCommlinkWorkspace();
 loadDiscoveries();
 loadCommlinkFeed();

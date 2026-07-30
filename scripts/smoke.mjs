@@ -259,7 +259,7 @@ try {
   const commlink = await commlinkResponse.text();
   assert.equal(commlinkResponse.status, 200);
   assert.match(commlink, /Cosmo Commlink/);
-  assert.match(commlink, /Passes 5–7 · production workspace/);
+  assert.match(commlink, /Canonical SPMT messaging workspace/);
   assert.match(commlink, /Production dock/);
   assert.match(commlink, /Smart staging/);
   assert.match(commlink, /Stream Deck · Companion · MIDI/);
@@ -269,6 +269,12 @@ try {
   assert.match(commlink, /id="history-search"/);
   assert.match(commlink, /id="source-health-summary"/);
   assert.match(commlink, /id="destination-chips"/);
+  assert.match(commlink, /id="create-desk"/);
+  assert.match(commlink, /id="workspace-modal"/);
+  assert.match(commlink, /id="voice-input"/);
+  assert.match(commlink, /id="stream-dock"/);
+  assert.match(home, /id="view-commlink"/);
+  assert.match(home, /src="\/commlink\/\?embedded=1"/);
   assert.match(commlink, /id="workspace-state"/);
   assert.match(commlink, /id="black-hole-game"/);
   assert.match(commlink, /id="count-puzzle-card"/);
@@ -276,8 +282,12 @@ try {
   assert.equal(commlinkCssResponse.status, 200);
   assert.match(commlinkCssResponse.headers.get('content-type') || '', /text\/css/);
   const commlinkJsResponse = await fetch(`${baseUrl}/commlink/commlink.js`);
+  const commlinkJs = await commlinkJsResponse.text();
   assert.equal(commlinkJsResponse.status, 200);
   assert.match(commlinkJsResponse.headers.get('content-type') || '', /javascript/);
+  assert.match(commlinkJs, /All \$\{providerFor\(provider\)\.name\} channels/);
+  assert.match(commlinkJs, /replies stay source-locked/);
+  assert.match(commlinkJs, /data-stream-mode="audio"/);
 
   const sdkMetadataResponse = await fetch(`${baseUrl}/api/platform/sdk`);
   const sdkMetadata = await sdkMetadataResponse.json();
@@ -667,6 +677,9 @@ try {
   assert.equal(commlinkFeed.channels.some((channel) => channel.channelName === 'smoke-channel'), true);
   assert.equal(commlinkFeed.items.filter((item) => item.text === 'real upstream chat').length, 1);
   assert.equal(commlinkFeed.items.some((item) => item.text.includes('account scoped SPMT message')), true);
+  const linkedSpmtItem = commlinkFeed.items.find((item) => item.text.includes('account scoped SPMT message'));
+  assert.equal(linkedSpmtItem.meta.spmtIdentityLinked, true);
+  assert.equal(typeof linkedSpmtItem.meta.spmtXp, 'number');
   assert.equal(commlinkFeed.items.some((item) => item.text === 'account scoped SPMT event'), true);
   assert.equal(commlinkFeed.dedupe.inputCount > commlinkFeed.dedupe.outputCount, true);
   assert.equal(streamweaverMockRequests.some((request) => request.tenantId === registration.user.id && request.serviceKey === 'smoke-system-key'), true);
@@ -706,10 +719,14 @@ try {
   });
   const integrations = await integrationsResponse.json();
   assert.equal(integrationsResponse.status, 200);
-  assert.equal(integrations.primarySurface, '/commlink/');
+  assert.equal(integrations.primarySurface, '/?view=commlink');
+  assert.equal(integrations.embeddedSurface, '/commlink/?embedded=1');
+  assert.equal(integrations.popoutSurface, '/commlink/');
   assert.equal(integrations.cleanupApproved, false);
   assert.equal(integrations.adapters.some((adapter) => adapter.appId === 'streamweaver' && adapter.status === 'connected'), true);
-  assert.equal(integrations.adapters.some((adapter) => adapter.appId === 'hearmeout' && adapter.deepLink.includes('hearmeout')), true);
+  assert.equal(integrations.adapters.some((adapter) => adapter.appId === 'discord-stream-hub' && adapter.deepLink.endsWith('/messages')), true);
+  assert.equal(integrations.adapters.some((adapter) => adapter.appId === 'hearmeout' && adapter.deepLink.endsWith('/messages')), true);
+  assert.equal(integrations.adapters.some((adapter) => adapter.appId === 'chat-tag' && adapter.deepLink.endsWith('/messages')), true);
 
   const unauthenticatedDispatch = await fetch(`${baseUrl}/api/commlink/dispatch`, {
     method: 'POST',

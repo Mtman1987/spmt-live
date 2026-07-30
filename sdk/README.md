@@ -102,7 +102,8 @@ const apps = await spmt.apps.list();
   - `dispatch()` and `retryFailed()` return per-destination receipts.
   - `operator()` discovers show state and named outputs.
   - `control()` runs receipt-backed pin, queue, feature, TTS, and show actions.
-  - `integrations()` reports the capability owner, migration status, and native deep link for every current app adapter.
+  - `workspaceUrl('shell' | 'embedded' | 'popout')` gives ecosystem apps the canonical SPMT-shell, iframe, or standalone Commlink surface without duplicating route knowledge.
+  - `integrations()` reports the capability owner, migration status, canonical surfaces, and native deep link for every current app adapter.
 - `athena`
 - `webhooks`
 

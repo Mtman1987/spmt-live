@@ -42,6 +42,16 @@
     .nav button.active, .nav button:hover { background: var(--panel); color: var(--text); border-color: var(--line); }
     .account { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 12px; margin-top: 18px; }
     .main { padding: 22px; }
+    .main.commlink-active { padding-bottom: 0; }
+    .commlink-frame {
+      display: block;
+      width: 100%;
+      height: calc(100vh - 116px);
+      min-height: 640px;
+      border: 1px solid var(--line);
+      border-radius: 14px 14px 0 0;
+      background: #060814;
+    }
     .topbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
     .title h2 { margin: 0; font-size: 24px; letter-spacing: 0; }
     .title p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
@@ -199,7 +209,7 @@
       </div>
       <nav class="nav">
         <button data-view="dashboard" class="active" onclick="showView('dashboard')">Dashboard</button>
-        <button type="button" onclick="window.location.href='/commlink/'">Commlink · Messaging</button>
+        <button data-view="commlink" onclick="showView('commlink')">Commlink · Messaging</button>
         <button data-view="messages" onclick="showView('messages')">Legacy inbox · rollback</button>
         <button data-view="apps" onclick="showView('apps')">Apps + SSO</button>
         <button data-view="connections" onclick="showView('connections')">Connections</button>
@@ -259,9 +269,19 @@
         </div>
       </section>
 
+      <section id="view-commlink" class="hidden">
+        <iframe
+          class="commlink-frame"
+          id="commlink-frame"
+          title="SPMT Commlink messaging workspace"
+          src="/commlink/?embedded=1"
+          allow="microphone; autoplay; clipboard-write"
+        ></iframe>
+      </section>
+
       <section id="view-messages" class="hidden split">
         <div class="folder">
-          <a class="btn blue" href="/commlink/?lane=mail" style="width:100%;margin-bottom:8px">Open Commlink</a>
+          <button class="btn blue" type="button" onclick="showView('commlink')" style="width:100%;margin-bottom:8px">Open Commlink</button>
           <button class="btn primary" onclick="composeTo('')">Compose</button>
           <button class="btn" onclick="loadInbox()">Inbox</button>
           <button class="btn" onclick="loadSent()">Sent</button>
@@ -519,6 +539,8 @@
     function finishAuth(data) {
       authToken = data.token;
       localStorage.setItem('spmt_token', authToken);
+      const commlinkFrame = document.getElementById('commlink-frame');
+      if (commlinkFrame) commlinkFrame.dataset.authReady = '0';
       if (returnUrl) {
         const sep = returnUrl.includes('?') ? '&' : '?';
         window.location.href = returnUrl + sep + 'token=' + encodeURIComponent(authToken);
@@ -612,6 +634,11 @@
       localStorage.removeItem('spmt_token');
       authToken = null;
       currentUser = null;
+      const commlinkFrame = document.getElementById('commlink-frame');
+      if (commlinkFrame) {
+        commlinkFrame.dataset.authReady = '0';
+        commlinkFrame.src = '/commlink/?embedded=1';
+      }
       document.getElementById('developer-key-token').value = '';
       document.getElementById('developer-new-key').classList.add('hidden');
       document.getElementById('recovery-code-value').value = '';
@@ -624,9 +651,18 @@
       currentView = view;
       for (const section of document.querySelectorAll('[id^="view-"]')) section.classList.add('hidden');
       document.getElementById('view-' + view).classList.remove('hidden');
+      document.querySelector('.main').classList.toggle('commlink-active', view === 'commlink');
+      if (view === 'commlink' && authToken) {
+        const frame = document.getElementById('commlink-frame');
+        if (frame.dataset.authReady !== '1') {
+          frame.dataset.authReady = '1';
+          frame.src = '/commlink/?embedded=1&session=' + Date.now();
+        }
+      }
       for (const btn of document.querySelectorAll('.nav button')) btn.classList.toggle('active', btn.dataset.view === view);
       const titles = {
         dashboard: ['Dashboard', 'Your SPMT account is the control point for the full suite.'],
+        commlink: ['Commlink · Messaging', 'Canonical messaging for every connected SPMT app and provider.'],
         messages: ['Legacy inbox · rollback', 'Compatibility access while Commlink remains the primary messaging workspace.'],
         apps: ['Apps + SSO', 'Launch suite apps through SPMT and see which adapters are complete.'],
         connections: ['Connections', 'One place to authorize Twitch, Discord, YouTube, Kick, and future providers.'],

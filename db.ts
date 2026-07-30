@@ -281,6 +281,16 @@ export function initDb() {
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS user_discoveries (
+      user_id TEXT NOT NULL,
+      discovery_id TEXT NOT NULL,
+      source_app TEXT NOT NULL,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      discovered_at TEXT NOT NULL,
+      PRIMARY KEY(user_id, discovery_id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS workspace_overlay_scenes (
       id TEXT NOT NULL,
       user_id TEXT NOT NULL,

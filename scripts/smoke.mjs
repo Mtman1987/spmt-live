@@ -114,6 +114,9 @@ try {
   assert.match(commlink, /Synthetic chat data/);
   assert.match(commlink, /id="settings-drawer"/);
   assert.match(commlink, /id="destination-chips"/);
+  assert.match(commlink, /id="workspace-state"/);
+  assert.match(commlink, /id="black-hole-game"/);
+  assert.match(commlink, /id="count-puzzle-card"/);
   const commlinkCssResponse = await fetch(`${baseUrl}/commlink/commlink.css`);
   assert.equal(commlinkCssResponse.status, 200);
   assert.match(commlinkCssResponse.headers.get('content-type') || '', /text\/css/);
@@ -504,6 +507,89 @@ try {
     headers: { Authorization: `Bearer ${secondRegistration.token}` },
   });
   assert.equal(isolatedAppStateResponse.status, 404);
+
+  const initialDiscoveriesResponse = await fetch(`${baseUrl}/api/discoveries`, {
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const initialDiscoveries = await initialDiscoveriesResponse.json();
+  assert.equal(initialDiscoveriesResponse.status, 200);
+  assert.equal(initialDiscoveries.discoveredCount, 0);
+  assert.equal(initialDiscoveries.total, 3);
+  assert.equal(initialDiscoveries.reward, null);
+  assert.equal(initialDiscoveries.discoveries.every((item) => item.title === 'Undiscovered signal'), true);
+
+  const invalidDiscoveryResponse = await fetch(`${baseUrl}/api/discoveries/battle-arena`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ surface: 'smoke' }),
+  });
+  assert.equal(invalidDiscoveryResponse.status, 404);
+
+  const blackHoleDiscoveryResponse = await fetch(`${baseUrl}/api/discoveries/cosmo-black-hole`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ surface: 'commlink', clientVersion: 'smoke' }),
+  });
+  const blackHoleDiscovery = await blackHoleDiscoveryResponse.json();
+  assert.equal(blackHoleDiscoveryResponse.status, 201);
+  assert.equal(blackHoleDiscovery.created, true);
+  assert.equal(blackHoleDiscovery.discoveredCount, 1);
+  assert.equal(blackHoleDiscovery.complete, false);
+
+  const repeatedBlackHoleResponse = await fetch(`${baseUrl}/api/discoveries/cosmo-black-hole`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ surface: 'commlink', clientVersion: 'smoke' }),
+  });
+  const repeatedBlackHole = await repeatedBlackHoleResponse.json();
+  assert.equal(repeatedBlackHoleResponse.status, 200);
+  assert.equal(repeatedBlackHole.created, false);
+  assert.equal(repeatedBlackHole.discoveredCount, 1);
+
+  const constellationDiscoveryResponse = await fetch(`${baseUrl}/api/discoveries/commlink-constellation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ surface: 'commlink', clientVersion: 'smoke' }),
+  });
+  const constellationDiscovery = await constellationDiscoveryResponse.json();
+  assert.equal(constellationDiscoveryResponse.status, 201);
+  assert.equal(constellationDiscovery.discoveredCount, 2);
+  assert.equal(constellationDiscovery.reward, null);
+
+  const arenaDiscoveryStateResponse = await fetch(`${baseUrl}/api/app-state/spacemountain-live/arena`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ schemaVersion: 1, data: { joined: true, discoverySource: 'rocket-collision' } }),
+  });
+  assert.equal(arenaDiscoveryStateResponse.status, 200);
+
+  const completedDiscoveriesResponse = await fetch(`${baseUrl}/api/discoveries`, {
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const completedDiscoveries = await completedDiscoveriesResponse.json();
+  assert.equal(completedDiscoveriesResponse.status, 200);
+  assert.equal(completedDiscoveries.discoveredCount, 3);
+  assert.equal(completedDiscoveries.complete, true);
+  assert.equal(completedDiscoveries.reward.title, 'Lord Puzzler');
+  assert.equal(completedDiscoveries.reward.chatbotPersonality.id, 'count-puzzle');
+  assert.equal(completedDiscoveries.discoveries.every((item) => item.discovered), true);
+
+  const discoveryNotificationsResponse = await fetch(`${baseUrl}/api/notifications`, {
+    headers: { Authorization: `Bearer ${registration.token}` },
+  });
+  const discoveryNotifications = await discoveryNotificationsResponse.json();
+  assert.equal(discoveryNotificationsResponse.status, 200);
+  assert.equal(discoveryNotifications.notifications.filter((item) => (
+    item.title === 'Lord Puzzler unlocked' && item.source_app === 'cosmo-commlink' && item.link_url === '/commlink/'
+  )).length, 1);
+
+  const isolatedDiscoveriesResponse = await fetch(`${baseUrl}/api/discoveries`, {
+    headers: { Authorization: `Bearer ${secondRegistration.token}` },
+  });
+  const isolatedDiscoveries = await isolatedDiscoveriesResponse.json();
+  assert.equal(isolatedDiscoveriesResponse.status, 200);
+  assert.equal(isolatedDiscoveries.discoveredCount, 0);
+  assert.equal(isolatedDiscoveries.reward, null);
 
   const overlaySceneResponse = await fetch(`${baseUrl}/api/workspace/overlay-scenes/main-scene`, {
     method: 'PUT',
@@ -909,7 +995,7 @@ try {
   assert.equal(conversation.stored, true);
   assert.equal(conversation.routed, false);
 
-  console.log(JSON.stringify({ status: 'passed', checks: 184 }));
+  console.log(JSON.stringify({ status: 'passed', checks: 216 }));
 } catch (error) {
   const detail = error instanceof Error
     ? `${error.stack || error.message}${error.cause ? `\nCause: ${error.cause}` : ''}`

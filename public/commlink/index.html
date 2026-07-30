@@ -15,16 +15,16 @@
   </div>
 
   <div class="prototype-banner">
-    <span>Pass 1 preview</span>
+    <span>Pass 2 preview</span>
     Synthetic chat data · no provider messages are sent
   </div>
 
   <main class="app-shell" id="app-shell">
     <aside class="space-rail" aria-label="Saved ChatSpaces">
-      <a class="brand" href="/" aria-label="Back to SPMT account center">
+      <button class="brand" id="cosmo-logo" type="button" aria-label="Cosmo">
         <span class="brand-orbit" aria-hidden="true"><span>✦</span></span>
         <span><strong>Cosmo</strong><small>Commlink</small></span>
-      </a>
+      </button>
 
       <button class="create-space" id="create-space" type="button">
         <span>＋</span> New ChatSpace
@@ -47,10 +47,19 @@
         <span class="desk-icon">◫</span>
         <span><strong>Mod Shift</strong><small>2 panels · helper</small></span>
       </button>
+      <button class="desk-card secret-bot hidden" id="count-puzzle-card" type="button">
+        <span class="desk-icon">?</span>
+        <span><strong>Count Puzzle</strong><small>Hidden personality unlocked</small></span>
+      </button>
+
+      <div class="discovery-progress" id="discovery-progress" aria-label="Hidden signal progress">
+        <span class="discovery-dot"></span><span class="discovery-dot"></span><span class="discovery-dot"></span>
+        <small id="discovery-summary">Hidden signals are quiet</small>
+      </div>
 
       <div class="account-card">
         <span class="account-avatar">MT</span>
-        <span><strong>Mountain Crew</strong><small id="sync-summary">Checking SPMT sync…</small></span>
+        <span><strong id="account-title">Mountain Crew</strong><small id="sync-summary">Checking SPMT sync…</small></span>
         <span class="presence-dot" title="Online"></span>
       </div>
     </aside>
@@ -79,7 +88,7 @@
         <div class="source-summary">
           <span class="live-pulse"></span>
           <strong id="source-count">4 sources live</strong>
-          <span>One multiplexed session</span>
+          <span id="workspace-state">Loading saved workspace…</span>
         </div>
         <div class="source-chips" id="source-chips"></div>
         <button class="add-source" type="button" id="add-source">＋ Add source</button>
@@ -206,6 +215,30 @@
         <button class="secondary-button" id="cancel-send" type="button">Keep editing</button>
         <button class="primary-button" id="simulate-send" type="button">Simulate send</button>
       </div>
+    </div>
+  </div>
+
+  <div class="black-hole-game hidden" id="black-hole-game" role="dialog" aria-modal="true" aria-labelledby="black-hole-title">
+    <button class="black-hole-close" id="black-hole-close" type="button" aria-label="Escape the black hole">×</button>
+    <div class="black-hole-copy">
+      <span class="eyebrow">Unknown gravitational signal</span>
+      <h2 id="black-hole-title">The Cosmo Black Hole</h2>
+      <p>Guide the three drifting station artifacts into the singularity before the signal collapses.</p>
+      <strong id="black-hole-count">0 / 3 captured</strong>
+    </div>
+    <div class="singularity" aria-hidden="true"><span></span></div>
+    <button class="cosmic-artifact artifact-planet" type="button" data-artifact="planet" aria-label="Capture the drifting planet">◉</button>
+    <button class="cosmic-artifact artifact-rocket" type="button" data-artifact="rocket" aria-label="Capture the drifting rocket">▲</button>
+    <button class="cosmic-artifact artifact-asteroid" type="button" data-artifact="asteroid" aria-label="Capture the drifting asteroid">◆</button>
+  </div>
+
+  <div class="unlock-overlay hidden" id="unlock-overlay" role="dialog" aria-modal="true" aria-labelledby="unlock-title">
+    <div class="unlock-card">
+      <span class="unlock-glyph">✦ ? ✦</span>
+      <span class="eyebrow">All hidden signals aligned</span>
+      <h2 id="unlock-title">Lord Puzzler</h2>
+      <p>Count Puzzle, the gothic riddle-smith and useful stowaway, has appeared in your Commlink collection.</p>
+      <button class="primary-button" id="accept-unlock" type="button">Enter the hidden orbit</button>
     </div>
   </div>
 

@@ -13,11 +13,31 @@ const sources = [
   { id: 'discord-livechat', provider: 'discord', channel: '#live-chat', state: 'Live · can send' },
 ];
 
-const chatSpaces = [
+const defaultChatSpaces = [
   { id: 'friday', name: 'Friday Stream', detail: '4 sources · live', icon: 'FS', rgb: '167,139,250', unread: 7, sources: sources.map((source) => source.id) },
   { id: 'partner', name: 'Partner Night', detail: '2 sources · live', icon: 'PN', rgb: '56,189,248', unread: 3, sources: ['twitch-creatora', 'youtube-creatorb'] },
   { id: 'mods', name: 'Mod Watch', detail: 'Discord · helper', icon: 'MW', rgb: '88,101,242', unread: 0, sources: ['discord-livechat'] },
   { id: 'redeems', name: 'Redeems + XP', detail: 'Events only', icon: 'XP', rgb: '52,211,153', unread: 2, sources: ['twitch-creatora', 'kick-creatorc'] },
+];
+
+const defaultDesks = [
+  {
+    id: 'live-show',
+    name: 'Live Show',
+    panels: [
+      { panelId: 'main-chat', label: 'main-chat', chatSpaceId: 'friday', accessMode: 'owner', syncGroupId: 'show-queue' },
+      { panelId: 'discord-ops', label: 'discord-ops', chatSpaceId: 'mods', accessMode: 'helper' },
+      { panelId: 'redeems', label: 'redeems', chatSpaceId: 'redeems', accessMode: 'queue-only', syncGroupId: 'show-queue' },
+    ],
+  },
+  {
+    id: 'mod-shift',
+    name: 'Mod Shift',
+    panels: [
+      { panelId: 'mod-main', label: 'mod-main', chatSpaceId: 'mods', accessMode: 'operator' },
+      { panelId: 'partner-watch', label: 'partner-watch', chatSpaceId: 'partner', accessMode: 'view-only' },
+    ],
+  },
 ];
 
 const initialMessages = [
@@ -85,11 +105,20 @@ const defaultAppearance = {
 
 const state = {
   activeSpace: 'friday',
+  activeDesk: 'live-show',
   activeFilter: 'all',
   activeView: 'focus',
   selectedMessage: null,
   selectedDestinations: sources.map((source) => source.id),
   messages: initialMessages.map((message) => ({ ...message })),
+  chatSpaces: structuredClone(defaultChatSpaces),
+  desks: structuredClone(defaultDesks),
+  workspaceRecord: null,
+  workspaceEtag: null,
+  workspaceSaveTimer: null,
+  discoveryStatus: null,
+  constellationStep: 0,
+  blackHoleArtifacts: new Set(),
   profile: null,
   etag: null,
   appearance: structuredClone(defaultAppearance),
@@ -100,7 +129,7 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 const providerStyle = (provider) => `--provider-rgb:${providers[provider].rgb}`;
 const activeSources = () => {
-  const space = chatSpaces.find((item) => item.id === state.activeSpace) || chatSpaces[0];
+  const space = state.chatSpaces.find((item) => item.id === state.activeSpace) || state.chatSpaces[0];
   return sources.filter((source) => space.sources.includes(source.id));
 };
 
@@ -113,7 +142,7 @@ function toast(message) {
 }
 
 function renderSpaces() {
-  $('#space-list').innerHTML = chatSpaces.map((space) => `
+  $('#space-list').innerHTML = state.chatSpaces.map((space) => `
     <button class="space-button ${space.id === state.activeSpace ? 'active' : ''}" type="button" data-space="${space.id}">
       <span class="space-icon" style="--space-rgb:${space.rgb}">${space.icon}</span>
       <span><strong>${space.name}</strong><small>${space.detail}</small></span>
@@ -122,9 +151,12 @@ function renderSpaces() {
   `).join('');
   $$('.space-button').forEach((button) => button.addEventListener('click', () => {
     state.activeSpace = button.dataset.space;
-    state.selectedDestinations = activeSources().map((source) => source.id);
+    const selectedSpace = state.chatSpaces.find((space) => space.id === state.activeSpace);
+    state.selectedDestinations = selectedSpace?.selectedDestinationIds?.filter((id) => selectedSpace.sources.includes(id))
+      || activeSources().map((source) => source.id);
     state.selectedMessage = null;
     renderAll();
+    scheduleWorkspaceSave();
     document.body.classList.remove('rail-open');
   }));
 }
@@ -250,7 +282,9 @@ function renderDestinations() {
   $('#send-label').textContent = `Send → ${state.selectedDestinations.length}`;
   $$('[data-remove-destination]').forEach((button) => button.addEventListener('click', () => {
     state.selectedDestinations = state.selectedDestinations.filter((id) => id !== button.dataset.removeDestination);
+    rememberSpaceDestinations();
     renderDestinations();
+    scheduleWorkspaceSave();
   }));
 }
 
@@ -259,22 +293,29 @@ function renderDesk() {
   const discordMessages = state.messages.filter((message) => message.provider === 'discord');
   const events = state.messages.filter((message) => message.kind === 'event');
   $('#desk-grid').innerHTML = `
-    <section class="desk-panel">
-      <header class="desk-panel-header"><span><strong>Main Multistream</strong><small>Twitch · Kick · YouTube</small></span><span class="panel-label">main-chat</span></header>
+    <section class="desk-panel" data-constellation-panel="0">
+      <header class="desk-panel-header"><span><strong>Main Multistream</strong><small>Twitch · Kick · YouTube</small></span><button class="panel-label" type="button" data-constellation-step="0">main-chat</button></header>
       <div class="desk-panel-body">${chatMessages.map((message) => messageCard(message, true)).join('')}</div>
     </section>
-    <section class="desk-panel">
-      <header class="desk-panel-header"><span><strong>Discord Ops</strong><small>Helper controls</small></span><span class="panel-label">discord-ops</span></header>
+    <section class="desk-panel" data-constellation-panel="1">
+      <header class="desk-panel-header"><span><strong>Discord Ops</strong><small>Helper controls</small></span><button class="panel-label" type="button" data-constellation-step="1">discord-ops</button></header>
       <div class="desk-panel-body">${discordMessages.map((message) => messageCard(message, true)).join('')}</div>
     </section>
-    <section class="desk-panel">
-      <header class="desk-panel-header"><span><strong>Redeems + XP</strong><small>Events only · synced queue</small></span><span class="panel-label">redeems</span></header>
+    <section class="desk-panel" data-constellation-panel="2">
+      <header class="desk-panel-header"><span><strong>Redeems + XP</strong><small>Events only · synced queue</small></span><button class="panel-label" type="button" data-constellation-step="2">redeems</button></header>
       <div class="desk-panel-body event-list">${events.map((message) => messageCard(message)).join('')}</div>
     </section>`;
+  $$('[data-constellation-step]').forEach((button) => button.addEventListener('click', () => handleConstellationStep(Number(button.dataset.constellationStep))));
+}
+
+function renderDeskSelection() {
+  const activeDesk = state.desks.find((desk) => desk.id === state.activeDesk);
+  $('#desk-name').textContent = activeDesk?.name || 'Live Show';
+  $$('[data-desk]').forEach((button) => button.classList.toggle('active', button.dataset.desk === state.activeDesk));
 }
 
 function renderAll() {
-  const space = chatSpaces.find((item) => item.id === state.activeSpace) || chatSpaces[0];
+  const space = state.chatSpaces.find((item) => item.id === state.activeSpace) || state.chatSpaces[0];
   $('#space-title').textContent = space.name;
   renderSpaces();
   renderSourceChips();
@@ -282,6 +323,7 @@ function renderAll() {
   renderContext();
   renderDestinations();
   renderDesk();
+  renderDeskSelection();
 }
 
 function showMentionMenu() {
@@ -295,10 +337,12 @@ function showMentionMenu() {
   menu.classList.remove('hidden');
   $$('.mention-option').forEach((button) => button.addEventListener('click', () => {
     state.selectedDestinations = [button.dataset.mention];
+    rememberSpaceDestinations();
     const input = $('#compose-input');
     input.value = input.value.replace(/(^|\s)@\S*$/, '$1');
     menu.classList.add('hidden');
     renderDestinations();
+    scheduleWorkspaceSave();
     input.focus();
   }));
 }
@@ -340,6 +384,254 @@ function escapeHtml(value) {
   const node = document.createElement('div');
   node.textContent = value;
   return node.innerHTML;
+}
+
+function currentWorkspaceData() {
+  rememberSpaceDestinations();
+  return {
+    schemaVersion: 1,
+    chatSpaces: state.chatSpaces.map((space) => ({
+      id: space.id,
+      name: space.name,
+      detail: space.detail,
+      icon: space.icon,
+      rgb: space.rgb,
+      unread: Number(space.unread || 0),
+      sources: space.sources.filter((id) => sources.some((source) => source.id === id)),
+      selectedDestinationIds: (space.selectedDestinationIds || []).filter((id) => space.sources.includes(id)),
+    })),
+    desks: state.desks,
+    activeChatSpaceId: state.activeSpace,
+    activeDeskId: state.activeDesk,
+  };
+}
+
+function rememberSpaceDestinations() {
+  const space = state.chatSpaces.find((item) => item.id === state.activeSpace);
+  if (space) space.selectedDestinationIds = [...state.selectedDestinations];
+}
+
+function setWorkspaceState(text, tone = 'normal') {
+  const element = $('#workspace-state');
+  element.textContent = text;
+  element.style.color = tone === 'error' ? 'var(--danger)' : tone === 'saved' ? 'var(--success)' : '';
+}
+
+function applyWorkspaceRecord(record, etag) {
+  const data = record?.data;
+  if (data?.schemaVersion === 1 && Array.isArray(data.chatSpaces) && data.chatSpaces.length) {
+    const validSpaces = data.chatSpaces.filter((space) => (
+      space && typeof space.id === 'string' && typeof space.name === 'string' && Array.isArray(space.sources)
+    )).slice(0, 40);
+    if (validSpaces.length) state.chatSpaces = validSpaces;
+    if (Array.isArray(data.desks) && data.desks.length) state.desks = data.desks.slice(0, 20);
+    state.activeSpace = state.chatSpaces.some((space) => space.id === data.activeChatSpaceId)
+      ? data.activeChatSpaceId
+      : state.chatSpaces[0].id;
+    state.activeDesk = state.desks.some((desk) => desk.id === data.activeDeskId)
+      ? data.activeDeskId
+      : state.desks[0]?.id || 'live-show';
+    const active = state.chatSpaces.find((space) => space.id === state.activeSpace);
+    state.selectedDestinations = active?.selectedDestinationIds?.filter((id) => active.sources.includes(id))
+      || activeSources().map((source) => source.id);
+  }
+  state.workspaceRecord = record;
+  state.workspaceEtag = etag;
+}
+
+async function loadCommlinkWorkspace() {
+  const token = localStorage.getItem('spmt_token');
+  if (!token) {
+    setWorkspaceState('Local preview · sign in to save');
+    return;
+  }
+  setWorkspaceState('Loading saved workspace…');
+  try {
+    const response = await fetch('/api/app-state/cosmo-commlink/workspace', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.status === 404) {
+      await saveCommlinkWorkspace(true);
+      return;
+    }
+    if (response.status === 401 || response.status === 403) {
+      setWorkspaceState('Session expired · local preview', 'error');
+      return;
+    }
+    if (!response.ok) throw new Error(`Workspace returned ${response.status}`);
+    const record = await response.json();
+    applyWorkspaceRecord(record, response.headers.get('etag'));
+    setWorkspaceState(`Saved workspace r${record.revision}`, 'saved');
+    renderAll();
+  } catch {
+    setWorkspaceState('Workspace offline · local preview', 'error');
+  }
+}
+
+function scheduleWorkspaceSave() {
+  if (!localStorage.getItem('spmt_token')) {
+    setWorkspaceState('Local change · sign in to save');
+    return;
+  }
+  setWorkspaceState('Unsaved workspace changes');
+  clearTimeout(state.workspaceSaveTimer);
+  state.workspaceSaveTimer = setTimeout(() => saveCommlinkWorkspace(false), 450);
+}
+
+async function saveCommlinkWorkspace(create = false) {
+  const token = localStorage.getItem('spmt_token');
+  if (!token) {
+    setWorkspaceState('Local preview · sign in to save');
+    return;
+  }
+  setWorkspaceState('Saving workspace…');
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
+    if (!create && state.workspaceEtag) headers['If-Match'] = state.workspaceEtag;
+    const response = await fetch('/api/app-state/cosmo-commlink/workspace', {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ schemaVersion: 1, data: currentWorkspaceData() }),
+    });
+    if (response.status === 409) {
+      setWorkspaceState('Changed on another device · reloading', 'error');
+      await loadCommlinkWorkspace();
+      toast('The newer Commlink workspace was loaded from SPMT.');
+      return;
+    }
+    if (!response.ok) throw new Error(`Workspace save returned ${response.status}`);
+    const record = await response.json();
+    applyWorkspaceRecord(record, response.headers.get('etag'));
+    setWorkspaceState(`Saved workspace r${record.revision}`, 'saved');
+  } catch {
+    setWorkspaceState('Save failed · changes remain local', 'error');
+  }
+}
+
+function createChatSpace() {
+  const sequence = state.chatSpaces.length + 1;
+  const id = `chatspace-${Date.now().toString(36)}`;
+  const seedSources = sources.slice(0, 2).map((source) => source.id);
+  state.chatSpaces.push({
+    id,
+    name: `Untitled ChatSpace ${sequence}`,
+    detail: `${seedSources.length} sources · new`,
+    icon: `C${sequence}`,
+    rgb: '251,146,60',
+    unread: 0,
+    sources: seedSources,
+    selectedDestinationIds: [...seedSources],
+  });
+  state.activeSpace = id;
+  state.selectedDestinations = [...seedSources];
+  renderAll();
+  scheduleWorkspaceSave();
+  toast('New ChatSpace created and queued for SPMT sync.');
+}
+
+function addSourceToActiveSpace() {
+  const space = state.chatSpaces.find((item) => item.id === state.activeSpace);
+  if (!space) return;
+  const next = sources.find((source) => !space.sources.includes(source.id));
+  if (!next) return toast('All available preview sources are already in this ChatSpace.');
+  space.sources.push(next.id);
+  space.selectedDestinationIds = [...(space.selectedDestinationIds || []), next.id];
+  state.selectedDestinations = [...space.selectedDestinationIds];
+  space.detail = `${space.sources.length} sources · saved`;
+  renderAll();
+  scheduleWorkspaceSave();
+  toast(`${providers[next.provider].name}/${next.channel} added to ${space.name}.`);
+}
+
+function renderDiscoveryStatus(status, showUnlock = false) {
+  state.discoveryStatus = status;
+  const found = Number(status?.discoveredCount || 0);
+  $$('.discovery-dot').forEach((dot, index) => dot.classList.toggle('found', index < found));
+  $('#discovery-summary').textContent = status
+    ? `${found} / ${status.total} hidden signals`
+    : 'Sign in to preserve hidden signals';
+  const complete = Boolean(status?.complete && status?.reward);
+  $('#count-puzzle-card').classList.toggle('hidden', !complete);
+  $('#account-title').textContent = complete ? `Mountain Crew · ${status.reward.title}` : 'Mountain Crew';
+  if (complete && showUnlock) $('#unlock-overlay').classList.remove('hidden');
+}
+
+async function loadDiscoveries() {
+  const token = localStorage.getItem('spmt_token');
+  if (!token) {
+    renderDiscoveryStatus(null);
+    return;
+  }
+  try {
+    const response = await fetch('/api/discoveries', { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) throw new Error('Discovery state unavailable');
+    const status = await response.json();
+    const unlockSeen = sessionStorage.getItem('spmt-count-puzzle-unlock-seen') === 'true';
+    renderDiscoveryStatus(status, status.complete && !unlockSeen);
+    if (status.complete && !unlockSeen) sessionStorage.setItem('spmt-count-puzzle-unlock-seen', 'true');
+  } catch {
+    $('#discovery-summary').textContent = 'Hidden signal sync unavailable';
+  }
+}
+
+async function recordDiscovery(discoveryId) {
+  const token = localStorage.getItem('spmt_token');
+  if (!token) {
+    toast('Signal found locally. Sign in to preserve the discovery.');
+    return null;
+  }
+  try {
+    const response = await fetch(`/api/discoveries/${encodeURIComponent(discoveryId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ surface: 'commlink', clientVersion: 'pass-2' }),
+    });
+    if (!response.ok) throw new Error('Discovery could not be recorded');
+    const status = await response.json();
+    renderDiscoveryStatus(status, status.created && status.complete);
+    toast(status.created ? `${status.discoveredCount} of ${status.total} hidden signals discovered.` : 'This hidden signal was already in your collection.');
+    return status;
+  } catch {
+    toast('The signal appeared, but SPMT could not preserve it yet.');
+    return null;
+  }
+}
+
+function openBlackHoleGame() {
+  state.blackHoleArtifacts = new Set();
+  $$('.cosmic-artifact').forEach((artifact) => artifact.classList.remove('captured'));
+  $('#black-hole-count').textContent = '0 / 3 captured';
+  $('#black-hole-game').classList.remove('hidden');
+}
+
+async function captureBlackHoleArtifact(artifact) {
+  const id = artifact.dataset.artifact;
+  if (!id || state.blackHoleArtifacts.has(id)) return;
+  state.blackHoleArtifacts.add(id);
+  artifact.classList.add('captured');
+  $('#black-hole-count').textContent = `${state.blackHoleArtifacts.size} / 3 captured`;
+  if (state.blackHoleArtifacts.size === 3) {
+    await recordDiscovery('cosmo-black-hole');
+    setTimeout(() => $('#black-hole-game').classList.add('hidden'), 650);
+  }
+}
+
+async function handleConstellationStep(step) {
+  if (step !== state.constellationStep) {
+    state.constellationStep = step === 0 ? 1 : 0;
+    return;
+  }
+  const panel = $(`[data-constellation-panel="${step}"]`);
+  panel?.classList.add('constellation-found');
+  setTimeout(() => panel?.classList.remove('constellation-found'), 850);
+  state.constellationStep += 1;
+  if (state.constellationStep === 3) {
+    state.constellationStep = 0;
+    await recordDiscovery('commlink-constellation');
+  }
 }
 
 const themeMap = {
@@ -502,7 +794,9 @@ function wireEvents() {
   $('#destination-edit').addEventListener('click', () => {
     const next = activeSources().find((source) => !state.selectedDestinations.includes(source.id));
     state.selectedDestinations = next ? [...state.selectedDestinations, next.id] : activeSources().map((source) => source.id);
+    rememberSpaceDestinations();
     renderDestinations();
+    scheduleWorkspaceSave();
   });
   $('#settings-button').addEventListener('click', () => $('#settings-drawer').classList.remove('hidden'));
   $('#close-settings').addEventListener('click', () => $('#settings-drawer').classList.add('hidden'));
@@ -518,9 +812,25 @@ function wireEvents() {
     markAppearanceDirty();
   });
   $('#replay-button').addEventListener('click', () => toast('Preview: replay requested without re-triggering XP, TTS, or automation.'));
-  $('#add-source').addEventListener('click', () => toast('Pass 2 will connect the authorized provider picker.'));
-  $('#create-space').addEventListener('click', () => toast('Preview: the ChatSpace creator will be implemented after layout approval.'));
-  $('#search-button').addEventListener('click', () => toast('Pass 2 will add bounded history search.'));
+  $('#add-source').addEventListener('click', addSourceToActiveSpace);
+  $('#create-space').addEventListener('click', createChatSpace);
+  $('#search-button').addEventListener('click', () => toast('Pass 3 will add bounded history search.'));
+  $('#cosmo-logo').addEventListener('click', openBlackHoleGame);
+  $('#black-hole-close').addEventListener('click', () => $('#black-hole-game').classList.add('hidden'));
+  $$('.cosmic-artifact').forEach((artifact) => artifact.addEventListener('click', () => captureBlackHoleArtifact(artifact)));
+  $('#accept-unlock').addEventListener('click', () => {
+    sessionStorage.setItem('spmt-count-puzzle-unlock-seen', 'true');
+    $('#unlock-overlay').classList.add('hidden');
+  });
+  $('#count-puzzle-card').addEventListener('click', () => {
+    const bot = state.discoveryStatus?.reward?.chatbotPersonality;
+    toast(bot ? `${bot.name}: “Direct answers are dreadfully dull. Bring me a worthy riddle.”` : 'The hidden personality is still out of phase.');
+  });
+  $$('[data-desk]').forEach((button) => button.addEventListener('click', () => {
+    state.activeDesk = button.dataset.desk;
+    renderDeskSelection();
+    scheduleWorkspaceSave();
+  }));
 
   $$('[data-theme]').forEach((button) => button.addEventListener('click', () => {
     state.appearance.themeId = button.dataset.theme;
@@ -549,3 +859,5 @@ function wireEvents() {
 renderAll();
 wireEvents();
 loadWorkspaceProfile();
+loadCommlinkWorkspace();
+loadDiscoveries();

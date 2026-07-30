@@ -2980,6 +2980,118 @@ app.put('/api/app-state/:appId/:namespace', authenticate, (req: any, res) => {
   }
 });
 
+const DISCOVERY_DEFINITIONS = {
+  'battle-arena': {
+    title: 'The Hidden Battle Arena',
+    sourceApp: 'spacemountain-live',
+  },
+  'cosmo-black-hole': {
+    title: 'The Cosmo Black Hole',
+    sourceApp: 'cosmo-commlink',
+  },
+  'commlink-constellation': {
+    title: 'The Commlink Constellation',
+    sourceApp: 'cosmo-commlink',
+  },
+} as const;
+
+const DISCOVERY_REWARD = {
+  title: 'Lord Puzzler',
+  chatbotPersonality: {
+    id: 'count-puzzle',
+    name: 'Count Puzzle',
+    basePersonality: 'A mysterious gothic puzzle-smith and useful stowaway who speaks in riddles, rhymes, and cosmic metaphors. Direct answers are dreadfully dull, but every riddle must remain ultimately helpful.',
+    tone: 'Theatrical, cryptic, slightly paranoid',
+    responseStyle: 'Riddle-forward, gothic, playful, and helpful',
+  },
+};
+
+function recordUserDiscovery(
+  userId: string,
+  discoveryId: keyof typeof DISCOVERY_DEFINITIONS,
+  metadata: Record<string, unknown> = {},
+) {
+  const definition = DISCOVERY_DEFINITIONS[discoveryId];
+  const now = new Date().toISOString();
+  const result = db.prepare(`
+    INSERT OR IGNORE INTO user_discoveries (
+      user_id, discovery_id, source_app, metadata_json, discovered_at
+    ) VALUES (?, ?, ?, ?, ?)
+  `).run(userId, discoveryId, definition.sourceApp, JSON.stringify(metadata), now);
+  return { created: result.changes > 0, discoveredAt: now };
+}
+
+function syncBattleArenaDiscovery(userId: string) {
+  const arenaState = db.prepare(`
+    SELECT 1
+    FROM app_state_records
+    WHERE user_id = ? AND app_id = 'spacemountain-live' AND namespace = 'arena'
+    LIMIT 1
+  `).get(userId);
+  if (arenaState) {
+    return recordUserDiscovery(userId, 'battle-arena', { evidence: 'account-arena-state' });
+  }
+  return { created: false, discoveredAt: null };
+}
+
+function userDiscoveryStatus(userId: string) {
+  const rows = db.prepare(`
+    SELECT discovery_id, source_app, discovered_at
+    FROM user_discoveries
+    WHERE user_id = ?
+    ORDER BY datetime(discovered_at), discovery_id
+  `).all(userId) as Array<{ discovery_id: string; source_app: string; discovered_at: string }>;
+  const discoveredById = new Map(rows.map((row) => [row.discovery_id, row]));
+  const discoveries = Object.entries(DISCOVERY_DEFINITIONS).map(([id, definition]) => {
+    const row = discoveredById.get(id);
+    return row
+      ? { id, title: definition.title, sourceApp: row.source_app, discovered: true, discoveredAt: row.discovered_at }
+      : { id: null, title: 'Undiscovered signal', sourceApp: null, discovered: false, discoveredAt: null };
+  });
+  const discoveredCount = discoveries.filter((item) => item.discovered).length;
+  const complete = discoveredCount === Object.keys(DISCOVERY_DEFINITIONS).length;
+  return {
+    schemaVersion: 1,
+    discoveredCount,
+    total: Object.keys(DISCOVERY_DEFINITIONS).length,
+    complete,
+    discoveries,
+    reward: complete ? DISCOVERY_REWARD : null,
+  };
+}
+
+function notifyDiscoveryReward(userId: string, status: ReturnType<typeof userDiscoveryStatus>) {
+  if (!status.complete) return;
+  createNotification(
+    userId,
+    `${DISCOVERY_REWARD.title} unlocked`,
+    `${DISCOVERY_REWARD.chatbotPersonality.name} has appeared in your Commlink collection.`,
+    { type: 'achievement', sourceApp: 'cosmo-commlink', linkUrl: '/commlink/' },
+  );
+}
+
+app.get('/api/discoveries', authenticate, (req: any, res) => {
+  const arenaSync = syncBattleArenaDiscovery(req.user.id);
+  const status = userDiscoveryStatus(req.user.id);
+  if (arenaSync.created) notifyDiscoveryReward(req.user.id, status);
+  res.json(status);
+});
+
+app.post('/api/discoveries/:discoveryId', authenticate, (req: any, res) => {
+  const discoveryId = String(req.params.discoveryId || '') as keyof typeof DISCOVERY_DEFINITIONS;
+  if (!['cosmo-black-hole', 'commlink-constellation'].includes(discoveryId)) {
+    return res.status(404).json({ error: 'Discovery not found' });
+  }
+  const arenaSync = syncBattleArenaDiscovery(req.user.id);
+  const recorded = recordUserDiscovery(req.user.id, discoveryId, {
+    surface: String(req.body?.surface || 'commlink').slice(0, 80),
+    clientVersion: String(req.body?.clientVersion || 'unknown').slice(0, 80),
+  });
+  const status = userDiscoveryStatus(req.user.id);
+  if (recorded.created || arenaSync.created) notifyDiscoveryReward(req.user.id, status);
+  return res.status(recorded.created ? 201 : 200).json({ created: recorded.created, ...status });
+});
+
 function listVersionedWorkspaceRecords(table: 'workspace_overlay_scenes' | 'workspace_workflow_definitions', jsonColumn: 'scene_json' | 'workflow_json', userId: string) {
   return (db.prepare(`SELECT id, revision, name, ${jsonColumn} AS data_json, created_at, updated_at FROM ${table} WHERE user_id = ? ORDER BY datetime(updated_at) DESC`).all(userId) as any[])
     .map((row) => ({ id: row.id, revision: row.revision, name: row.name, data: JSON.parse(row.data_json), createdAt: row.created_at, updatedAt: row.updated_at }));

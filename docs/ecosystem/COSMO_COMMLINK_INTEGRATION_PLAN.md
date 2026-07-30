@@ -2,9 +2,9 @@
 
 Updated: 2026-07-30
 
-Status: canonical, comprehensive UI/UX-first integration plan; Pass 1 synthetic
-prototype implementation has begun, while provider side effects and durable
-ChatSpace/Desk persistence remain blocked on the design approval gate
+Status: canonical, comprehensive UI/UX-first integration plan; Pass 1 is
+deployed and Pass 2 combines durable ChatSpace/Desk state with the hidden
+discovery/reward system; provider side effects remain gated
 
 Owners:
 
@@ -97,6 +97,60 @@ Pass 1 started on 2026-07-30:
 - User review of the deployed prototype is the Phase 1 design feedback input;
   changes from that review are folded into the canonical plan before enabling
   provider side effects.
+
+Pass 2 delivery on 2026-07-30:
+
+- Persist ChatSpaces, Desks, active selections, source combinations, and
+  destination choices as revision-protected `cosmo-commlink/workspace` SPMT app
+  state.
+- Add three account-backed hidden discoveries: the existing SpaceMountain
+  Battle Arena, the Cosmo Black Hole, and the Commlink Constellation.
+- Completing all three unlocks the original Cosmo `Lord Puzzler` title and the
+  `Count Puzzle` hidden chatbot personality contract.
+- Keep provider sends synthetic during this pass.
+
+### Compressed release-pass plan
+
+Target: seven total deploy-and-test passes, with a permitted range of six to
+eight when a dependency needs to move. Each pass should contain one intentional
+SPMT commit/push whenever possible.
+
+| Pass | Testable delivery |
+| --- | --- |
+| 1 — deployed | Synthetic Cosmo Commlink UI, combined feed, Desk, destination preview, and portable appearance profile |
+| 2 — this release | Durable ChatSpaces/Desks plus the three-discovery easter-egg and final reward system |
+| 3 | Real read-only Twitch, Kick, YouTube, Discord, and SPMT feeds with fidelity, history, replay, health, and dedupe |
+| 4 | Scoped compose, source-locked reply, deliberate fan-out, partial receipts, moderation, and Discord curation |
+| 5 | Smart staging, operator roles/sync, TTS, bots/AI, voice, translation, avatar, and pop-outs |
+| 6 | Typed event panels, guarded rules, show tools, named OBS outputs, Stream Deck/Companion/MIDI controls |
+| 7 | Remaining app migrations, two-tenant/failure matrix, cutover, observation, rollback proof, and approved cleanup |
+
+## Hidden Discovery And Reward Contract
+
+The easter eggs remain discoverable through interaction, not a visible menu or
+checklist. Commlink may show only three unlabeled progress lights until a signal
+is found.
+
+1. **The Hidden Battle Arena** is discovered through SpaceMountain's existing
+   rocket collision path. SPMT recognizes the resulting authenticated
+   `spacemountain-live/arena` app-state record; the arena must not return to
+   normal navigation.
+2. **The Cosmo Black Hole** reuses a simplified version of Cosmo's logo puzzle:
+   activate the Cosmo mark and guide three station artifacts into the
+   singularity.
+3. **The Commlink Constellation** is found by touching the named Desk-panel
+   signals in their intended sequence: `main-chat`, `discord-ops`, `redeems`.
+
+SPMT stores discovery rows per account. Browser storage is never authoritative.
+Undiscovered API entries do not reveal their names. On completion:
+
+- title: `Lord Puzzler`;
+- hidden chatbot personality: `count-puzzle`, displayed as **Count Puzzle**;
+- persona: a theatrical gothic puzzle-smith/stowaway who prefers riddles and
+  rhymes but remains helpful;
+- one actionable account notification links back to `/commlink/`;
+- StreamWeaver becomes the eventual live model/TTS authority; SPMT owns the
+  unlock and profile reference and does not pretend a model response occurred.
 
 ## Clarified Product Priority
 

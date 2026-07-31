@@ -462,11 +462,29 @@ async function sendRecoveryCodeToDiscord(user: any, code: string) {
     const channel = await channelResponse.json() as any;
     if (!channel?.id) return false;
 
+    const avatarUrl = discordUser?.id && discordUser?.avatar
+      ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.${String(discordUser.avatar).startsWith('a_') ? 'gif' : 'png'}?size=128`
+      : undefined;
     const messageResponse = await fetch(`https://discord.com/api/v10/channels/${encodeURIComponent(channel.id)}/messages`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        content: `Your new SPMT recovery code is **${code}**. Use it at https://spmt.live under Recover. Do not share this code. If you did not request it, you can ignore this message and your password remains unchanged.`,
+        content: '',
+        embeds: [{
+          author: {
+            name: 'SPMT',
+            url: 'https://spmt.live',
+          },
+          title: 'SPMT • Account Recovery',
+          description: `Your new recovery code is **${code}**.\n\nUse it at https://spmt.live under **Recover**. Do not share this code. If you did not request it, you can ignore this message and your password remains unchanged.`,
+          color: 0x7c3aed,
+          footer: {
+            text: `Requested by ${discordUser?.global_name || discordUser?.username || user?.username || 'SPMT user'} • Account recovery`,
+            ...(avatarUrl ? { icon_url: avatarUrl } : {}),
+          },
+          timestamp: new Date().toISOString(),
+        }],
+        allowed_mentions: { parse: [] },
       }),
     });
     return messageResponse.ok;

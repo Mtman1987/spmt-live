@@ -25,6 +25,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: node scripts/patch-spmt-dual-wallet.mjs
+      - run: node scripts/patch-spmt-gamble-wallet.mjs
       - run: npm ci
       - run: npm run build
       - name: Commit validated changes
@@ -35,11 +36,11 @@ jobs:
           if git diff --cached --quiet; then
             echo "No wallet changes to commit"
           else
-            git commit -m "Add spendable and lifetime SPMT XP wallets"
+            git commit -m "Add spendable, lifetime, and gambling XP wallets"
             git push origin HEAD:fix/spmt-dual-xp-wallet
           fi
       - name: Open pull request
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr view fix/spmt-dual-xp-wallet --json number >/dev/null 2>&1 || gh pr create --base main --head fix/spmt-dual-xp-wallet --title "Add spendable and lifetime SPMT XP wallets" --body "Adds separate spendable and lifetime XP, lifetime-based ranks, atomic spend and transfer endpoints, and a canonical XP leaderboard. Spending and transferred XP do not manufacture or erase rank progress. Build validated before PR creation."
+          gh pr view fix/spmt-dual-xp-wallet --json number >/dev/null 2>&1 || gh pr create --base main --head fix/spmt-dual-xp-wallet --title "Add spendable and lifetime SPMT XP wallets" --body "Adds separate spendable and lifetime XP, lifetime-based ranks, atomic spend and transfer endpoints, a canonical XP leaderboard, and atomic gambling settlement. Gambling refills spendable XP to lifetime at 1:1, then compresses overflow 10:1 and splits the compressed growth evenly so spendable never exceeds lifetime. Build validated before PR creation."

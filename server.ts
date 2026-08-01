@@ -14,6 +14,7 @@ import {
   type WorkspaceProfileV1,
 } from './workspace-profile.js';
 import { migrateLegacyXpBalance } from './xp-balance-migration.js';
+import { settleGambleWallet } from './xp-gamble-settlement.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -4061,6 +4062,66 @@ app.post('/api/platform/xp/spend', authenticatePlatformKey('xp:write'), (req: an
     res.status(201).json({ spent: true, duplicate: false, amount, ...getSpmtXpWallet(userId) });
   } catch (error: any) {
     res.status(error.statusCode || 400).json({ error: error.message || 'XP could not be spent' });
+  }
+});
+
+app.post('/api/platform/xp/gamble-settle', authenticatePlatformKey('xp:write'), (req: any, res) => {
+  try {
+    const sourceApp = validateRecordSlug(req.body?.sourceApp || req.platformKey.appId, 'sourceApp');
+    if (req.platformKey.appId && sourceApp !== req.platformKey.appId) {
+      return res.status(403).json({ error: `This key may only settle gambling XP for ${req.platformKey.appId}` });
+    }
+    const userId = String(req.body?.userId || '').trim();
+    const eventType = validateRecordSlug(req.body?.eventType || 'gamble-settle', 'eventType');
+    const idempotencyKey = String(req.body?.idempotencyKey || '').trim();
+    const wager = Number(req.body?.wager);
+    const payout = Number(req.body?.payout);
+    if (!getUserById(userId)) return res.status(404).json({ error: 'User not found' });
+    if (!idempotencyKey || idempotencyKey.length > 180
+      || !Number.isInteger(wager) || wager < 0 || wager > 1_000_000
+      || !Number.isInteger(payout) || payout < 0 || payout > 100_000_000) {
+      return res.status(400).json({ error: 'userId, bounded wager and payout, and idempotencyKey are required' });
+    }
+
+    const debitKey = `${idempotencyKey}:wager`;
+    const refillKey = `${idempotencyKey}:refill`;
+    const growthKey = `${idempotencyKey}:growth`;
+    const existing = db.prepare(
+      'SELECT id FROM xp_ledger WHERE source_app = ? AND idempotency_key IN (?, ?, ?) LIMIT 1',
+    ).get(sourceApp, debitKey, refillKey, growthKey);
+    if (existing) return res.json({ settled: false, duplicate: true, ...getSpmtXpWallet(userId) });
+
+    const before = getSpmtXpWallet(userId);
+    if (before.spendableXp < wager) return res.status(409).json({ error: 'Insufficient spendable XP', ...before });
+
+    const settlement = settleGambleWallet({ ...before, wager, payout });
+    const metadata = req.body?.metadata ?? {};
+    assertPublicAppState(metadata, 'metadata');
+    const now = new Date().toISOString();
+    const insertEntry = (key: string, delta: number, entryMetadata: Record<string, unknown>) => {
+      db.prepare('INSERT INTO xp_ledger (id, user_id, source_app, event_type, idempotency_key, delta, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(uuidv4(), userId, sourceApp, eventType, key, delta, JSON.stringify({ ...metadata, ...entryMetadata, wager, payout }), now);
+    };
+
+    db.transaction(() => {
+      if (wager > 0) insertEntry(debitKey, -wager, { lifetimeEligible: false, walletAction: 'gamble-wager' });
+      if (settlement.refill > 0) {
+        insertEntry(refillKey, settlement.refill, { lifetimeEligible: false, walletAction: 'gamble-refill', refill: settlement.refill });
+      }
+      if (settlement.matchedGrowth > 0) {
+        insertEntry(growthKey, settlement.matchedGrowth, {
+          lifetimeEligible: true,
+          walletAction: 'gamble-growth',
+          overflow: settlement.overflow,
+          compressed: settlement.compressed,
+          matchedGrowth: settlement.matchedGrowth,
+        });
+      }
+    })();
+
+    return res.status(201).json({ settled: true, duplicate: false, ...settlement, payout, before, ...getSpmtXpWallet(userId) });
+  } catch (error: any) {
+    return res.status(error.statusCode || 400).json({ error: error.message || 'Gambling XP could not be settled' });
   }
 });
 

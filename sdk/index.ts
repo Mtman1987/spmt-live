@@ -610,10 +610,32 @@ export type XpAwardResultV1 = {
   entry: XpLedgerEntryV1;
 };
 
-export type XpBalanceV1 = {
-  xp: number;
+export type XpWalletV1 = {
+  /** XP a user can spend. Purchases and wagers come out of this wallet only. */
+  spendableXp: number;
+  /** Everything a user has ever earned. Ranks are computed from this wallet. */
+  lifetimeXp: number;
+  rank: number;
   level: number;
+};
+
+export type XpBalanceV1 = XpWalletV1 & {
+  xp: number;
   entries: XpLedgerEntryV1[];
+};
+
+export type XpGambleSettlementV1 = XpWalletV1 & {
+  settled: boolean;
+  duplicate: boolean;
+  wager: number;
+  payout: number;
+  /** Winnings credited 1:1 up to the lifetime ceiling. */
+  refill: number;
+  /** Winnings above the ceiling, compressed 10:1 and split evenly across both wallets. */
+  overflow: number;
+  compressed: number;
+  matchedGrowth: number;
+  discardedOverflow: number;
 };
 
 export type XpAwardValidationResult =

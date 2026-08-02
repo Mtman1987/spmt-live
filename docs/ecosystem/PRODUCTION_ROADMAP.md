@@ -1,6 +1,6 @@
 # SpaceMountain Ecosystem Production Roadmap
 
-Updated: 2026-07-28
+Updated: 2026-08-02
 
 Status: active engineering source of truth
 
@@ -8,7 +8,7 @@ Owner: SPMT repository (`docs/ecosystem`)
 
 Backlog authority: this file is the only active cross-suite execution queue. App-local TODO and roadmap files may remain only as historical release evidence; they do not own current priorities.
 
-External adopter boundary: AETHERRA is a coworker-owned application and is intentionally deferred until the SPMT SDK and documentation are stable. Its product code, deploy, backup, and billing remain with its owner and do not block Gates 0 through 2 for the owned suite.
+External adopter boundary: AETHERRA is separately owned and operated by Co-Owner `akhiteddy` and is intentionally deferred until the SPMT SDK and documentation are stable. Its product code, deploy, backup, and billing remain with its owner and do not block Gates 0 through 2 for the owner-owned and operated suite.
 
 ## Mission
 
@@ -48,7 +48,7 @@ The full snapshot below was re-verified on 2026-07-17; the affected SPMT SDK, St
 | MountainView inside rotator | Live, health passing, status reports `phone-side` and `connected:false` | SPMT owner sign-in, authenticated command definitions, direct app calls, voice routing, media/vision routes, memory/log/device tables, Android/Expo bridge work | No SPMT device identity/pairing; token encryption still needs its dedicated secret; no MountainView SPMT API key; no cloud device socket; hardware access still depends on a phone-side Bluetooth bridge |
 | Fly machine rotator | Live, health passing | Machine rotation, log monitoring, MountainView host | Rotator reliability/security is coupled to experimental MountainView code; the boundary needs isolation even if both remain in one Fly app to avoid another bill |
 | Space Mountain dashboard | Retired duplicate launcher; GitHub repository archived, local history retained | Historical static launcher concept | Do not deploy; SpaceMountain is the canonical authenticated suite shell and launcher |
-| AETHERRA | Deferred external adopter; excluded from owned-suite gate certification | Coworker-owned application that may consume the stable SPMT SDK later | No source or operational work is in scope until the SDK and documentation are complete; it does not block Gates 0 through 2 or readiness for Gate 3 |
+| AETHERRA | Deferred external adopter; excluded from owned-suite gate certification | Separately owned and operated by Co-Owner `akhiteddy`; may consume the stable SPMT SDK later | No source or operational work is in scope until the SDK and documentation are complete; it does not block Gates 0 through 2 or readiness for Gate 3 |
 
 All listed Fly-backed repositories had a successful latest GitHub deployment at this snapshot. That proves deployability, not complete product behavior.
 
@@ -573,7 +573,7 @@ Browser constraints are part of the design, not hidden edge cases:
 | Athena model/chat/TTS runtime | StreamWeaver | Tenant-scoped model and memory services |
 | MountainView relay protocol and device session | SPMT + MountainView | One versioned protocol shared by browser/PWA, extension, and native relay hosts |
 | Hardware Bluetooth/BLE and capture | Active MountainView relay host | Local only; browser/PWA where proven, Chrome extension for desktop convenience, native relay where background/vendor access is required |
-| AETHERRA product state and operations | AETHERRA partner | Partner-owned database, billing, deployment, and backups; SPMT receives only granted identity/profile/events |
+| AETHERRA product state and operations | Co-Owner `akhiteddy` | Separately owned database, billing, deployment, and backups; SPMT receives only granted identity/profile/events |
 | AETHERRA SPMT integration contract | SPMT SDK + partner adapter | OAuth/scopes, `/api/me`, portable theme tokens, events/webhooks, revocation, and conformance tests |
 | Secrets | Fly/GitHub secret stores | Never JSON, database output, client bundle, logs, or URLs |
 | Public operational config | Volume-backed JSON | Non-secret URLs, flags, capability settings |
@@ -926,6 +926,75 @@ queue returned to zero. Reply and audible TTS were deliberately not transmitted
 during this non-disruptive proof, so those two side effects remain explicit
 operator checks.
 
+### Step 3.6 — Unify support, staff reports, disputes, and technical tickets
+
+Build one SPMT-owned ticket system instead of leaving `SPMT Support`, existing
+ticket concepts, and `!mtfixit` as unrelated paths. The system must accept
+intake from SPMT, each registered app, Discord interactions, and supported chat
+commands while preserving the original source and tenant.
+
+Required intake and user experience:
+
+1. Treat `!ticket` as the provisional universal command and retain `!mtfixit`
+   as a compatible technical-support alias until command analytics support a
+   deliberate migration.
+2. When provider permissions allow, delete the user's public command
+   immediately and replace it with a minimal `Ticket` button. If deletion is
+   unavailable, do not claim it succeeded and avoid reposting private details.
+3. The button interaction opens an ephemeral ticket chooser with a short
+   explanation, links/buttons for the current rules, documentation, concepts,
+   privacy notice, and emergency guidance, and ticket types including general
+   help, app/technical issue, staff report, conduct warning/infraction,
+   dispute/appeal, account/billing, and security/privacy/safety.
+4. Collect structured user details in a modal, confirm what evidence will be
+   attached, allow safe supplemental files or links, issue a stable ticket ID,
+   and show the submitter the status and next expected step.
+5. Keep raw ticket content out of public chat. Direct-message notifications may
+   thank the submitter or alert authorized owners, but sensitive evidence stays
+   in the authenticated ticket record; DMs contain only a privacy-minimized
+   summary and secure deep link.
+
+Required escalation and authority model:
+
+- Staff/crew can request help, record an observation, or report to moderators.
+- Moderators can warn within their granted policy scope, document action, and
+  escalate staff, user, or content matters to administrators.
+- Administrators can coordinate investigation and take only the actions in
+  their explicit permission schedule; they escalate owner-only, conflicted,
+  legal, payment, safety, privacy, or high-impact matters.
+- The owner and co-owner receive the final ordinary escalation and decision
+  authority. Define a separate recusal/alternate-review path for a report about
+  an owner or co-owner rather than allowing the subject to be the sole reviewer.
+- Every assignment, view, comment, warning, status change, escalation,
+  evidence access, decision, appeal, reopen, and close action is attributed to
+  a named SPMT identity and timestamped in an append-only audit history.
+
+Required evidence contract:
+
+- On submission, issue a correlation ID and request a bounded evidence snapshot
+  from every registered app and surface relevant to the ticket. Each adapter
+  returns its app/version, health state, route/surface, tenant-safe actor and
+  session references, recent correlated events, and configuration/status needed
+  to reproduce the issue; unsupported or unavailable adapters are recorded.
+- For disputes or infractions, preserve the reported event plus a bounded
+  before/after context window, applicable rule/policy version, moderation state,
+  and prior action references. Preserve edits/deletions where the provider
+  lawfully exposes them.
+- Never interpret “snapshot every app and surface” as permission to copy entire
+  databases, unrelated private conversations, credentials, tokens, payment
+  details, or unrestricted logs. Redact secrets and unrelated personal data,
+  apply category-specific retention, hash immutable evidence, record chain of
+  custody, and restrict access by role and conflict state.
+- Support legal hold, export, deletion/anonymization rules, appeal evidence,
+  duplicate-ticket linking, abuse/rate limits, and explicit emergency routing.
+
+Production proof requires tests for command deletion success/failure, ephemeral
+interaction privacy, modal validation, duplicate/retry idempotency, cross-tenant
+denial, every role transition, owner/co-owner and recusal routing, evidence
+redaction/integrity/retention, unavailable app adapters, user status visibility,
+and complete audit export. The UI must call this planned until those paths are
+deployed and verified.
+
 ### Gate 3 exit criteria
 
 - Two real sources stream simultaneously into one account.
@@ -933,6 +1002,8 @@ operator checks.
 - Feature/queue/pin/TTS/reply are verified against real sources.
 - Tenant A cannot subscribe or reply to tenant B.
 - A bot can be granted read-only feed access without reply access.
+- Unified ticket intake is either production-verified or remains explicitly
+  labeled as a post-Gate-3 planned capability with no simulated success state.
 
 2026-07-28 deployment evidence:
 
@@ -1312,6 +1383,19 @@ Use the consolidated HearMeOut app track in this roadmap and the route inventory
 3. Publish and version a real shared client/SDK.
 4. Add admin support tools with audit and least privilege.
 5. Add user export/delete and app grant/revocation controls.
+6. Implement the unified support/ticket evidence and escalation contract from
+   Step 3.6, including staff-to-moderator-to-administrator-to-owner routing.
+7. Implement SPMT-authenticated crew and partner applications: submission,
+   acknowledgment DM, role-specific rules/responsibilities/perks packet,
+   attributed voting, approval/denial notice, versioned agreement URLs,
+   electronic assent, signed-copy delivery, and a durable application record.
+8. Preserve application provenance including applicant SPMT identity, submitted
+   answers and attachments, submission/decision/signature timestamps, time in
+   each status, who was eligible to vote, each recorded vote and time, recusals,
+   decision reason, exact agreement/policy versions and hashes, acceptance
+   evidence, notifications, role activation, later amendments, and offboarding.
+   OAuth establishes account identity but must not be treated as agreement by
+   itself; require an explicit assent action and Owner-approved electronic-records disclosure.
 
 ### Dashboard decision — retire
 
@@ -1319,15 +1403,15 @@ Use the consolidated HearMeOut app track in this roadmap and the route inventory
 
 ### AETHERRA — deferred external SPMT SDK adopter
 
-AETHERRA remains the coworker's app and its product state, billing, source, deploys, backups, and roadmap remain partner-owned. No AETHERRA work is part of the owned-suite Gate 0 through Gate 2 plan. Revisit this section only after the SPMT SDK and documentation are stable and the owner chooses to begin integration.
+AETHERRA remains separately owned and operated by Co-Owner `akhiteddy`; its product state, billing, source, deploys, backups, and roadmap remain under that ownership. No AETHERRA work is part of the owner-owned suite's Gate 0 through Gate 2 plan. Revisit this section only after the SPMT SDK and documentation are stable and the Owner chooses to begin integration.
 
-1. After reactivation, record the partner owner, source-of-truth repository, deploy target, test environment, support path, and data-controller boundary; importing the source here is not required.
+1. After reactivation, record the Co-Owner, source-of-truth repository, deploy target, test environment, support path, and data-controller boundary; importing the source here is not required.
 2. Finish and version the minimal SPMT SDK/client contract before claiming integration: authorize/login, callback/session validation, `/api/me`, scoped grants, refresh/logout, event publish, webhook verification, and grant revocation.
 3. Define the least scopes AETHERRA needs and keep AETHERRA database, billing, rooms, cards, queues, and game rules outside SPMT.
 4. Map portable SPMT profile/theme tokens into AETHERRA without letting either app overwrite the other's product settings.
 5. Publish at least one real AETHERRA event to Commlink and consume one SPMT notification/webhook with idempotency and tenant checks.
 6. Add black-box SDK conformance tests runnable against staging by both the SPMT repository and the partner repository.
-7. Verify AETHERRA's backup/restore and billing-webhook behavior with the partner owner before production certification.
+7. Verify AETHERRA's backup/restore and billing-webhook behavior with Co-Owner `akhiteddy` before production certification.
 8. Document disconnect/revoke behavior so removing the SPMT grant does not delete or corrupt the partner's AETHERRA account.
 9. Never confuse AETHERRA GameVerse with Athena OS; similarity of the names does not imply a runtime or ownership relationship.
 
@@ -1480,6 +1564,10 @@ Do not work on later phases around an unresolved earlier safety/ownership depend
 3. History/live feed, dedupe, retention, and reply capabilities.
 4. Mail/Live Chat/Notifications/App Events UI.
 5. Feature/queue/pin/TTS/reply and featured output.
+6. Unified ticket intake, ephemeral chooser/modal, hierarchical escalation, and
+   privacy-minimized owner/co-owner notifications.
+7. Cross-app evidence adapters, redaction, retention, chain of custody, audit,
+   appeal, and recusal behavior.
 
 ### Release 5 — Overlay Studio
 
@@ -1515,6 +1603,8 @@ Do not work on later phases around an unresolved earlier safety/ownership depend
 3. ChatTag identity/XP/overlay completion.
 4. SpaceMountain component/performance/accessibility cleanup.
 5. Dashboard merge/retire decision. AETHERRA conformance is a later partner-scheduled release after the SDK and documentation stabilize.
+6. SPMT-authenticated crew/partner applications, voting, decisions, versioned
+   agreement delivery and explicit electronic assent, with complete provenance.
 
 ### Release 9 — Production certification and docs
 

@@ -27,6 +27,8 @@
 
 - Public developer portal
 - Third-party app submission flow
+- Unified support, staff-report, dispute, infraction, and technical ticketing
+- SPMT-authenticated crew/partner applications, voting, and agreement acceptance
 - Advanced Athena skills
 - Marketplace discovery
 - Analytics and ecosystem health dashboards

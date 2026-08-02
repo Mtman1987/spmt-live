@@ -294,6 +294,31 @@
       ]
     },
     {
+      "title": "Community Terms",
+      "items": [
+        {
+          "title": "Terms Package Overview",
+          "path": "docs/legal/README.md"
+        },
+        {
+          "title": "Partner Community Terms",
+          "path": "docs/legal/PARTNER_COMMUNITY_TERMS.md"
+        },
+        {
+          "title": "Crew and Administrator Terms",
+          "path": "docs/legal/CREW_ADMINISTRATOR_COMMUNITY_TERMS.md"
+        },
+        {
+          "title": "Developer and SDK Terms",
+          "path": "docs/legal/DEVELOPER_SDK_COMMUNITY_TERMS.md"
+        },
+        {
+          "title": "Electronic Acceptance Schedule",
+          "path": "docs/legal/ELECTRONIC_ACCEPTANCE_SCHEDULE.md"
+        }
+      ]
+    },
+    {
       "title": "Docs UI",
       "items": [
         {

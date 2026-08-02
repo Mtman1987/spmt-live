@@ -1,6 +1,6 @@
 # Ecosystem Document Registry
 
-Updated: 2026-07-29
+Updated: 2026-08-02
 
 This registry prevents old plans, generated mirrors, and public copy from becoming competing engineering sources of truth.
 
@@ -17,6 +17,7 @@ This registry prevents old plans, generated mirrors, and public copy from becomi
 | Cross-app implementation method | `docs/ecosystem/WORKING_METHOD.md` | Plan ecosystem-wide; implement and verify one owner/consumer at a time |
 | Public docs entry | `docs/DOCS_HOME.md` | Creator and developer documentation navigation |
 | Public roadmap | `PUBLIC_ROADMAP.md` | Short, truthful, non-technical status only |
+| Community participation terms | `docs/legal/README.md` and its three role terms plus acceptance schedule | Owner-approved source drafts; each becomes effective for a participant only after publication, role approval, and versioned affirmative acceptance |
 | Product integration/adoption | `docs/business/ECOSYSTEM_ROLLOUT_PLAN.md` | Product narrative, not an engineering queue |
 | Platform contracts | `docs/platform/` and `spec/` | Update beside contract-changing code |
 | App-specific implementation | Each app repository's `docs/` and tests | App owner is authoritative for its feature internals |

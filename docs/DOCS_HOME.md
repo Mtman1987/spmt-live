@@ -10,6 +10,7 @@ SpaceMountain is a connected creator operating system. It combines a creator ide
 |---|---|---|
 | Creators | `creator/GETTING_STARTED.md` | Learn how to use the ecosystem |
 | Developers | `developers/QUICKSTART.md` | Learn how to build or integrate apps |
+| Partners and Crew | `legal/README.md` | Review the owner-approved Community Terms package |
 | Contributors | `CONTRIBUTING.md` | Learn where features belong |
 | Product/Marketing | `business/POSITIONING.md` | Learn how to describe the platform |
 
@@ -29,3 +30,4 @@ SpaceMountain is a connected creator operating system. It combines a creator ide
 3. `creator/GETTING_STARTED.md`
 4. `platform/EVENT_BUS.md`
 5. `developers/APP_INTEGRATION_GUIDE.md`
+6. `legal/README.md`

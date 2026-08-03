@@ -146,7 +146,7 @@ type EcosystemAppRecord = {
 };
 
 const COMPANION_DOWNLOAD_URL = 'https://spmt.live/downloads/companion/windows';
-const COMPANION_RELEASE_DOWNLOAD_URL = 'https://github.com/Mtman1987/streamweaver/releases/download/companion-unsigned-v0.3.0.1/SpaceMountain-Companion-0.3.0-unsigned-portable.zip';
+const COMPANION_RELEASE_DOWNLOAD_URL = 'https://github.com/Mtman1987/streamweaver/releases/latest/download/SpaceMountain-Companion-Setup.exe';
 
 const SUITE_APPS: EcosystemAppRecord[] = [
   {
@@ -193,13 +193,13 @@ const SUITE_APPS: EcosystemAppRecord[] = [
     downloadUrl: COMPANION_DOWNLOAD_URL,
     distribution: 'windows-desktop',
     signed: false,
-    description: 'Unsigned portable Windows companion for local overlays, OBS, approved media, and reviewed workflows.',
+    description: 'Windows companion setup installer for local overlays, OBS, approved media, and reviewed workflows.',
     category: 'desktop',
     status: 'available',
-    version: '0.3.0-unsigned.1',
-    latestVersion: '0.3.0-unsigned.1',
-    updatedAt: '2026-07-29',
-    releaseNotes: ['Portable ZIP is explicitly unsigned; extract it fully before running SpaceMountain Companion.exe.'],
+    version: '0.3.1',
+    latestVersion: '0.3.1',
+    updatedAt: '2026-08-03',
+    releaseNotes: ['The download now targets the Setup executable directly; SignPath Foundation signing is pending approval.'],
     official: true,
     permissions: ['companion.status', 'overlay.control', 'obs.control', 'audio.control', 'workflow.run'],
   },

@@ -27,7 +27,7 @@
       "downloadUrl": "https://spmt.live/downloads/companion/windows",
       "distribution": "windows-desktop",
       "signed": false,
-      "description": "Unsigned portable Windows companion for local overlays, OBS, approved media, and reviewed workflows.",
+      "description": "Windows companion setup installer for local overlays, OBS, approved media, and reviewed workflows.",
       "scopes": ["companion.status", "overlay.control", "obs.control", "audio.control", "workflow.run"]
     },
     {

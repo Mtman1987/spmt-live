@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 56604)
-Total output lines: 5105
-
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import bcrypt from 'bcrypt';
@@ -1935,7 +1932,1480 @@ app.post('/api/apps/:appId/install', authenticate, (req: any, res) => {
 
   const now = new Date().toISOString();
   db.prepare(`
-    INSERT INTO app_installs (use…16604 tokens truncated… dedupeKey: `spmt:event:${row.id}`,
+    INSERT INTO app_installs (user_id, app_id, enabled, installed_at, updated_at)
+    VALUES (?, ?, 1, ?, ?)
+    ON CONFLICT(user_id, app_id) DO UPDATE SET enabled = 1, updated_at = excluded.updated_at
+  `).run(req.user.id, appId, now, now);
+
+  for (const permission of appPermissionsFor(appId)) {
+    db.prepare(`
+      INSERT INTO app_permissions (user_id, app_id, permission, granted, updated_at)
+      VALUES (?, ?, ?, 1, ?)
+      ON CONFLICT(user_id, app_id, permission) DO UPDATE SET granted = 1, updated_at = excluded.updated_at
+    `).run(req.user.id, appId, permission, now);
+  }
+
+  res.json({ ok: true, app, apps: buildAppsForUser(req.user.id) });
+});
+
+app.post('/api/apps/:appId/disable', authenticate, (req: any, res) => {
+  const appId = String(req.params.appId || '');
+  const app = ecosystemApps().find((item) => item.id === appId);
+  if (!app) return res.status(404).json({ error: 'Unknown app' });
+  if (appId === 'spacemountain-live') return res.status(400).json({ error: 'SpaceMountain is a first-party app and cannot be disabled' });
+
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO app_installs (user_id, app_id, enabled, installed_at, updated_at)
+    VALUES (?, ?, 0, ?, ?)
+    ON CONFLICT(user_id, app_id) DO UPDATE SET enabled = 0, updated_at = excluded.updated_at
+  `).run(req.user.id, appId, now, now);
+
+  res.json({ ok: true, app, apps: buildAppsForUser(req.user.id) });
+});
+
+// ─── Auth: Register ───
+app.post('/api/auth/register', async (req, res) => {
+  const { username, password, displayName, discordUsername, twitchUsername } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+
+  const normalized = normalizeRegistrationUsername(username);
+  if (normalized.error) return res.status(400).json({ error: normalized.error });
+  const clean = normalized.username as string;
+
+  const existing = db.prepare('SELECT id, password_hash FROM users WHERE username = ?').get(clean) as any;
+  if (existing?.password_hash === 'SYSTEM_NO_LOGIN') {
+    return res.status(409).json({ error: 'That username belongs to an existing imported profile. Contact support to claim and merge it safely.' });
+  }
+  if (existing) return res.status(409).json({ error: 'Username already taken' });
+
+  // Resolve Discord ID from username if provided
+  let discordId: string | null = null;
+  let avatarUrl: string | null = null;
+  const cleanDiscord = (discordUsername || '').trim().replace(/^@/, '');
+  if (cleanDiscord && process.env.DISCORD_BOT_TOKEN) {
+    try {
+      const guildId = process.env.DISCORD_GUILD_ID || '';
+      if (guildId) {
+        const searchRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/search?query=${encodeURIComponent(cleanDiscord)}&limit=1`, {
+          headers: { 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+        });
+        if (searchRes.ok) {
+          const members = await searchRes.json();
+          if (members.length > 0 && members[0].user) {
+            discordId = members[0].user.id;
+            const discordAvatar = String(members[0].user.avatar || '');
+            if (discordAvatar) {
+              const ext = discordAvatar.startsWith('a_') ? 'gif' : 'png';
+              avatarUrl = `https://cdn.discordapp.com/avatars/${discordId}/${discordAvatar}.${ext}`;
+            }
+          }
+        }
+      }
+    } catch (e) { console.warn('Discord lookup failed:', e); }
+  }
+
+  // Resolve Twitch ID from username if provided
+  let twitchId: string | null = null;
+  const cleanTwitch = (twitchUsername || '').trim().toLowerCase();
+  if (cleanTwitch && process.env.TWITCH_CLIENT_ID && process.env.TWITCH_ACCESS_TOKEN) {
+    try {
+      const twitchRes = await fetch(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(cleanTwitch)}`, {
+        headers: {
+          'Client-ID': process.env.TWITCH_CLIENT_ID,
+          'Authorization': `Bearer ${process.env.TWITCH_ACCESS_TOKEN}`,
+        },
+      });
+      if (twitchRes.ok) {
+        const data = await twitchRes.json();
+        if (data.data?.length > 0) {
+          twitchId = data.data[0].id;
+          if (!avatarUrl) avatarUrl = data.data[0].profile_image_url || null;
+        }
+      }
+    } catch (e) { console.warn('Twitch lookup failed:', e); }
+  }
+
+  const id = uuidv4();
+  const hash = await bcrypt.hash(password, 12);
+  const email = `${clean}@spmt.live`;
+
+  db.prepare(`INSERT INTO users (id, username, email, display_name, password_hash, discord_username, discord_id, twitch_username, twitch_id, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, clean, email, displayName || clean, hash, cleanDiscord || null, discordId, cleanTwitch || null, twitchId, avatarUrl, new Date().toISOString());
+
+  const user = getUserById(id);
+  const token = signSession(user);
+  const recoveryCode = createRecoveryCode(id);
+  setSessionCookie(res, token);
+  res.status(201).json({ user: serializeUser(user), token, recoveryCode });
+});
+
+// ─── Auth: Login ───
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+
+  const clean = username.trim().toLowerCase().replace(/@spmt\.live$/, '');
+  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(clean) as any;
+  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+
+  const valid = await bcrypt.compare(password, user.password_hash);
+  if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
+  const token = signSession(user);
+  setSessionCookie(res, token);
+  res.json({ user: serializeUser(user), token });
+});
+
+app.post('/api/auth/recover-username', (req, res) => {
+  const discordUsername = String(req.body?.discordUsername || '').trim().replace(/^@/, '').toLowerCase();
+  const twitchUsername = String(req.body?.twitchUsername || '').trim().replace(/^@/, '').toLowerCase();
+  if (!discordUsername && !twitchUsername) return res.status(400).json({ error: 'Enter a linked Discord or Twitch username' });
+  const user = discordUsername
+    ? db.prepare(`SELECT username FROM users WHERE lower(discord_username) = ? AND password_hash != 'SYSTEM_NO_LOGIN'`).get(discordUsername) as any
+    : db.prepare(`SELECT username FROM users WHERE lower(twitch_username) = ? AND password_hash != 'SYSTEM_NO_LOGIN'`).get(twitchUsername) as any;
+  if (!user) return res.status(404).json({ error: 'No SPMT account is linked to that username' });
+  res.json({ username: user.username, handle: `${user.username}@spmt.live` });
+});
+
+app.post('/api/auth/request-recovery-code', async (req, res) => {
+  const startedAt = Date.now();
+  const username = String(req.body?.username || '').trim().toLowerCase().replace(/@spmt\.live$/, '');
+  const attemptKey = hashSecret(`${req.ip || 'unknown'}:${username || 'missing'}`);
+  const lastAttempt = recoveryDeliveryAttempts.get(attemptKey) || 0;
+  const now = Date.now();
+
+  if (now - lastAttempt >= RECOVERY_DELIVERY_COOLDOWN_MS) {
+    recoveryDeliveryAttempts.set(attemptKey, now);
+    if (recoveryDeliveryAttempts.size > 2_000) {
+      for (const [key, attemptedAt] of recoveryDeliveryAttempts) {
+        if (now - attemptedAt >= RECOVERY_DELIVERY_COOLDOWN_MS) recoveryDeliveryAttempts.delete(key);
+      }
+    }
+
+    const user = username
+      ? db.prepare(`
+          SELECT id, username, discord_username, discord_id
+          FROM users
+          WHERE username = ? AND password_hash != 'SYSTEM_NO_LOGIN'
+        `).get(username) as any
+      : null;
+    if (user) {
+      const code = generateRecoveryCode();
+      const delivered = await sendRecoveryCodeToDiscord(user, code);
+      if (delivered) saveRecoveryCode(user.id, code);
+    }
+  }
+
+  const minimumResponseMs = 250;
+  const remainingDelay = Math.max(0, minimumResponseMs - (Date.now() - startedAt));
+  if (remainingDelay) await new Promise((resolve) => setTimeout(resolve, remainingDelay));
+  res.status(202).json({
+    ok: true,
+    message: 'If that account has an exact linked Discord identity and DM delivery is available, a fresh recovery code has been sent.',
+  });
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  const username = String(req.body?.username || '').trim().toLowerCase().replace(/@spmt\.live$/, '');
+  const recoveryCode = String(req.body?.recoveryCode || '').trim().toUpperCase();
+  const newPassword = String(req.body?.newPassword || '');
+  if (!username || !recoveryCode || newPassword.length < 8) {
+    return res.status(400).json({ error: 'Username, recovery code, and a new password of at least 8 characters are required' });
+  }
+  const user = db.prepare(`SELECT id FROM users WHERE username = ? AND password_hash != 'SYSTEM_NO_LOGIN'`).get(username) as any;
+  const recovery = user
+    ? db.prepare('SELECT code_hash, used_at FROM account_recovery_codes WHERE user_id = ?').get(user.id) as any
+    : null;
+  if (!user || !recovery || recovery.used_at || recovery.code_hash !== hashSecret(recoveryCode)) {
+    return res.status(400).json({ error: 'Invalid or already-used recovery code' });
+  }
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  const usedAt = new Date().toISOString();
+  const transaction = db.transaction(() => {
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, user.id);
+    db.prepare('UPDATE account_recovery_codes SET used_at = ? WHERE user_id = ?').run(usedAt, user.id);
+  });
+  transaction();
+  res.json({ ok: true });
+});
+
+app.post('/api/auth/change-password', authenticate, async (req: any, res) => {
+  const currentPassword = String(req.body?.currentPassword || '');
+  const newPassword = String(req.body?.newPassword || '');
+  if (!currentPassword || newPassword.length < 8) return res.status(400).json({ error: 'Current password and a new password of at least 8 characters are required' });
+  const user = db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(req.user.id) as any;
+  if (!user || !(await bcrypt.compare(currentPassword, user.password_hash))) return res.status(401).json({ error: 'Current password is incorrect' });
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(await bcrypt.hash(newPassword, 12), user.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/auth/recovery-code', authenticate, (req: any, res) => {
+  res.json({ recoveryCode: createRecoveryCode(req.user.id) });
+});
+
+app.post('/api/auth/admin/recovery-code', (req, res) => {
+  const configuredSecret = String(process.env.SPMT_ADMIN_RECOVERY_KEY || '');
+  const providedSecret = String(req.headers['x-spmt-recovery-admin'] || '');
+  if (!configuredSecret) return res.status(503).json({ error: 'Owner-assisted recovery is not configured' });
+  if (!providedSecret || providedSecret !== configuredSecret) return res.status(401).json({ error: 'Unauthorized' });
+  const username = String(req.body?.username || '').trim().toLowerCase().replace(/@spmt\.live$/, '');
+  const user = db.prepare(`SELECT id, username FROM users WHERE username = ? AND password_hash != 'SYSTEM_NO_LOGIN'`).get(username) as any;
+  if (!user) return res.status(404).json({ error: 'Account not found' });
+  res.json({ username: user.username, recoveryCode: createRecoveryCode(user.id) });
+});
+
+// ─── Auth: Logout ───
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('spmt_token', { secure: true, sameSite: 'none' });
+  res.json({ ok: true });
+});
+
+// ─── Auth: Current user ───
+app.get('/api/auth/me', authenticate, (req: any, res) => {
+  const user = getUserById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ user: serializeUser(user), apps: buildAppsForUser(user.id) });
+});
+
+app.get('/api/me', authenticate, (req: any, res) => {
+  const user = getUserById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ user: serializeUser(user), apps: buildAppsForUser(user.id), providerGrants: buildProviderGrantsForUser(user.id) });
+});
+
+app.post('/api/auth/refresh', authenticate, (req: any, res) => {
+  const user = getUserById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const token = signSession(user);
+  setSessionCookie(res, token);
+  res.json({ token, user: serializeUser(user), apps: buildAppsForUser(user.id) });
+});
+
+app.get('/api/session/bridge', authenticate, (req: any, res) => {
+  const user = getUserById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const token = jwt.sign({ id: user.id, username: user.username, email: user.email, bridge: true }, JWT_SECRET, { expiresIn: '7d' });
+  res.json({
+    token,
+    user: serializeUser(user),
+    apps: buildAppsForUser(user.id),
+    providerGrants: buildProviderGrantsForUser(user.id),
+  });
+});
+
+app.post('/api/auth/claim-imported', authenticate, async (req: any, res) => {
+  const password = String(req.body?.password || '');
+  if (password.length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
+  const current = db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(req.user.id) as any;
+  if (!current) return res.status(404).json({ error: 'User not found' });
+  if (current.password_hash !== 'SYSTEM_NO_LOGIN') {
+    return res.status(409).json({ error: 'This SPMT account already has sign-in credentials' });
+  }
+  const passwordHash = await bcrypt.hash(password, 12);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?')
+    .run(passwordHash, req.user.id, 'SYSTEM_NO_LOGIN');
+  const user = getUserById(req.user.id);
+  const token = signSession(user);
+  setSessionCookie(res, token);
+  res.json({ claimed: true, token, user: serializeUser(user), recoveryCode: createRecoveryCode(user.id) });
+});
+
+app.get('/api/provider-grants', authenticate, (req: any, res) => {
+  const user = getUserById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ grants: buildProviderGrantsForUser(user.id), user: serializeUser(user) });
+});
+
+app.post('/api/provider-grants/:grantId/status', authenticate, (req: any, res) => {
+  const grant = upsertProviderGrant(req.user.id, req.params.grantId, String(req.body?.status || 'pending'), {
+    source: 'manual-status',
+    updatedBy: req.user.username,
+  });
+  if (!grant) return res.status(404).json({ error: 'Unknown provider grant' });
+  createNotification(req.user.id, `${grant.displayName} marked ${grant.status}`, 'SPMT updated this provider connection state.', {
+    type: 'provider-grant',
+    sourceApp: 'spmt',
+    linkUrl: '/?view=connections',
+  });
+  res.json({ ok: true, grant });
+});
+
+app.get('/api/provider-grants/:grantId/authorize', authenticate, (req: any, res) => {
+  const grant = upsertProviderGrant(req.user.id, req.params.grantId, 'pending', {
+    source: 'authorize-start',
+    returnTo: req.query.returnTo || null,
+  }) as any;
+  if (!grant) return res.status(404).json({ error: 'Unknown provider grant' });
+  const redirectUrl = grant.legacyAuthorizeUrl || '/?view=connections';
+  res.redirect(redirectUrl);
+});
+
+// ─── User: Link Discord/Twitch ───
+app.post('/api/user/link', authenticate, async (req: any, res) => {
+  try {
+    const { discordUsername, twitchUsername } = req.body;
+
+  const existingLinks = db.prepare('SELECT discord_username, discord_id FROM users WHERE id = ?').get(req.user.id) as any;
+  let resolvedDiscordId: string | null = null;
+  let resolvedAvatarUrl: string | null = null;
+  let discordVerification = 'not_requested';
+  const cleanDiscord = (discordUsername || '').trim().replace(/^@/, '');
+  if (cleanDiscord) discordVerification = 'unavailable';
+  if (cleanDiscord && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID) {
+    try {
+      const searchRes = await fetch(`https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/members/search?query=${encodeURIComponent(cleanDiscord)}&limit=100`, {
+        headers: { 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+      });
+      if (searchRes.ok) {
+        const members = await searchRes.json() as any[];
+        const exactMember = Array.isArray(members)
+          ? members.find((member) => String(member?.user?.username || '').trim().toLowerCase() === cleanDiscord.toLowerCase())
+          : null;
+        resolvedDiscordId = exactMember?.user?.id ? String(exactMember.user.id) : null;
+        const discordAvatar = String(exactMember?.user?.avatar || '');
+        if (resolvedDiscordId && discordAvatar) {
+          const ext = discordAvatar.startsWith('a_') ? 'gif' : 'png';
+          resolvedAvatarUrl = `https://cdn.discordapp.com/avatars/${resolvedDiscordId}/${discordAvatar}.${ext}`;
+        }
+        discordVerification = resolvedDiscordId ? 'verified' : 'not_found';
+      }
+    } catch {}
+  }
+  const sameDiscordUsername = cleanDiscord
+    && String(existingLinks?.discord_username || '').trim().toLowerCase() === cleanDiscord.toLowerCase();
+  const discordId = resolvedDiscordId
+    || (discordVerification === 'unavailable' && sameDiscordUsername ? String(existingLinks?.discord_id || '') || null : null);
+  if (discordId && discordVerification === 'unavailable') discordVerification = 'retained';
+
+  let twitchId: string | null = null;
+  const cleanTwitch = (twitchUsername || '').trim().toLowerCase();
+  if (cleanTwitch && process.env.TWITCH_CLIENT_ID && process.env.TWITCH_ACCESS_TOKEN) {
+    try {
+      const twitchRes = await fetch(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(cleanTwitch)}`, {
+        headers: {
+          'Client-ID': process.env.TWITCH_CLIENT_ID,
+          'Authorization': `Bearer ${process.env.TWITCH_ACCESS_TOKEN}`,
+        },
+      });
+      if (twitchRes.ok) {
+        const data = await twitchRes.json();
+        if (data.data?.length > 0) {
+          twitchId = data.data[0].id;
+          if (!resolvedAvatarUrl) resolvedAvatarUrl = data.data[0].profile_image_url || null;
+        }
+      }
+    } catch {}
+  }
+
+  const updates: string[] = [];
+  const params: any[] = [];
+  if (cleanDiscord) {
+    updates.push('discord_username = ?', 'discord_id = ?');
+    params.push(cleanDiscord, discordId);
+  }
+  if (cleanTwitch) { updates.push('twitch_username = ?'); params.push(cleanTwitch); }
+  if (twitchId) { updates.push('twitch_id = ?'); params.push(twitchId); }
+  if (resolvedAvatarUrl) { updates.push('avatar_url = ?'); params.push(resolvedAvatarUrl); }
+
+  if (updates.length > 0) {
+    params.push(req.user.id);
+    db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  }
+
+  res.json({
+    ok: true,
+    discordId,
+    discordVerified: Boolean(discordId),
+    discordVerification,
+    twitchId,
+    discordUsername: cleanDiscord,
+    twitchUsername: cleanTwitch,
+  });
+  } catch (err: any) {
+    console.error('Link failed:', err);
+    res.status(500).json({ error: 'Link failed: ' + (err.message || 'unknown error') });
+  }
+});
+
+app.get('/api/linked-accounts', authenticate, (req: any, res) => {
+  const user = getUserById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  res.json({
+    accounts: [
+      {
+        platform: 'discord',
+        username: user.discord_username,
+        externalId: user.discord_id,
+        linked: Boolean(user.discord_username || user.discord_id),
+      },
+      {
+        platform: 'twitch',
+        username: user.twitch_username,
+        externalId: user.twitch_id,
+        linked: Boolean(user.twitch_username || user.twitch_id),
+      },
+    ],
+    user: serializeUser(user),
+  });
+});
+
+app.put('/api/linked-accounts', authenticate, async (req: any, res) => {
+  const updates: string[] = [];
+  const values: any[] = [];
+  const discordUsername = req.body?.discord?.username ?? req.body?.discordUsername;
+  const twitchUsername = req.body?.twitch?.username ?? req.body?.twitchUsername;
+
+  if (discordUsername !== undefined) {
+    const cleanDiscord = String(discordUsername || '').trim().replace(/^@/, '');
+    updates.push('discord_username = ?', 'discord_id = NULL');
+    values.push(cleanDiscord || null);
+  }
+  if (twitchUsername !== undefined) {
+    const cleanTwitch = String(twitchUsername || '').trim().toLowerCase().replace(/^@/, '');
+    updates.push('twitch_username = ?', 'twitch_id = NULL');
+    values.push(cleanTwitch || null);
+  }
+
+  if (!updates.length) return res.status(400).json({ error: 'No linked account fields provided' });
+
+  values.push(req.user.id);
+  db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  const user = getUserById(req.user.id);
+  res.json({ ok: true, user: serializeUser(user) });
+});
+
+app.delete('/api/linked-accounts/:platform', authenticate, (req: any, res) => {
+  const platform = String(req.params.platform || '').toLowerCase();
+  if (!['discord', 'twitch'].includes(platform)) {
+    return res.status(400).json({ error: 'Platform must be discord or twitch' });
+  }
+
+  if (platform === 'discord') {
+    db.prepare('UPDATE users SET discord_username = NULL, discord_id = NULL WHERE id = ?').run(req.user.id);
+  } else {
+    db.prepare('UPDATE users SET twitch_username = NULL, twitch_id = NULL WHERE id = ?').run(req.user.id);
+  }
+
+  const user = getUserById(req.user.id);
+  res.json({ ok: true, user: serializeUser(user) });
+});
+
+// ─── User: Lookup by username, discord_id, or twitch_id ───
+app.get('/api/user/lookup', (req, res) => {
+  const { username, discord_id, twitch_id } = req.query;
+  let user: any = null;
+  if (username) user = db.prepare('SELECT id, username, display_name, discord_id, twitch_id, twitch_username, discord_username FROM users WHERE username = ?').get(username);
+  else if (discord_id) user = db.prepare('SELECT id, username, display_name, discord_id, twitch_id, twitch_username, discord_username FROM users WHERE discord_id = ?').get(discord_id);
+  else if (twitch_id) user = db.prepare('SELECT id, username, display_name, discord_id, twitch_id, twitch_username, discord_username FROM users WHERE twitch_id = ?').get(twitch_id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json(user);
+});
+
+// ─── OAuth2: Authorize (simplified) ───
+// Other apps redirect here: GET /api/oauth/authorize?client_id=X&redirect_uri=Y&state=Z
+app.get('/api/oauth/authorize', (req: any, res) => {
+  const { client_id, redirect_uri, state } = req.query;
+  if (!client_id || !redirect_uri) return res.status(400).json({ error: 'client_id and redirect_uri required' });
+
+  // Check if user is authenticated
+  const token = req.cookies?.spmt_token || req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  let user: any = null;
+  if (token) {
+    try {
+      user = jwt.verify(token, JWT_SECRET) as any;
+    } catch {}
+  }
+
+  // If not logged in, redirect to login page with return params
+  if (!user) {
+    const returnUrl = `/api/oauth/authorize?client_id=${encodeURIComponent(client_id as string)}&redirect_uri=${encodeURIComponent(redirect_uri as string)}${state ? `&state=${encodeURIComponent(state as string)}` : ''}`;
+    return res.redirect(`/?return=${encodeURIComponent(returnUrl)}`);
+  }
+
+  // Verify client
+  const client = db.prepare('SELECT * FROM oauth_clients WHERE client_id = ?').get(client_id) as any;
+  if (!client) return res.status(404).json({ error: 'Unknown client' });
+  if (!client.redirect_uris.split(',').includes(redirect_uri)) return res.status(400).json({ error: 'Invalid redirect_uri' });
+
+  // Generate authorization code
+  const code = uuidv4();
+  db.prepare('INSERT INTO oauth_codes (code, user_id, client_id, redirect_uri, expires_at) VALUES (?, ?, ?, ?, ?)')
+    .run(code, user.id, client_id, redirect_uri, new Date(Date.now() + 5 * 60 * 1000).toISOString());
+
+  const bridgeToken = jwt.sign({ id: user.id, username: user.username, email: user.email, client_id, bridge: true }, JWT_SECRET, { expiresIn: '7d' });
+  const codeOnlyClients = new Set(['mountainview', 'spacemountain-live', 'discord-stream-hub', 'hearmeout', 'streamweaver']);
+  const tokenParameter = codeOnlyClients.has(String(client_id)) ? '' : `&token=${encodeURIComponent(bridgeToken)}`;
+  const url = `${redirect_uri}?code=${code}${tokenParameter}${state ? `&state=${encodeURIComponent(state as string)}` : ''}`;
+  res.redirect(url);
+});
+
+// ─── Embedded app launch bridge ───
+// The parent app requests a short-lived, one-time code using its authenticated
+// SPMT session. The embedded app exchanges it server-to-server with its client
+// secret, so a profile-only postMessage can never grant authority.
+app.post('/api/embed/launch', authenticate, (req: any, res) => {
+  const clientId = String(req.body?.client_id || '').trim();
+  const targetOrigin = String(req.body?.target_origin || '').trim();
+  const client = db.prepare('SELECT * FROM oauth_clients WHERE client_id = ?').get(clientId) as any;
+  if (!client) return res.status(404).json({ error: 'Unknown embedded app' });
+  if (!allowedEmbedOrigin(client, targetOrigin)) return res.status(400).json({ error: 'Invalid embedded app origin' });
+
+  const allowedScopes = EMBED_SCOPES_BY_CLIENT[clientId] || ['identity:read'];
+  const requestedScopes = Array.isArray(req.body?.scopes)
+    ? req.body.scopes.map((scope: unknown) => String(scope)).filter((scope: string) => allowedScopes.includes(scope))
+    : allowedScopes;
+  const scopes = requestedScopes.length ? [...new Set(requestedScopes)] : ['identity:read'];
+  const code = randomCredential();
+  const now = new Date();
+
+  db.prepare('DELETE FROM embed_launch_codes WHERE expires_at <= ? OR used_at IS NOT NULL').run(now.toISOString());
+  db.prepare(`
+    INSERT INTO embed_launch_codes (
+      code_hash, user_id, client_id, target_origin, scopes, expires_at, used_at, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
+  `).run(
+    hashSecret(code),
+    req.user.id,
+    clientId,
+    new URL(targetOrigin).origin,
+    JSON.stringify(scopes),
+    new Date(now.getTime() + EMBED_LAUNCH_CODE_SECONDS * 1000).toISOString(),
+    now.toISOString(),
+  );
+
+  return res.json({
+    code,
+    client_id: clientId,
+    target_origin: new URL(targetOrigin).origin,
+    scopes,
+    expires_in: EMBED_LAUNCH_CODE_SECONDS,
+  });
+});
+
+app.post('/api/embed/exchange', (req, res) => {
+  const code = String(req.body?.code || '').trim();
+  const clientId = String(req.body?.client_id || '').trim();
+  const clientSecret = String(req.body?.client_secret || '');
+  const targetOrigin = String(req.body?.target_origin || '').trim();
+  if (!code || !clientId || !clientSecret || !targetOrigin) return res.status(400).json({ error: 'Missing fields' });
+
+  const client = db.prepare('SELECT * FROM oauth_clients WHERE client_id = ? AND client_secret = ?')
+    .get(clientId, clientSecret) as any;
+  if (!client) return res.status(401).json({ error: 'Invalid client credentials' });
+
+  let origin: string;
+  try {
+    origin = new URL(targetOrigin).origin;
+  } catch {
+    return res.status(400).json({ error: 'Invalid target origin' });
+  }
+
+  const launch = db.prepare(`
+    SELECT * FROM embed_launch_codes
+    WHERE code_hash = ? AND client_id = ? AND target_origin = ? AND used_at IS NULL
+  `).get(hashSecret(code), clientId, origin) as any;
+  if (!launch) return res.status(400).json({ error: 'Invalid or already used embed launch code' });
+  if (new Date(launch.expires_at) <= new Date()) return res.status(400).json({ error: 'Embed launch code expired' });
+
+  const user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(launch.user_id) as any;
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const scopes = JSON.parse(launch.scopes || '[]') as string[];
+  const now = new Date().toISOString();
+  const accessToken = issueOauthAccessToken(user, clientId, scopes);
+  const refreshToken = issueOauthRefreshToken(user.id, clientId, scopes);
+
+  db.prepare('UPDATE embed_launch_codes SET used_at = ? WHERE code_hash = ?')
+    .run(now, launch.code_hash);
+
+  return res.json({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    token_type: 'Bearer',
+    expires_in: OAUTH_ACCESS_TOKEN_SECONDS,
+    refresh_expires_in: OAUTH_REFRESH_TOKEN_SECONDS,
+    scopes,
+    user: serializeUser(user),
+  });
+});
+
+// ─── OAuth2: Token exchange ───
+app.post('/api/oauth/token', (req, res) => {
+  const { code, client_id, client_secret, redirect_uri, refresh_token, grant_type } = req.body;
+  if (!client_id || !client_secret) return res.status(400).json({ error: 'Missing client credentials' });
+
+  const client = db.prepare('SELECT * FROM oauth_clients WHERE client_id = ? AND client_secret = ?').get(client_id, client_secret) as any;
+  if (!client) return res.status(401).json({ error: 'Invalid client credentials' });
+
+  if (grant_type === 'refresh_token' || refresh_token) {
+    const refreshHash = hashSecret(String(refresh_token || ''));
+    const stored = db.prepare(`
+      SELECT * FROM oauth_refresh_tokens
+      WHERE token_hash = ? AND client_id = ? AND revoked_at IS NULL
+    `).get(refreshHash, client_id) as any;
+    if (!stored) return res.status(400).json({ error: 'Invalid refresh token' });
+    if (new Date(stored.expires_at) <= new Date()) return res.status(400).json({ error: 'Refresh token expired' });
+
+    const user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(stored.user_id) as any;
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const scopes = JSON.parse(stored.scopes || '[]') as string[];
+    const rotatedRefreshToken = issueOauthRefreshToken(user.id, client_id, scopes);
+    db.prepare('UPDATE oauth_refresh_tokens SET revoked_at = ?, rotated_to_hash = ? WHERE token_hash = ?')
+      .run(new Date().toISOString(), hashSecret(rotatedRefreshToken), refreshHash);
+    return res.json({
+      access_token: issueOauthAccessToken(user, client_id, scopes),
+      refresh_token: rotatedRefreshToken,
+      token_type: 'Bearer',
+      expires_in: OAUTH_ACCESS_TOKEN_SECONDS,
+      refresh_expires_in: OAUTH_REFRESH_TOKEN_SECONDS,
+      scopes,
+      user: serializeUser(user),
+    });
+  }
+
+  if (!code || !redirect_uri) return res.status(400).json({ error: 'Missing authorization code or redirect URI' });
+  const authCode = db.prepare('SELECT * FROM oauth_codes WHERE code = ? AND client_id = ? AND redirect_uri = ?').get(code, client_id, redirect_uri) as any;
+  if (!authCode) return res.status(400).json({ error: 'Invalid code' });
+  if (new Date(authCode.expires_at) < new Date()) return res.status(400).json({ error: 'Code expired' });
+
+  // Delete used code
+  db.prepare('DELETE FROM oauth_codes WHERE code = ?').run(code);
+
+  const user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(authCode.user_id) as any;
+  const scopes = EMBED_SCOPES_BY_CLIENT[String(client_id)] || ['identity:read'];
+  res.json({
+    access_token: issueOauthAccessToken(user, client_id, scopes),
+    refresh_token: issueOauthRefreshToken(user.id, client_id, scopes),
+    token_type: 'Bearer',
+    expires_in: OAUTH_ACCESS_TOKEN_SECONDS,
+    refresh_expires_in: OAUTH_REFRESH_TOKEN_SECONDS,
+    scopes,
+    user: serializeUser(user),
+  });
+});
+
+// ─── OAuth2: User info (for apps to verify tokens) ───
+app.get('/api/oauth/userinfo', authenticate, (req: any, res) => {
+  const user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(req.user.id) as any;
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json(serializeUser(user));
+});
+
+// ─── Messaging: Send ───
+app.post('/api/messages', authenticate, (req: any, res) => {
+  const { to, subject, body } = req.body;
+  if (!to || !body) return res.status(400).json({ error: 'Recipient and body required' });
+
+  const recipient = findUserByHandle(to);
+  if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
+
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  const conversationId = req.body?.conversationId || ensureDirectConversation(req.user.id, recipient.id, now);
+  const attachments = normalizeAttachments(req.body?.attachments);
+  const mentionedUsers = extractMentionedUsers(body, req.body?.mentions);
+  db.prepare(`
+    INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, metadata, attachments, mentioned_users, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, req.user.id, recipient.id, conversationId, subject || '', body, req.body?.channel || 'direct', req.body?.messageType || 'direct', req.body?.metadata ? JSON.stringify(req.body.metadata) : null, attachments, mentionedUsers, now);
+
+  db.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').run(now, conversationId);
+  createNotification(recipient.id, subject || `Message from ${req.user.username}`, body.slice(0, 180), {
+    type: 'message',
+    sourceApp: req.body?.sourceApp || 'spmt',
+    linkUrl: `/messages/${conversationId}`,
+  });
+
+  res.status(201).json({ id, sent: true, conversationId });
+});
+
+app.get('/api/messages', authenticate, (req: any, res) => {
+  const filters: string[] = ['(m.from_id = ? OR m.to_id = ?)'];
+  const values: any[] = [req.user.id, req.user.id];
+  if (req.query.unread === 'true') {
+    filters.push('m.to_id = ? AND m.read_at IS NULL');
+    values.push(req.user.id);
+  }
+  if (req.query.type) {
+    filters.push('m.message_type = ?');
+    values.push(String(req.query.type));
+  }
+  if (req.query.q) {
+    filters.push('(m.subject LIKE ? OR m.body LIKE ?)');
+    values.push(`%${req.query.q}%`, `%${req.query.q}%`);
+  }
+
+  values.push(Math.min(Number(req.query.limit || 100) || 100, 200));
+  const messages = db.prepare(`
+    SELECT m.id, m.conversation_id, m.subject, m.body, m.channel, m.message_type, m.metadata, m.attachments, m.mentioned_users, m.created_at, m.read_at,
+      from_user.username as from_user, from_user.display_name as from_name,
+      to_user.username as to_user, to_user.display_name as to_name
+    FROM messages m
+    JOIN users from_user ON m.from_id = from_user.id
+    JOIN users to_user ON m.to_id = to_user.id
+    WHERE ${filters.join(' AND ')}
+    ORDER BY datetime(m.created_at) DESC
+    LIMIT ?
+  `).all(...values);
+  res.json({ messages });
+});
+
+// ─── Messaging: Inbox ───
+app.get('/api/messages/inbox', authenticate, (req: any, res) => {
+  const messages = db.prepare(`
+    SELECT m.id, m.subject, m.body, m.created_at, m.read_at, m.channel, m.message_type, m.attachments, m.mentioned_users, u.username as from_user, u.display_name as from_name
+    FROM messages m JOIN users u ON m.from_id = u.id
+    WHERE m.to_id = ? ORDER BY m.created_at DESC LIMIT 50
+  `).all(req.user.id);
+  res.json(messages);
+});
+
+// ─── Messaging: Sent ───
+app.get('/api/messages/sent', authenticate, (req: any, res) => {
+  const messages = db.prepare(`
+    SELECT m.id, m.subject, m.body, m.created_at, m.read_at, m.channel, m.message_type, m.attachments, m.mentioned_users, u.username as to_user, u.display_name as to_name
+    FROM messages m JOIN users u ON m.to_id = u.id
+    WHERE m.from_id = ? ORDER BY m.created_at DESC LIMIT 50
+  `).all(req.user.id);
+  res.json(messages);
+});
+
+app.post('/api/messages/:id/read', authenticate, (req: any, res) => {
+  const result = db.prepare('UPDATE messages SET read_at = ? WHERE id = ? AND to_id = ?')
+    .run(new Date().toISOString(), req.params.id, req.user.id);
+  if (!result.changes) return res.status(404).json({ error: 'Message not found' });
+  res.json({ ok: true });
+});
+
+app.get('/api/conversations', authenticate, (req: any, res) => {
+  const conversations = db.prepare(`
+    SELECT c.id, c.title, c.type, c.created_at, c.updated_at,
+      (
+        SELECT body FROM messages
+        WHERE conversation_id = c.id
+        ORDER BY datetime(created_at) DESC LIMIT 1
+      ) as last_message,
+      (
+      SELECT COUNT(*) FROM messages
+        WHERE conversation_id = c.id AND to_id = ? AND read_at IS NULL
+      ) as unread_count
+    FROM conversations c
+    JOIN conversation_members cm ON cm.conversation_id = c.id
+    WHERE cm.user_id = ?
+    ORDER BY datetime(c.updated_at) DESC
+    LIMIT 100
+  `).all(req.user.id, req.user.id);
+  res.json({ conversations });
+});
+
+app.post('/api/conversations', authenticate, (req: any, res) => {
+  const recipients = Array.isArray(req.body?.recipients) ? req.body.recipients : [req.body?.to].filter(Boolean);
+  const members = recipients.map(findUserByHandle).filter(Boolean) as any[];
+  if (!members.length) return res.status(400).json({ error: 'At least one valid recipient is required' });
+
+  const now = new Date().toISOString();
+  const type = members.length === 1 ? 'direct' : 'group';
+  const conversationId = type === 'direct'
+    ? ensureDirectConversation(req.user.id, members[0].id, now)
+    : uuidv4();
+
+  if (type === 'group') {
+    db.prepare('INSERT INTO conversations (id, title, type, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(conversationId, String(req.body?.title || 'Group conversation').slice(0, 120), 'group', req.user.id, now, now);
+    db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)')
+      .run(conversationId, req.user.id, 'owner', now);
+    for (const member of members) {
+      db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)')
+        .run(conversationId, member.id, 'member', now);
+    }
+  }
+
+  res.status(201).json({ id: conversationId, type });
+});
+
+app.get('/api/conversations/:id/messages', authenticate, (req: any, res) => {
+  const membership = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id = ? AND user_id = ?')
+    .get(req.params.id, req.user.id);
+  if (!membership) return res.status(404).json({ error: 'Conversation not found' });
+
+  const messages = db.prepare(`
+    SELECT m.id, m.subject, m.body, m.channel, m.message_type, m.metadata, m.attachments, m.mentioned_users, m.created_at, m.read_at,
+      from_user.username as from_user, from_user.display_name as from_name,
+      to_user.username as to_user, to_user.display_name as to_name
+    FROM messages m
+    JOIN users from_user ON m.from_id = from_user.id
+    JOIN users to_user ON m.to_id = to_user.id
+    WHERE m.conversation_id = ?
+    ORDER BY datetime(m.created_at) ASC
+    LIMIT 200
+  `).all(req.params.id);
+  res.json({ messages });
+});
+
+app.post('/api/conversations/:id/messages', authenticate, (req: any, res) => {
+  const membership = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id = ? AND user_id = ?')
+    .get(req.params.id, req.user.id);
+  if (!membership) return res.status(404).json({ error: 'Conversation not found' });
+  if (!req.body?.body) return res.status(400).json({ error: 'Body required' });
+
+  const members = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id = ? AND user_id != ?')
+    .all(req.params.id, req.user.id) as any[];
+  if (!members.length) return res.status(400).json({ error: 'Conversation has no recipients' });
+
+  const now = new Date().toISOString();
+  const ids = [];
+  const attachments = normalizeAttachments(req.body?.attachments);
+  const mentionedUsers = extractMentionedUsers(req.body.body, req.body?.mentions);
+  for (const member of members) {
+    const id = uuidv4();
+    db.prepare(`
+      INSERT INTO messages (id, from_id, to_id, conversation_id, subject, body, channel, message_type, metadata, attachments, mentioned_users, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, req.user.id, member.user_id, req.params.id, req.body?.subject || '', req.body.body, req.body?.channel || 'conversation', req.body?.messageType || 'conversation', req.body?.metadata ? JSON.stringify(req.body.metadata) : null, attachments, mentionedUsers, now);
+    createNotification(member.user_id, req.body?.subject || `Message from ${req.user.username}`, String(req.body.body).slice(0, 180), {
+      type: 'message',
+      sourceApp: req.body?.sourceApp || 'spmt',
+      linkUrl: `/messages/${req.params.id}`,
+    });
+    ids.push(id);
+  }
+
+  db.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').run(now, req.params.id);
+  res.status(201).json({ sent: true, ids });
+});
+
+app.post('/api/conversations/:id/read', authenticate, (req: any, res) => {
+  const now = new Date().toISOString();
+  const membership = db.prepare('UPDATE conversation_members SET last_read_at = ? WHERE conversation_id = ? AND user_id = ?')
+    .run(now, req.params.id, req.user.id);
+  if (!membership.changes) return res.status(404).json({ error: 'Conversation not found' });
+  db.prepare('UPDATE messages SET read_at = COALESCE(read_at, ?) WHERE conversation_id = ? AND to_id = ?')
+    .run(now, req.params.id, req.user.id);
+  res.json({ ok: true, readAt: now });
+});
+
+app.get('/api/notifications', authenticate, (req: any, res) => {
+  const limit = Math.min(Number(req.query.limit || 50) || 50, 100);
+  const notifications = db.prepare(`
+    SELECT id, type, title, body, source_app, link_url, read_at, created_at
+    FROM notifications
+    WHERE user_id = ?
+    ORDER BY datetime(created_at) DESC
+    LIMIT ?
+  `).all(req.user.id, limit);
+  res.json({ notifications });
+});
+
+app.post('/api/notifications/:id/read', authenticate, (req: any, res) => {
+  const result = db.prepare('UPDATE notifications SET read_at = COALESCE(read_at, ?) WHERE id = ? AND user_id = ?')
+    .run(new Date().toISOString(), req.params.id, req.user.id);
+  if (!result.changes) return res.status(404).json({ error: 'Notification not found' });
+  res.json({ ok: true });
+});
+
+app.post('/api/notifications/read-all', authenticate, (req: any, res) => {
+  const readAt = new Date().toISOString();
+  const result = db.prepare('UPDATE notifications SET read_at = COALESCE(read_at, ?) WHERE user_id = ?')
+    .run(readAt, req.user.id);
+  res.json({ ok: true, updated: result.changes, readAt });
+});
+
+type StoredWorkspaceProfile = {
+  profile: WorkspaceProfileV1;
+  created: boolean;
+};
+
+function workspaceProfileEtag(revision: number) {
+  return `"workspace-${revision}"`;
+}
+
+function sendWorkspaceProfile(res: express.Response, stored: StoredWorkspaceProfile, extra: Record<string, unknown> = {}) {
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('ETag', workspaceProfileEtag(stored.profile.revision));
+  res.json({ profile: stored.profile, created: stored.created, ...extra });
+}
+
+function getOrCreateWorkspaceProfile(userId: string): StoredWorkspaceProfile {
+  const row = db.prepare(`
+    SELECT schema_version, revision, profile, created_at, updated_at
+    FROM workspace_profiles
+    WHERE user_id = ?
+  `).get(userId) as any;
+
+  if (row) {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(row.profile);
+    } catch {
+      throw Object.assign(new Error('Stored workspace profile JSON is invalid'), { statusCode: 500 });
+    }
+    const fallback = createDefaultWorkspaceProfile(row.updated_at);
+    const validation = validateWorkspaceProfile({
+      ...parsed,
+      schemaVersion: Number(row.schema_version),
+      revision: Number(row.revision),
+      updatedAt: row.updated_at,
+    }, fallback);
+    if (Object.keys(validation.fields).length) {
+      throw Object.assign(new Error('Stored workspace profile failed validation'), { statusCode: 500 });
+    }
+    return {
+      created: false,
+      profile: {
+        ...validation.profile,
+        revision: Number(row.revision),
+        updatedAt: row.updated_at,
+      },
+    };
+  }
+
+  const now = new Date().toISOString();
+  const settings = db.prepare('SELECT theme FROM user_settings WHERE user_id = ?').get(userId) as any;
+  const profile = createDefaultWorkspaceProfile(now, String(settings?.theme || 'solar-flare'));
+  db.prepare(`
+    INSERT INTO workspace_profiles (user_id, schema_version, revision, profile, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(userId, profile.schemaVersion, profile.revision, JSON.stringify(profile), now, now);
+  return { profile, created: true };
+}
+
+function expectedWorkspaceRevision(req: express.Request) {
+  const ifMatch = String(req.header('if-match') || '').trim();
+  const match = ifMatch.match(/^(?:W\/)?"workspace-(\d+)"$/);
+  if (match) return Number(match[1]);
+  const bodyRevision = Number(req.body?.revision ?? req.body?.profile?.revision);
+  return Number.isInteger(bodyRevision) && bodyRevision >= 1 ? bodyRevision : null;
+}
+
+function changedWorkspaceSections(previous: WorkspaceProfileV1, next: WorkspaceProfileV1) {
+  return ['appearance', 'dockSlots', 'activeOverlaySceneId', 'ttsSubscriptions', 'appThemeMappings']
+    .filter((key) => JSON.stringify((previous as any)[key]) !== JSON.stringify((next as any)[key]));
+}
+
+function updateWorkspaceProfile(userId: string, input: any, expectedRevision: number, mode: 'replace' | 'patch') {
+  const current = getOrCreateWorkspaceProfile(userId).profile;
+  if (current.revision !== expectedRevision) {
+    return { conflict: true as const, current };
+  }
+
+  const candidate = mode === 'patch' ? mergeWorkspaceProfile(current, input) : input;
+  const validation = validateWorkspaceProfile(candidate, current);
+  if (Object.keys(validation.fields).length) {
+    return { invalid: true as const, fields: validation.fields };
+  }
+
+  const updatedAt = new Date().toISOString();
+  const profile: WorkspaceProfileV1 = {
+    ...validation.profile,
+    schemaVersion: 1,
+    revision: current.revision + 1,
+    updatedAt,
+  };
+  const result = db.prepare(`
+    UPDATE workspace_profiles
+    SET schema_version = ?, revision = ?, profile = ?, updated_at = ?
+    WHERE user_id = ? AND revision = ?
+  `).run(profile.schemaVersion, profile.revision, JSON.stringify(profile), updatedAt, userId, current.revision);
+  if (result.changes !== 1) {
+    return { conflict: true as const, current: getOrCreateWorkspaceProfile(userId).profile };
+  }
+
+  const changed = changedWorkspaceSections(current, profile);
+  try {
+    createPlatformEvent({
+      type: 'workspace.profile.updated',
+      sourceApp: 'spmt',
+      visibility: 'private',
+      payload: {
+        revision: profile.revision,
+        changed,
+        notify: false,
+        athenaMemory: false,
+      },
+    }, userId);
+  } catch (error) {
+    console.error('Workspace profile event could not be recorded:', error);
+  }
+
+  return { profile, changed };
+}
+
+function handleWorkspaceProfileWrite(req: any, res: express.Response, mode: 'replace' | 'patch') {
+  const expectedRevision = expectedWorkspaceRevision(req);
+  if (expectedRevision === null) {
+    return res.status(428).json({ error: 'If-Match or the current profile revision is required' });
+  }
+  const input = req.body?.profile ?? req.body;
+  const result = updateWorkspaceProfile(req.user.id, input, expectedRevision, mode);
+  if ('conflict' in result) {
+    const current = result.current || getOrCreateWorkspaceProfile(req.user.id).profile;
+    res.setHeader('ETag', workspaceProfileEtag(current.revision));
+    return res.status(409).json({ error: 'Workspace profile revision conflict', profile: current });
+  }
+  if ('invalid' in result) {
+    return res.status(400).json({ error: 'Workspace profile validation failed', fields: result.fields });
+  }
+  return sendWorkspaceProfile(res, { profile: result.profile, created: false }, { changed: result.changed });
+}
+
+app.get('/api/workspace-profile', authenticate, (req: any, res) => {
+  try {
+    sendWorkspaceProfile(res, getOrCreateWorkspaceProfile(req.user.id));
+  } catch (error: any) {
+    res.status(error.statusCode || 500).json({ error: error.message || 'Workspace profile could not be loaded' });
+  }
+});
+
+app.get('/api/workspace-profile/export', authenticate, (req: any, res) => {
+  try {
+    const stored = getOrCreateWorkspaceProfile(req.user.id);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Disposition', 'attachment; filename="spmt-workspace-profile-v1.json"');
+    res.json({ profile: stored.profile, exportedAt: new Date().toISOString() });
+  } catch (error: any) {
+    res.status(error.statusCode || 500).json({ error: error.message || 'Workspace profile could not be exported' });
+  }
+});
+
+app.put('/api/workspace-profile', authenticate, (req: any, res) => {
+  handleWorkspaceProfileWrite(req, res, 'replace');
+});
+
+app.patch('/api/workspace-profile', authenticate, (req: any, res) => {
+  handleWorkspaceProfileWrite(req, res, 'patch');
+});
+
+app.post('/api/workspace-profile/import', authenticate, (req: any, res) => {
+  handleWorkspaceProfileWrite(req, res, 'replace');
+});
+
+app.post('/api/workspace-profile/reset', authenticate, (req: any, res) => {
+  const expectedRevision = expectedWorkspaceRevision(req);
+  if (expectedRevision === null) {
+    return res.status(428).json({ error: 'If-Match or the current profile revision is required' });
+  }
+  const current = getOrCreateWorkspaceProfile(req.user.id).profile;
+  if (current.revision !== expectedRevision) {
+    res.setHeader('ETag', workspaceProfileEtag(current.revision));
+    return res.status(409).json({ error: 'Workspace profile revision conflict', profile: current });
+  }
+  const reset = createDefaultWorkspaceProfile(new Date().toISOString());
+  const result = updateWorkspaceProfile(req.user.id, reset, expectedRevision, 'replace');
+  if ('conflict' in result) return res.status(409).json({ error: 'Workspace profile revision conflict', profile: result.current });
+  if ('invalid' in result) return res.status(500).json({ error: 'Default workspace profile failed validation', fields: result.fields });
+  return sendWorkspaceProfile(res, { profile: result.profile, created: false }, { reset: true, changed: result.changed });
+});
+
+function validateRecordSlug(value: unknown, label: string) {
+  const slug = String(value || '').trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]{1,49}$/.test(slug)) {
+    throw Object.assign(new Error(`${label} must be a lowercase slug using letters, numbers, or hyphens`), { statusCode: 400 });
+  }
+  return slug;
+}
+
+function assertPublicAppState(value: unknown, path = 'data') {
+  if (value == null || typeof value === 'boolean' || typeof value === 'number') return;
+  if (typeof value === 'string') {
+    if (value.length > 20_000) throw Object.assign(new Error(`${path} is too large`), { statusCode: 400 });
+    try {
+      const url = new URL(value);
+      for (const key of url.searchParams.keys()) {
+        if (/(?:token|secret|password|session|api[_-]?key|authorization)/i.test(key)) {
+          throw Object.assign(new Error(`${path} contains a sensitive URL parameter`), { statusCode: 400 });
+        }
+      }
+    } catch (error: any) {
+      if (error?.statusCode) throw error;
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    if (value.length > 500) throw Object.assign(new Error(`${path} has too many items`), { statusCode: 400 });
+    value.forEach((item, index) => assertPublicAppState(item, `${path}.${index}`));
+    return;
+  }
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length > 250) throw Object.assign(new Error(`${path} has too many fields`), { statusCode: 400 });
+    for (const [key, child] of entries) {
+      const normalizedKey = key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+      if (/(^|[-_])(access-token|refresh-token|auth-token|authorization|password|secret|client-secret|api-key|session-token)([-_]|$)/.test(normalizedKey)) {
+        throw Object.assign(new Error(`${path}.${key} is a secret-bearing field and cannot be stored as app state`), { statusCode: 400 });
+      }
+      assertPublicAppState(child, `${path}.${key}`);
+    }
+    return;
+  }
+  throw Object.assign(new Error(`${path} contains an unsupported value`), { statusCode: 400 });
+}
+
+function appStateEtag(appId: string, namespace: string, revision: number) {
+  return `"app-state-${appId}-${namespace}-${revision}"`;
+}
+
+app.get('/api/app-state/:appId/:namespace', authenticate, (req: any, res) => {
+  try {
+    const appId = validateRecordSlug(req.params.appId, 'appId');
+    const namespace = validateRecordSlug(req.params.namespace, 'namespace');
+    const row = db.prepare(`
+      SELECT schema_version, revision, data_json, created_at, updated_at
+      FROM app_state_records WHERE user_id = ? AND app_id = ? AND namespace = ?
+    `).get(req.user.id, appId, namespace) as any;
+    if (!row) return res.status(404).json({ error: 'App state record not found', appId, namespace });
+    res.setHeader('ETag', appStateEtag(appId, namespace, row.revision));
+    res.json({ appId, namespace, schemaVersion: row.schema_version, revision: row.revision, data: JSON.parse(row.data_json), createdAt: row.created_at, updatedAt: row.updated_at });
+  } catch (error: any) {
+    res.status(error.statusCode || 500).json({ error: error.message || 'App state could not be loaded' });
+  }
+});
+
+app.put('/api/app-state/:appId/:namespace', authenticate, (req: any, res) => {
+  try {
+    const appId = validateRecordSlug(req.params.appId, 'appId');
+    const namespace = validateRecordSlug(req.params.namespace, 'namespace');
+    const data = req.body?.data ?? req.body;
+    assertPublicAppState(data);
+    const current = db.prepare('SELECT revision, created_at FROM app_state_records WHERE user_id = ? AND app_id = ? AND namespace = ?')
+      .get(req.user.id, appId, namespace) as any;
+    const expected = Number(req.headers['if-match']?.match(/(\d+)"?$/)?.[1] || req.body?.revision || 0);
+    if (current && (!expected || expected !== current.revision)) {
+      res.setHeader('ETag', appStateEtag(appId, namespace, current.revision));
+      return res.status(409).json({ error: 'App state changed on another device', revision: current.revision });
+    }
+    const now = new Date().toISOString();
+    const revision = current ? current.revision + 1 : 1;
+    const schemaVersion = Math.max(1, Number(req.body?.schemaVersion || 1));
+    db.prepare(`
+      INSERT INTO app_state_records (user_id, app_id, namespace, schema_version, revision, data_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, app_id, namespace) DO UPDATE SET
+        schema_version = excluded.schema_version, revision = excluded.revision,
+        data_json = excluded.data_json, updated_at = excluded.updated_at
+    `).run(req.user.id, appId, namespace, schemaVersion, revision, JSON.stringify(data), current?.created_at || now, now);
+    res.setHeader('ETag', appStateEtag(appId, namespace, revision));
+    res.json({ appId, namespace, schemaVersion, revision, data, createdAt: current?.created_at || now, updatedAt: now });
+  } catch (error: any) {
+    res.status(error.statusCode || 400).json({ error: error.message || 'App state could not be saved' });
+  }
+});
+
+const DISCOVERY_DEFINITIONS = {
+  'battle-arena': {
+    title: 'The Hidden Battle Arena',
+    sourceApp: 'spacemountain-live',
+  },
+  'cosmo-black-hole': {
+    title: 'The Cosmo Black Hole',
+    sourceApp: 'cosmo-commlink',
+  },
+  'commlink-constellation': {
+    title: 'The Commlink Constellation',
+    sourceApp: 'cosmo-commlink',
+  },
+} as const;
+
+const DISCOVERY_REWARD = {
+  title: 'Lord Puzzler',
+  chatbotPersonality: {
+    id: 'count-puzzle',
+    name: 'Count Puzzle',
+    basePersonality: 'A mysterious gothic puzzle-smith and useful stowaway who speaks in riddles, rhymes, and cosmic metaphors. Direct answers are dreadfully dull, but every riddle must remain ultimately helpful.',
+    tone: 'Theatrical, cryptic, slightly paranoid',
+    responseStyle: 'Riddle-forward, gothic, playful, and helpful',
+  },
+};
+
+function recordUserDiscovery(
+  userId: string,
+  discoveryId: keyof typeof DISCOVERY_DEFINITIONS,
+  metadata: Record<string, unknown> = {},
+) {
+  const definition = DISCOVERY_DEFINITIONS[discoveryId];
+  const now = new Date().toISOString();
+  const result = db.prepare(`
+    INSERT OR IGNORE INTO user_discoveries (
+      user_id, discovery_id, source_app, metadata_json, discovered_at
+    ) VALUES (?, ?, ?, ?, ?)
+  `).run(userId, discoveryId, definition.sourceApp, JSON.stringify(metadata), now);
+  return { created: result.changes > 0, discoveredAt: now };
+}
+
+function syncBattleArenaDiscovery(userId: string) {
+  const arenaState = db.prepare(`
+    SELECT 1
+    FROM app_state_records
+    WHERE user_id = ? AND app_id = 'spacemountain-live' AND namespace = 'arena'
+    LIMIT 1
+  `).get(userId);
+  if (arenaState) {
+    return recordUserDiscovery(userId, 'battle-arena', { evidence: 'account-arena-state' });
+  }
+  return { created: false, discoveredAt: null };
+}
+
+function userDiscoveryStatus(userId: string) {
+  const rows = db.prepare(`
+    SELECT discovery_id, source_app, discovered_at
+    FROM user_discoveries
+    WHERE user_id = ?
+    ORDER BY datetime(discovered_at), discovery_id
+  `).all(userId) as Array<{ discovery_id: string; source_app: string; discovered_at: string }>;
+  const discoveredById = new Map(rows.map((row) => [row.discovery_id, row]));
+  const discoveries = Object.entries(DISCOVERY_DEFINITIONS).map(([id, definition]) => {
+    const row = discoveredById.get(id);
+    return row
+      ? { id, title: definition.title, sourceApp: row.source_app, discovered: true, discoveredAt: row.discovered_at }
+      : { id: null, title: 'Undiscovered signal', sourceApp: null, discovered: false, discoveredAt: null };
+  });
+  const discoveredCount = discoveries.filter((item) => item.discovered).length;
+  const complete = discoveredCount === Object.keys(DISCOVERY_DEFINITIONS).length;
+  return {
+    schemaVersion: 1,
+    discoveredCount,
+    total: Object.keys(DISCOVERY_DEFINITIONS).length,
+    complete,
+    discoveries,
+    reward: complete ? DISCOVERY_REWARD : null,
+  };
+}
+
+function notifyDiscoveryReward(userId: string, status: ReturnType<typeof userDiscoveryStatus>) {
+  if (!status.complete) return;
+  createNotification(
+    userId,
+    `${DISCOVERY_REWARD.title} unlocked`,
+    `${DISCOVERY_REWARD.chatbotPersonality.name} has appeared in your Commlink collection.`,
+    { type: 'achievement', sourceApp: 'cosmo-commlink', linkUrl: '/commlink/' },
+  );
+}
+
+app.get('/api/discoveries', authenticate, (req: any, res) => {
+  const arenaSync = syncBattleArenaDiscovery(req.user.id);
+  const status = userDiscoveryStatus(req.user.id);
+  if (arenaSync.created) notifyDiscoveryReward(req.user.id, status);
+  res.json(status);
+});
+
+app.post('/api/discoveries/:discoveryId', authenticate, (req: any, res) => {
+  const discoveryId = String(req.params.discoveryId || '') as keyof typeof DISCOVERY_DEFINITIONS;
+  if (!['cosmo-black-hole', 'commlink-constellation'].includes(discoveryId)) {
+    return res.status(404).json({ error: 'Discovery not found' });
+  }
+  const arenaSync = syncBattleArenaDiscovery(req.user.id);
+  const recorded = recordUserDiscovery(req.user.id, discoveryId, {
+    surface: String(req.body?.surface || 'commlink').slice(0, 80),
+    clientVersion: String(req.body?.clientVersion || 'unknown').slice(0, 80),
+  });
+  const status = userDiscoveryStatus(req.user.id);
+  if (recorded.created || arenaSync.created) notifyDiscoveryReward(req.user.id, status);
+  return res.status(recorded.created ? 201 : 200).json({ created: recorded.created, ...status });
+});
+
+type CommlinkFeedItem = {
+  version: string;
+  eventId: string;
+  upstreamId: string;
+  platform: string;
+  sourceId: string;
+  sourceName?: string | null;
+  channelId: string;
+  channelName?: string | null;
+  type: string;
+  sender: {
+    id: string;
+    login?: string | null;
+    displayName: string;
+    avatarUrl?: string | null;
+    badges: Array<{ id: string; label?: string; imageUrl?: string; meta?: Record<string, unknown> }>;
+    roles: string[];
+  };
+  text: string;
+  media: Array<Record<string, unknown>>;
+  links: Array<Record<string, unknown>>;
+  donation?: Record<string, unknown>;
+  membership?: Record<string, unknown>;
+  reward?: Record<string, unknown>;
+  reply?: Record<string, unknown>;
+  originalTimestamp: string;
+  receivedTimestamp: string;
+  meta: Record<string, unknown>;
+  dedupeKey: string;
+  routing: {
+    mirrored: boolean;
+    reflected: boolean;
+    canReply: boolean;
+    botReadable: boolean;
+    botCanReply: boolean;
+    tenantIsolationKey: string;
+  };
+};
+
+function commlinkFeedText(value: unknown, max = 4_000) {
+  return String(value || '').trim().slice(0, max);
+}
+
+function commlinkTimestamp(value: unknown) {
+  const raw = commlinkFeedText(value, 80);
+  const parsed = raw ? new Date(raw) : new Date();
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+}
+
+function commlinkTimestampMs(value: unknown) {
+  const parsed = Date.parse(String(value || ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseStoredObject(value: unknown): Record<string, unknown> {
+  if (!value) return {};
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function parseStoredArray(value: unknown): Array<Record<string, unknown>> {
+  if (!value) return [];
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed)
+      ? parsed.filter((item) => item && typeof item === 'object').slice(0, 30) as Array<Record<string, unknown>>
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function commlinkRouting(userId: string, canReply = false) {
+  return {
+    mirrored: false,
+    reflected: false,
+    canReply,
+    botReadable: true,
+    botCanReply: false,
+    tenantIsolationKey: userId,
+  };
+}
+
+function listSpmtCommlinkItems(userId: string, limit: number): CommlinkFeedItem[] {
+  const messages = db.prepare(`
+    SELECT m.id, m.conversation_id, m.subject, m.body, m.channel, m.message_type,
+      m.metadata, m.attachments, m.created_at, m.from_id,
+      from_user.username AS from_user, from_user.display_name AS from_name, from_user.avatar_url AS from_avatar
+    FROM messages m
+    JOIN users from_user ON from_user.id = m.from_id
+    WHERE m.from_id = ? OR m.to_id = ?
+    ORDER BY datetime(m.created_at) DESC
+    LIMIT ?
+  `).all(userId, userId, limit) as any[];
+  const notifications = db.prepare(`
+    SELECT id, type, title, body, source_app, link_url, read_at, created_at
+    FROM notifications
+    WHERE user_id = ? AND type NOT IN ('message', 'voice_message', 'event')
+    ORDER BY datetime(created_at) DESC
+    LIMIT ?
+  `).all(userId, limit) as any[];
+  const events = db.prepare(`
+    SELECT id, type, timestamp, source_app, actor_user_id, actor_username,
+      actor_display_name, payload, links, created_at
+    FROM platform_events
+    WHERE created_by = ? OR visibility IN ('public', 'community', 'system')
+    ORDER BY datetime(timestamp) DESC
+    LIMIT ?
+  `).all(userId, limit) as any[];
+
+  const messageItems = messages.map((row): CommlinkFeedItem => {
+    const timestamp = commlinkTimestamp(row.created_at);
+    const metadata = parseStoredObject(row.metadata);
+    return {
+      version: 'commlink-feed.v1',
+      eventId: `spmt-message:${row.id}`,
+      upstreamId: row.id,
+      platform: 'spmt',
+      sourceId: 'spmt:messages',
+      sourceName: 'SPMT Messages',
+      channelId: row.conversation_id || row.channel || 'direct',
+      channelName: row.channel || 'Direct message',
+      type: row.message_type === 'voice' ? 'voice' : 'message',
+      sender: {
+        id: row.from_id,
+        login: row.from_user,
+        displayName: row.from_name || row.from_user,
+        avatarUrl: row.from_avatar || null,
+        badges: row.from_id === userId ? [{ id: 'you', label: 'You' }] : [],
+        roles: row.from_id === userId ? ['owner'] : ['viewer'],
+      },
+      text: [row.subject, row.body].filter(Boolean).join(row.subject ? ': ' : ''),
+      media: parseStoredArray(row.attachments),
+      links: [],
+      originalTimestamp: timestamp,
+      receivedTimestamp: timestamp,
+      meta: { ...metadata, spmtRecordType: 'message', outgoing: row.from_id === userId },
+      dedupeKey: `spmt:message:${row.id}`,
+      routing: commlinkRouting(userId, true),
+    };
+  });
+  const notificationItems = notifications.map((row): CommlinkFeedItem => {
+    const timestamp = commlinkTimestamp(row.created_at);
+    return {
+      version: 'commlink-feed.v1',
+      eventId: `spmt-notification:${row.id}`,
+      upstreamId: row.id,
+      platform: 'spmt',
+      sourceId: `spmt:${row.source_app || 'notifications'}`,
+      sourceName: row.source_app || 'SPMT',
+      channelId: 'notifications',
+      channelName: 'Notifications',
+      type: 'system',
+      sender: {
+        id: row.source_app || 'spmt',
+        login: row.source_app || 'spmt',
+        displayName: row.source_app || 'SPMT',
+        badges: [{ id: row.type || 'notification', label: row.type || 'Notification' }],
+        roles: ['bot'],
+      },
+      text: [row.title, row.body].filter(Boolean).join(': '),
+      media: [],
+      links: row.link_url ? [{ url: row.link_url, safe: true }] : [],
+      originalTimestamp: timestamp,
+      receivedTimestamp: timestamp,
+      meta: { spmtRecordType: 'notification', read: Boolean(row.read_at) },
+      dedupeKey: `spmt:notification:${row.id}`,
+      routing: commlinkRouting(userId),
+    };
+  });
+  const eventItems = events.map((row): CommlinkFeedItem => {
+    const timestamp = commlinkTimestamp(row.timestamp || row.created_at);
+    const payload = parseStoredObject(row.payload);
+    const summary = commlinkFeedText(payload.summary || payload.title || payload.message || row.type.replace(/\./g, ' '));
+    return {
+      version: 'commlink-feed.v1',
+      eventId: `spmt-event:${row.id}`,
+      upstreamId: row.id,
+      platform: 'spmt',
+      sourceId: `spmt:${row.source_app}`,
+      sourceName: row.source_app,
+      channelId: row.type,
+      channelName: row.type.replace(/\./g, ' '),
+      type: 'system',
+      sender: {
+        id: row.actor_user_id || row.source_app,
+        login: row.actor_username || row.source_app,
+        displayName: row.actor_display_name || row.actor_username || row.source_app,
+        badges: [{ id: 'app-event', label: 'App event' }],
+        roles: ['bot'],
+      },
+      text: summary,
+      media: [],
+      links: parseStoredArray(row.links),
+      originalTimestamp: timestamp,
+      receivedTimestamp: commlinkTimestamp(row.created_at),
+      meta: { ...payload, spmtRecordType: 'event', eventType: row.type },
+      dedupeKey: `spmt:event:${row.id}`,
       routing: commlinkRouting(userId),
     };
   });

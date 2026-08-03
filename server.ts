@@ -1406,6 +1406,15 @@ app.get('/api/athena/code-jobs/:id', authenticateCodexGateway, async (req: any, 
   }
 });
 
+app.post('/api/athena/code-jobs/:id/publish', authenticateCodexGateway, async (req: any, res) => {
+  try {
+    await proxyCodexWorker(req, res, `/api/codex/jobs/${encodeURIComponent(req.params.id)}/publish`, 'POST');
+  } catch (error) {
+    console.error('Athena Codex publish failed:', error);
+    res.status(502).json({ error: 'Athena Codex worker is unavailable' });
+  }
+});
+
 app.get('/api/athena/code-jobs/:id/:artifact', authenticateCodexGateway, async (req: any, res) => {
   const artifact = String(req.params.artifact || '');
   if (!['diff', 'checks', 'response'].includes(artifact)) return res.status(404).json({ error: 'Unknown artifact' });

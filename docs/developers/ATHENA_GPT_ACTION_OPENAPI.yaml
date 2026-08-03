@@ -1,0 +1,97 @@
+openapi: 3.1.0
+info:
+  title: Athena SPMT Code Bridge
+  version: 1.0.0
+  description: Submit isolated Codex repair jobs, inspect their results, and publish passing work as a draft GitHub pull request.
+servers:
+  - url: https://spmt.live
+security:
+  - spmtCodexKey: []
+paths:
+  /api/athena/code-references:
+    get:
+      operationId: listSpmtCodeRepositories
+      summary: List repositories Athena can inspect and repair.
+      responses:
+        "200":
+          description: Repository list.
+  /api/athena/code-jobs:
+    post:
+      operationId: createSpmtCodeJob
+      summary: Create an isolated coding job for a specific SPMT application.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [description]
+              properties:
+                description:
+                  type: string
+                  description: Exact bug or requested code change, including expected behavior.
+                appName:
+                  type: string
+                  enum: [spmt-live, mtman-machine-rotator, chat-tag-new, discord-stream-hub-new, dsh-clip-worker, hearmeout-main, hmo-dj-worker, streamweaver-new]
+                reporter:
+                  type: string
+                  default: Mtman1987
+                context:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "202":
+          description: Job accepted.
+  /api/athena/code-jobs/{jobId}:
+    get:
+      operationId: getSpmtCodeJob
+      summary: Read job status, changed files, validation, and pull request details.
+      parameters:
+        - $ref: "#/components/parameters/jobId"
+      responses:
+        "200":
+          description: Current job record.
+  /api/athena/code-jobs/{jobId}/{artifact}:
+    get:
+      operationId: getSpmtCodeJobArtifact
+      summary: Read the generated diff, check output, or final Codex response.
+      parameters:
+        - $ref: "#/components/parameters/jobId"
+        - name: artifact
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [diff, checks, response]
+      responses:
+        "200":
+          description: Plain-text artifact.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /api/athena/code-jobs/{jobId}/publish:
+    post:
+      operationId: publishSpmtCodeJob
+      summary: Publish a completed job with passing checks as a draft GitHub pull request.
+      description: Call only after showing the user the changed files and checks and receiving explicit approval to create the PR. This does not merge or deploy.
+      parameters:
+        - $ref: "#/components/parameters/jobId"
+      responses:
+        "200":
+          description: Draft pull request created or returned idempotently.
+        "409":
+          description: Job is not eligible for publication.
+components:
+  parameters:
+    jobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+  securitySchemes:
+    spmtCodexKey:
+      type: apiKey
+      in: header
+      name: x-spmt-codex-secret

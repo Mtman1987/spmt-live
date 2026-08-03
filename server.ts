@@ -696,7 +696,7 @@ function signSession(user: any, expiresIn: jwt.SignOptions['expiresIn'] = '30d')
 }
 
 function setSessionCookie(res: any, token: string) {
-  res.cookie('spmt_token', token, { httpOnly: true, secure: true, sameSite: 'none', maxAge: 30 * 24 * 60 * 60 * 1000 });
+  res.cookie('spmt_token', token, { httpOnly: true, secure: true, sameSite: 'none', path: '/', maxAge: 30 * 24 * 60 * 60 * 1000 });
 }
 
 function appPermissionsFor(appId: string) {
@@ -1132,6 +1132,52 @@ function requirePlatformAdmin(req: any, res: any, next: any) {
   next();
 }
 
+function authenticateCodexGateway(req: any, res: any, next: any) {
+  const serviceSecret = String(process.env.SPMT_CODEX_SERVICE_SECRET || '').trim();
+  const supplied = String(req.headers['x-spmt-codex-secret'] || '').trim();
+  if (serviceSecret && supplied) {
+    const expectedHash = crypto.createHash('sha256').update(serviceSecret).digest();
+    const suppliedHash = crypto.createHash('sha256').update(supplied).digest();
+    if (crypto.timingSafeEqual(expectedHash, suppliedHash)) {
+      req.codexCaller = 'service';
+      return next();
+    }
+  }
+
+  const token = req.cookies?.spmt_token || req.headers.authorization?.replace('Bearer ', '');
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET) as any;
+      const user = getUserById(payload.id);
+      if (user?.is_admin) {
+        req.user = payload;
+        req.currentUser = user;
+        req.codexCaller = 'admin';
+        return next();
+      }
+    } catch {}
+  }
+  return res.status(401).json({ error: 'Athena Codex authorization required' });
+}
+
+async function proxyCodexWorker(req: any, res: any, workerPath: string, method = 'GET') {
+  const baseUrl = String(process.env.CODEX_WORKER_URL || 'https://mtman-machine-rotator.fly.dev').trim();
+  const secret = String(process.env.CODEX_WORKER_SECRET || '').trim();
+  if (!secret) return res.status(503).json({ error: 'CODEX_WORKER_SECRET is not configured' });
+  const response = await fetch(new URL(workerPath, baseUrl), {
+    method,
+    headers: {
+      accept: req.headers.accept || 'application/json',
+      'content-type': 'application/json',
+      'x-codex-worker-secret': secret,
+    },
+    ...(method === 'POST' ? { body: JSON.stringify(req.body || {}) } : {}),
+  });
+  const contentType = response.headers.get('content-type') || 'application/json; charset=utf-8';
+  const body = Buffer.from(await response.arrayBuffer());
+  res.status(response.status).set('content-type', contentType).set('cache-control', 'private, no-store').send(body);
+}
+
 function authenticatePlatformKey(requiredScope: string) {
   return (req: any, res: any, next: any) => {
     const token = String(req.headers.authorization?.replace('Bearer ', '') || req.body?.token || req.query?.token || '').trim();
@@ -1340,6 +1386,44 @@ app.post('/api/athena/commands', authenticate, (req: any, res) => {
     command,
     error: 'Athena command dispatch is not implemented. No app action or durable job was created.',
   });
+});
+
+app.post('/api/athena/code-jobs', authenticateCodexGateway, async (req: any, res) => {
+  try {
+    await proxyCodexWorker(req, res, '/api/codex/jobs', 'POST');
+  } catch (error) {
+    console.error('Athena Codex worker create failed:', error);
+    res.status(502).json({ error: 'Athena Codex worker is unavailable' });
+  }
+});
+
+app.get('/api/athena/code-jobs/:id', authenticateCodexGateway, async (req: any, res) => {
+  try {
+    await proxyCodexWorker(req, res, `/api/codex/jobs/${encodeURIComponent(req.params.id)}`);
+  } catch (error) {
+    console.error('Athena Codex worker read failed:', error);
+    res.status(502).json({ error: 'Athena Codex worker is unavailable' });
+  }
+});
+
+app.get('/api/athena/code-jobs/:id/:artifact', authenticateCodexGateway, async (req: any, res) => {
+  const artifact = String(req.params.artifact || '');
+  if (!['diff', 'checks', 'response'].includes(artifact)) return res.status(404).json({ error: 'Unknown artifact' });
+  try {
+    await proxyCodexWorker(req, res, `/api/codex/jobs/${encodeURIComponent(req.params.id)}/${artifact}`);
+  } catch (error) {
+    console.error('Athena Codex artifact read failed:', error);
+    res.status(502).json({ error: 'Athena Codex worker is unavailable' });
+  }
+});
+
+app.get('/api/athena/code-references', authenticateCodexGateway, async (req: any, res) => {
+  try {
+    await proxyCodexWorker(req, res, '/api/codex/references');
+  } catch (error) {
+    console.error('Athena Codex references read failed:', error);
+    res.status(502).json({ error: 'Athena Codex worker is unavailable' });
+  }
 });
 
 app.get('/api/platform', (req, res) => {

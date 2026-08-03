@@ -3,6 +3,10 @@ primary_region = "lax"
 
 [build]
 
+[env]
+  CODEX_WORKER_URL = "https://mtman-machine-rotator.fly.dev"
+  CODEX_REPAIR_DASHBOARD_URL = "https://mtman-machine-rotator.fly.dev/"
+
 [http_service]
   internal_port = 3000
   force_https = true

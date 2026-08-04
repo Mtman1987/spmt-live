@@ -19,7 +19,7 @@ import { settleGambleWallet } from './xp-gamble-settlement.js';
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || Boolean(process.env.FLY_APP_NAME);
-const JWT_SECRET = process.env.JWT_SECRET || (IS_PRODUCTION ? '' : 'spmt-dev-secret-change-in-production');
+const JWT_SECRET = process.env.JWT_SECRET || (IS_PRODUCTION ? '' : crypto.randomBytes(32).toString('hex'));
 const APP_VERSION = '1.0.0';
 const BUILD_SHA = process.env.BUILD_SHA || 'development';
 const RECOVERY_DELIVERY_COOLDOWN_MS = 10 * 60 * 1000;
@@ -930,6 +930,115 @@ function compactText(value: unknown, maxLength = 1200) {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
+function findSingleProviderIdentity(column: 'discord_id' | 'twitch_id', providerUserId: string) {
+  const matches = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE ${column} = ? ORDER BY datetime(created_at) ASC`).all(providerUserId) as any[];
+  if (matches.length > 1) {
+    throw Object.assign(new Error(`Multiple SPMT identities already use this ${column === 'discord_id' ? 'Discord' : 'Twitch'} account`), {
+      statusCode: 409,
+      code: 'duplicate_provider_identity',
+    });
+  }
+  return matches[0] || null;
+}
+
+function issueProviderIdentityTicket(userId: string, purpose: 'claim' | 'recover', sourceApp: string) {
+  const ticket = randomCredential(32);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
+  db.prepare('DELETE FROM provider_identity_tickets WHERE used_at IS NOT NULL OR expires_at <= ?').run(now.toISOString());
+  db.prepare(`
+    INSERT INTO provider_identity_tickets (ticket_hash, user_id, purpose, source_app, expires_at, used_at, created_at)
+    VALUES (?, ?, ?, ?, ?, NULL, ?)
+  `).run(hashSecret(ticket), userId, purpose, sourceApp, expiresAt.toISOString(), now.toISOString());
+  return { ticket, expiresAt: expiresAt.toISOString() };
+}
+
+function providerClaimOrigin(req: any) {
+  const configured = String(process.env.SPMT_PUBLIC_URL || process.env.PUBLIC_BASE_URL || '').trim().replace(/\/$/, '');
+  if (configured) return configured;
+  if (IS_PRODUCTION) return 'https://spmt.live';
+  return `${req.protocol}://${req.get('host')}`;
+}
+
+function escapeHtml(value: unknown) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function providerClaimPage(input: { ticket: string; username: string; displayName: string; purpose: 'claim' | 'recover' }) {
+  const action = input.purpose === 'claim' ? 'Claim your SPMT identity' : 'Recover your SPMT identity';
+  const explanation = input.purpose === 'claim'
+    ? 'Discord and Twitch ownership are verified. Set a password to finish taking ownership of this existing SPMT identity.'
+    : 'Discord and Twitch ownership are verified. Set a new password to recover this SPMT identity.';
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapeHtml(action)} · SPMT</title>
+  <style>
+    :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at top,#172554,#050816 55%);font-family:system-ui,sans-serif;color:#f8fafc;padding:24px}.card{width:min(520px,100%);background:rgba(15,23,42,.94);border:1px solid #334155;border-radius:20px;padding:28px;box-shadow:0 24px 80px #0008}h1{margin:0 0 8px;font-size:1.75rem}.eyebrow{color:#a5b4fc;font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:.78rem}.muted{color:#cbd5e1;line-height:1.55}.identity{margin:18px 0;padding:14px;border-radius:12px;background:#111c35;border:1px solid #293857}.identity strong{display:block;font-size:1.08rem}.identity span{color:#a5b4fc}label{display:block;margin:14px 0 6px;font-weight:650}input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #475569;background:#080d1c;color:#fff;font:inherit}button,.button{display:inline-flex;justify-content:center;width:100%;margin-top:18px;padding:12px 16px;border:0;border-radius:10px;background:#7c3aed;color:#fff;font:inherit;font-weight:750;text-decoration:none;cursor:pointer}button:disabled{opacity:.65;cursor:wait}.notice{margin-top:14px;min-height:24px;color:#fca5a5}.success{color:#bbf7d0}.code{display:block;margin:14px 0;padding:12px;background:#020617;border:1px dashed #64748b;border-radius:10px;word-break:break-all;color:#fde68a}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="eyebrow">One crew · one identity</div>
+    <h1>${escapeHtml(action)}</h1>
+    <p class="muted">${escapeHtml(explanation)}</p>
+    <div class="identity"><strong>${escapeHtml(input.displayName || input.username)}</strong><span>${escapeHtml(input.username)}@spmt.live</span></div>
+    <form id="claim-form">
+      <label for="password">New password</label>
+      <input id="password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required>
+      <label for="confirm">Confirm new password</label>
+      <input id="confirm" type="password" minlength="12" maxlength="200" autocomplete="new-password" required>
+      <button id="submit" type="submit">${escapeHtml(input.purpose === 'claim' ? 'Claim identity and continue' : 'Recover identity and continue')}</button>
+    </form>
+    <div id="notice" class="notice" role="status"></div>
+    <div id="finished" hidden></div>
+  </main>
+  <script>
+    const ticket = ${JSON.stringify(input.ticket)};
+    const form = document.getElementById('claim-form');
+    const notice = document.getElementById('notice');
+    const submit = document.getElementById('submit');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirm').value;
+      if (password !== confirmPassword) { notice.textContent = 'The passwords do not match.'; return; }
+      submit.disabled = true;
+      notice.textContent = 'Securing your SPMT identity…';
+      try {
+        const response = await fetch('/api/auth/provider-claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ ticket, password, confirmPassword }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'SPMT could not finish this identity.');
+        if (data.token) localStorage.setItem('spmt_token', data.token);
+        form.hidden = true;
+        notice.className = 'notice success';
+        notice.textContent = 'Identity secured. Save the recovery code below, then continue to SPMT.';
+        const finished = document.getElementById('finished');
+        finished.hidden = false;
+        finished.innerHTML = '<span class="code"></span><a class="button" href="/">Continue to SPMT</a>';
+        finished.querySelector('.code').textContent = data.recoveryCode || 'Recovery code unavailable';
+      } catch (error) {
+        notice.textContent = error instanceof Error ? error.message : 'SPMT could not finish this identity.';
+        submit.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>`;
+}
+
 function summarizePlatformEventPayload(event: any) {
   const payload = event?.payload && typeof event.payload === 'object' ? event.payload : {};
   const summary = compactText(
@@ -1618,6 +1727,94 @@ app.post('/api/platform/identity/grandfather', authenticatePlatformKey('identity
   });
 });
 
+app.post('/api/platform/identity/onboard', authenticatePlatformKey('identity:write'), (req: any, res) => {
+  const sourceApp = String(req.platformKey.appId || '').trim().toLowerCase();
+  if (!sourceApp) {
+    return res.status(403).json({ error: 'Verified onboarding requires an app-bound platform key' });
+  }
+
+  const discord = req.body?.discord || {};
+  const twitch = req.body?.twitch || {};
+  const discordId = String(discord.providerUserId || discord.id || '').trim();
+  const twitchId = String(twitch.providerUserId || twitch.id || '').trim();
+  if (!discordId || !twitchId || !/^[A-Za-z0-9:_-]{1,128}$/.test(discordId) || !/^[A-Za-z0-9:_-]{1,128}$/.test(twitchId)) {
+    return res.status(400).json({ error: 'Verified Discord and Twitch provider IDs are required' });
+  }
+
+  try {
+    const result = db.transaction(() => {
+      const discordUser = findSingleProviderIdentity('discord_id', discordId);
+      const twitchUser = findSingleProviderIdentity('twitch_id', twitchId);
+      if (discordUser && twitchUser && discordUser.id !== twitchUser.id) {
+        throw Object.assign(new Error('Discord and Twitch are already attached to different SPMT identities. Crew review is required.'), {
+          statusCode: 409,
+          code: 'identity_conflict',
+        });
+      }
+
+      const discordUsername = cleanHandle(discord.username || discord.providerUsername).slice(0, 80) || null;
+      const twitchUsername = cleanHandle(twitch.username || twitch.providerUsername).slice(0, 80) || null;
+      const displayName = compactText(discord.displayName || twitch.displayName || discordUsername || twitchUsername, 120);
+      const avatarUrl = compactText(discord.avatarUrl || twitch.avatarUrl, 2048) || null;
+      let user = discordUser || twitchUser;
+      let created = false;
+
+      if (!user) {
+        const username = importedUsername('discord', discordId, discordUsername || twitchUsername);
+        const id = uuidv4();
+        const email = `import-discord-${crypto.createHash('sha256').update(discordId).digest('hex').slice(0, 24)}@spmt.live`;
+        const now = new Date().toISOString();
+        db.prepare(`
+          INSERT INTO users (
+            id, username, email, display_name, password_hash,
+            discord_username, discord_id, twitch_username, twitch_id, avatar_url, created_at
+          ) VALUES (?, ?, ?, ?, 'SYSTEM_NO_LOGIN', ?, ?, ?, ?, ?, ?)
+        `).run(id, username, email, displayName || username, discordUsername, discordId, twitchUsername, twitchId, avatarUrl, now);
+        user = getUserById(id);
+        created = true;
+      } else {
+        if (user.discord_id && String(user.discord_id) !== discordId) {
+          throw Object.assign(new Error('This SPMT identity is already linked to another Discord account.'), { statusCode: 409, code: 'identity_conflict' });
+        }
+        if (user.twitch_id && String(user.twitch_id) !== twitchId) {
+          throw Object.assign(new Error('This SPMT identity is already linked to another Twitch account.'), { statusCode: 409, code: 'identity_conflict' });
+        }
+        db.prepare(`
+          UPDATE users
+          SET discord_username = ?, discord_id = ?, twitch_username = ?, twitch_id = ?,
+              avatar_url = COALESCE(?, avatar_url),
+              display_name = CASE WHEN password_hash = 'SYSTEM_NO_LOGIN' AND ? != '' THEN ? ELSE display_name END
+          WHERE id = ?
+        `).run(discordUsername, discordId, twitchUsername, twitchId, avatarUrl, displayName, displayName, user.id);
+        user = getUserById(user.id);
+      }
+
+      return {
+        user,
+        created,
+        purpose: (user.password_hash === 'SYSTEM_NO_LOGIN' ? 'claim' : 'recover') as 'claim' | 'recover',
+      };
+    })();
+
+    const issued = issueProviderIdentityTicket(result.user.id, result.purpose, sourceApp);
+    const continueUrl = new URL('/api/auth/provider-claim', providerClaimOrigin(req));
+    continueUrl.searchParams.set('ticket', issued.ticket);
+    res.status(result.created ? 201 : 200).json({
+      created: result.created,
+      purpose: result.purpose,
+      expiresAt: issued.expiresAt,
+      continueUrl: continueUrl.toString(),
+      user: serializeUser(result.user),
+    });
+  } catch (error: any) {
+    const status = Number(error?.statusCode || 500);
+    res.status(status >= 400 && status < 600 ? status : 500).json({
+      error: status >= 500 ? 'Verified identity onboarding is temporarily unavailable' : error.message,
+      code: error?.code || (status === 409 ? 'identity_conflict' : 'onboarding_failed'),
+    });
+  }
+});
+
 app.get('/api/platform/apps/public', authenticatePlatformKey('apps:read'), (req: any, res) => {
   res.json({ key: req.platformKey, apps: buildAppsForUser(req.platformKey.userId) });
 });
@@ -2210,6 +2407,69 @@ app.post('/api/auth/claim-imported', authenticate, async (req: any, res) => {
   const token = signSession(user);
   setSessionCookie(res, token);
   res.json({ claimed: true, token, user: serializeUser(user), recoveryCode: createRecoveryCode(user.id) });
+});
+
+app.get('/api/auth/provider-claim', (req, res) => {
+  const ticket = String(req.query?.ticket || '').trim();
+  const row = ticket
+    ? db.prepare(`
+        SELECT t.user_id, t.purpose, t.expires_at, t.used_at, u.username, u.display_name
+        FROM provider_identity_tickets t
+        JOIN users u ON u.id = t.user_id
+        WHERE t.ticket_hash = ?
+      `).get(hashSecret(ticket)) as any
+    : null;
+  const valid = row && !row.used_at && Date.parse(row.expires_at) > Date.now();
+  if (!valid) {
+    return res.status(400).set('Cache-Control', 'no-store').type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SPMT link expired</title></head><body style="font-family:system-ui;background:#050816;color:#fff;padding:40px"><h1>This SPMT link expired or was already used.</h1><p>Return to Discord and select <strong>Join or Recover SPMT with Twitch</strong> again.</p></body></html>`);
+  }
+  return res.status(200).set('Cache-Control', 'no-store').type('html').send(providerClaimPage({
+    ticket,
+    username: row.username,
+    displayName: row.display_name,
+    purpose: row.purpose === 'recover' ? 'recover' : 'claim',
+  }));
+});
+
+app.post('/api/auth/provider-claim', async (req, res) => {
+  const ticket = String(req.body?.ticket || '').trim();
+  const password = String(req.body?.password || '');
+  const confirmPassword = String(req.body?.confirmPassword || '');
+  if (!ticket || password.length < 12 || password.length > 200) {
+    return res.status(400).json({ error: 'A valid link and a password of at least 12 characters are required' });
+  }
+  if (password !== confirmPassword) return res.status(400).json({ error: 'The passwords do not match' });
+
+  try {
+    const passwordHash = await bcrypt.hash(password, 12);
+    const usedAt = new Date().toISOString();
+    const userId = db.transaction(() => {
+      const row = db.prepare(`
+        SELECT user_id FROM provider_identity_tickets
+        WHERE ticket_hash = ? AND used_at IS NULL AND expires_at > ?
+      `).get(hashSecret(ticket), usedAt) as any;
+      if (!row) throw Object.assign(new Error('This SPMT link expired or was already used'), { statusCode: 400 });
+      const consumed = db.prepare(`
+        UPDATE provider_identity_tickets SET used_at = ?
+        WHERE ticket_hash = ? AND used_at IS NULL AND expires_at > ?
+      `).run(usedAt, hashSecret(ticket), usedAt);
+      if (!consumed.changes) throw Object.assign(new Error('This SPMT link expired or was already used'), { statusCode: 400 });
+      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, row.user_id);
+      return String(row.user_id);
+    })();
+
+    const user = getUserById(userId);
+    if (!user) return res.status(404).json({ error: 'SPMT identity not found' });
+    const token = signSession(user);
+    const recoveryCode = createRecoveryCode(user.id);
+    setSessionCookie(res, token);
+    return res.json({ ok: true, token, recoveryCode, user: serializeUser(user) });
+  } catch (error: any) {
+    const status = Number(error?.statusCode || 500);
+    return res.status(status >= 400 && status < 600 ? status : 500).json({
+      error: status >= 500 ? 'SPMT could not secure this identity' : error.message,
+    });
+  }
 });
 
 app.get('/api/provider-grants', authenticate, (req: any, res) => {

@@ -83,9 +83,13 @@ export function getDatabaseReadiness() {
   }
 }
 
-function seedOauthClient(clientId: string, configuredSecret: string | undefined, developmentSecret: string, name: string, redirectUris: string) {
+function seedOauthClient(clientId: string, configuredSecret: string | undefined, name: string, redirectUris: string) {
   const existing = db.prepare('SELECT client_id FROM oauth_clients WHERE client_id = ?').get(clientId);
-  const clientSecret = configuredSecret || developmentSecret;
+  // Production preserves the mutable secret already stored in the persistent database.
+  // Fresh production installs still require an explicitly configured static client secret.
+  // Local development gets a deterministic, visibly non-production placeholder without
+  // committing credential-shaped fallback values to source control.
+  const clientSecret = configuredSecret || Buffer.from(`spmt-development-only:${clientId}`).toString('base64url');
   if (!existing) {
     if (IS_PRODUCTION && !configuredSecret) {
       throw new Error(`OAuth client secret is required for ${clientId} in production.`);
@@ -394,6 +398,20 @@ export function initDb() {
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS provider_identity_tickets (
+      ticket_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      purpose TEXT NOT NULL,
+      source_app TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS provider_identity_tickets_expiry
+      ON provider_identity_tickets(expires_at);
+
     CREATE TABLE IF NOT EXISTS athena_memory (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -607,42 +625,36 @@ export function initDb() {
   seedOauthClient(
     'spacemountain-live',
     process.env.SPACEMOUNTAIN_CLIENT_SECRET,
-    'spmt_secret_spacemountain_first_party',
     'SpaceMountain.live',
     'https://spacemountain.live/auth/callback,https://spacemountain-live.fly.dev/auth/callback,http://spacemountain-live.fly.dev/auth/callback'
   );
   seedOauthClient(
     'discord-stream-hub',
     process.env.DSH_CLIENT_SECRET,
-    'dsh_spmt_secret_2026',
     'Discord Stream Hub',
     'https://discord-stream-hub-new.fly.dev/auth/callback,https://spacemountain.live/discordstreamhub/auth/callback'
   );
   seedOauthClient(
     'streamweaver',
     process.env.STREAMWEAVER_CLIENT_SECRET,
-    'streamweaver_spmt_secret_2026',
     'StreamWeaver',
     'https://streamweaver-new.fly.dev/auth/spmt/callback,https://streamweaver-new.fly.dev/login'
   );
   seedOauthClient(
     'chat-tag',
     process.env.CHAT_TAG_CLIENT_SECRET,
-    'chat_tag_spmt_secret_2026',
     'ChatTag + Quackverse',
     'https://chat-tag-new.fly.dev/auth/spmt/callback,https://chat-tag-new.fly.dev/auth/callback'
   );
   seedOauthClient(
     'hearmeout',
     process.env.HEARMEOUT_CLIENT_SECRET,
-    'hearmeout_spmt_secret_2026',
     'HearMeOut',
     'https://hearmeout-main.fly.dev/api/auth/spmt/callback,https://hearmeout-main.fly.dev/auth/spmt/callback,https://hearmeout-main.fly.dev'
   );
   seedOauthClient(
     'mountainview',
     process.env.MOUNTAINVIEW_CLIENT_SECRET,
-    'mountainview_spmt_secret_dev_only',
     'MountainView AI',
     'https://mtman-machine-rotator.fly.dev/mountainview/auth/callback'
   );

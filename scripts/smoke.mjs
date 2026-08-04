@@ -13,6 +13,7 @@ import WebSocket from 'ws';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const entrypoint = path.join(repoRoot, 'dist', 'server.cjs');
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'spmt-smoke-'));
+const streamweaverClientSecret = 'smoke-streamweaver-client-secret';
 
 function getFreePort() {
   return new Promise((resolve, reject) => {
@@ -215,6 +216,7 @@ const child = spawn(process.execPath, [entrypoint], {
     JWT_SECRET: 'smoke-only-secret',
     BUILD_SHA: 'smoke-build',
     SYSTEM_API_KEY: 'smoke-system-key',
+    STREAMWEAVER_CLIENT_SECRET: streamweaverClientSecret,
     SPMT_TEST_STREAMWEAVER_FEED_URL: `http://127.0.0.1:${streamweaverMockPort}/api/shared-chat/spmt-feed`,
     SPMT_TEST_STREAMWEAVER_DISPATCH_URL: `http://127.0.0.1:${streamweaverMockPort}/api/shared-chat/spmt-dispatch`,
     SPMT_TEST_STREAMWEAVER_OPERATOR_URL: `http://127.0.0.1:${streamweaverMockPort}/api/shared-chat/spmt-operator`,
@@ -236,7 +238,7 @@ try {
   assert.equal(ready.body.status, 'degraded');
   assert.equal(ready.body.database.status, 'ready');
   assert.equal(ready.body.database.storage, 'local');
-  assert.equal(ready.body.configuration.oauthClientSecrets.configured, 0);
+  assert.equal(ready.body.configuration.oauthClientSecrets.configured, 1);
 
   const compatibilityHealth = await waitForJson(`${baseUrl}/api/health`);
   assert.equal(compatibilityHealth.response.status, 200);
@@ -393,7 +395,7 @@ try {
     body: JSON.stringify({
       code: embedLaunch.code,
       client_id: 'streamweaver',
-      client_secret: 'streamweaver_spmt_secret_2026',
+      client_secret: streamweaverClientSecret,
       target_origin: 'https://streamweaver-new.fly.dev',
     }),
   });
@@ -409,7 +411,7 @@ try {
     body: JSON.stringify({
       code: embedLaunch.code,
       client_id: 'streamweaver',
-      client_secret: 'streamweaver_spmt_secret_2026',
+      client_secret: streamweaverClientSecret,
       target_origin: 'https://streamweaver-new.fly.dev',
     }),
   });
@@ -422,7 +424,7 @@ try {
       grant_type: 'refresh_token',
       refresh_token: embedExchange.refresh_token,
       client_id: 'streamweaver',
-      client_secret: 'streamweaver_spmt_secret_2026',
+      client_secret: streamweaverClientSecret,
     }),
   });
   const refreshed = await refreshResponse.json();
@@ -438,7 +440,7 @@ try {
       grant_type: 'refresh_token',
       refresh_token: embedExchange.refresh_token,
       client_id: 'streamweaver',
-      client_secret: 'streamweaver_spmt_secret_2026',
+      client_secret: streamweaverClientSecret,
     }),
   });
   assert.equal(reusedRefreshResponse.status, 400);
@@ -1056,6 +1058,80 @@ try {
   assert.equal(repeatGrandfatherResponse.status, 200);
   assert.equal(repeatGrandfather.created, false);
   assert.equal(repeatGrandfather.user.id, grandfather.user.id);
+
+  const verifiedOnboardingResponse = await fetch(`${baseUrl}/api/platform/identity/onboard`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.token}` },
+    body: JSON.stringify({
+      discord: {
+        providerUserId: 'discord-verified-smoke-1001',
+        username: 'verified-smoke',
+        displayName: 'Verified Smoke User',
+        avatarUrl: 'https://example.com/discord-avatar.png',
+      },
+      twitch: {
+        providerUserId: 'twitch-verified-smoke-1001',
+        username: 'verified_smoke',
+        displayName: 'Verified Smoke User',
+        avatarUrl: 'https://example.com/twitch-avatar.png',
+      },
+    }),
+  });
+  const verifiedOnboarding = await verifiedOnboardingResponse.json();
+  assert.equal(verifiedOnboardingResponse.status, 201);
+  assert.equal(verifiedOnboarding.created, true);
+  assert.equal(verifiedOnboarding.purpose, 'claim');
+  assert.equal(verifiedOnboarding.user.discordId, 'discord-verified-smoke-1001');
+  assert.equal(verifiedOnboarding.user.twitchId, 'twitch-verified-smoke-1001');
+  assert.ok(verifiedOnboarding.continueUrl);
+
+  const verifiedClaimPageResponse = await fetch(verifiedOnboarding.continueUrl);
+  const verifiedClaimPage = await verifiedClaimPageResponse.text();
+  assert.equal(verifiedClaimPageResponse.status, 200);
+  assert.match(verifiedClaimPage, /Claim your SPMT identity/);
+  assert.match(verifiedClaimPage, /One crew · one identity/);
+
+  const verifiedTicket = new URL(verifiedOnboarding.continueUrl).searchParams.get('ticket');
+  assert.ok(verifiedTicket);
+  const verifiedClaimResponse = await fetch(`${baseUrl}/api/auth/provider-claim`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ticket: verifiedTicket,
+      password: 'verified-smoke-password-123',
+      confirmPassword: 'verified-smoke-password-123',
+    }),
+  });
+  const verifiedClaim = await verifiedClaimResponse.json();
+  assert.equal(verifiedClaimResponse.status, 200);
+  assert.equal(verifiedClaim.ok, true);
+  assert.ok(verifiedClaim.token);
+  assert.ok(verifiedClaim.recoveryCode);
+
+  const reusedVerifiedTicketResponse = await fetch(`${baseUrl}/api/auth/provider-claim`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ticket: verifiedTicket,
+      password: 'verified-smoke-password-456',
+      confirmPassword: 'verified-smoke-password-456',
+    }),
+  });
+  assert.equal(reusedVerifiedTicketResponse.status, 400);
+
+  const recoveredOnboardingResponse = await fetch(`${baseUrl}/api/platform/identity/onboard`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.token}` },
+    body: JSON.stringify({
+      discord: { providerUserId: 'discord-verified-smoke-1001', username: 'verified-smoke' },
+      twitch: { providerUserId: 'twitch-verified-smoke-1001', username: 'verified_smoke' },
+    }),
+  });
+  const recoveredOnboarding = await recoveredOnboardingResponse.json();
+  assert.equal(recoveredOnboardingResponse.status, 200);
+  assert.equal(recoveredOnboarding.created, false);
+  assert.equal(recoveredOnboarding.purpose, 'recover');
+  assert.equal(recoveredOnboarding.user.id, verifiedOnboarding.user.id);
 
   const unboundKeyResponse = await fetch(`${baseUrl}/api/platform/api-keys`, {
     method: 'POST',

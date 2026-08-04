@@ -9,7 +9,7 @@
     "build": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "sdk:build": "esbuild sdk/index.ts --bundle --platform=neutral --format=esm --target=es2022 --outfile=sdk/dist/index.js && tsc sdk/index.ts --declaration --emitDeclarationOnly --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck --outDir sdk/dist",
     "sdk:package": "npm run sdk:build && node scripts/package-sdk.mjs",
-    "start": "node dist/server.cjs",
+    "start": "node scripts/start.mjs",
     "smoke": "node scripts/smoke.mjs",
     "smoke:suite": "node scripts/operations/suite-smoke.mjs",
     "test:identity-reconciliation": "tsx --test tests/identity-reconciliation.test.ts",

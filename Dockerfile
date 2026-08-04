@@ -20,8 +20,9 @@ COPY --from=build /app/dist ./dist
 COPY public ./public
 COPY docs ./docs
 COPY scripts/operations ./scripts/operations
+COPY start.cjs ./start.cjs
 ENV NODE_ENV=production
 ENV DATABASE_PATH=/data/spmt.db
 ENV BUILD_SHA=$BUILD_SHA
 EXPOSE 3000
-CMD ["node", "dist/server.cjs"]
+CMD ["node", "start.cjs"]

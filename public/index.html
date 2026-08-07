@@ -652,7 +652,7 @@
       for (const section of document.querySelectorAll('[id^="view-"]')) section.classList.add('hidden');
       document.getElementById('view-' + view).classList.remove('hidden');
       document.querySelector('.main').classList.toggle('commlink-active', view === 'commlink');
-      if (view === 'commlink' && authToken) {
+      if (view === 'commlink' && currentUser) {
         const frame = document.getElementById('commlink-frame');
         if (frame.dataset.authReady !== '1') {
           frame.dataset.authReady = '1';
@@ -1090,17 +1090,22 @@
     }
 
     async function boot() {
-      if (!authToken) return;
       try {
-        await refreshAll();
+        // The HttpOnly SPMT cookie is authoritative. localStorage is only a
+        // temporary compatibility carrier for older app-launch flows.
+        await loadBridge();
         document.getElementById('auth').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
         if (initialView && document.getElementById('view-' + initialView)) currentView = initialView;
         showView(currentView);
         maybeShowProfileCompletion();
+        await Promise.allSettled([loadInbox(), loadForums(), loadProviderGrants(), loadDeveloperPortal()]);
       } catch {
         localStorage.removeItem('spmt_token');
         authToken = null;
+        currentUser = null;
+        document.getElementById('auth').classList.remove('hidden');
+        document.getElementById('app').classList.add('hidden');
       }
     }
 

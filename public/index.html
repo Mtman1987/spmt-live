@@ -167,6 +167,13 @@
           <button type="submit" class="btn primary">Create Account</button>
         </form>
         <div id="form-recover" class="hidden">
+          <div class="item" style="margin-bottom:16px">
+            <strong>You may already have an SPMT account.</strong>
+            <p class="field-help">If you joined through Space Mountain, we may have created it for you. Verify your linked Twitch account, then set or change your SPMT password.</p>
+            <a class="btn primary" href="/api/auth/recover/twitch">Verify with Twitch and set password</a>
+          </div>
+          <details>
+            <summary style="cursor:pointer;font-weight:700">Use a recovery code instead</summary>
           <form onsubmit="handleUsernameRecovery(event)">
             <input name="discordUsername" placeholder="linked Discord username (or use Twitch below)">
             <input name="twitchUsername" placeholder="linked Twitch username">
@@ -184,6 +191,7 @@
             <input name="newPassword" type="password" placeholder="new password, minimum 8 characters" minlength="8" required>
             <button type="submit" class="btn primary">Reset Password</button>
           </form>
+          </details>
         </div>
         <div id="auth-msg" class="notice"></div>
       </div>
@@ -499,6 +507,7 @@
     const returnUrl = new URLSearchParams(window.location.search).get('return');
     const bootParams = new URLSearchParams(window.location.search);
     const initialView = bootParams.get('legacyMessages') === '1' ? 'messages' : bootParams.get('view');
+    const recoveryError = bootParams.get('recoverError');
 
     function api(path, options = {}) {
       const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
@@ -1106,6 +1115,10 @@
         currentUser = null;
         document.getElementById('auth').classList.remove('hidden');
         document.getElementById('app').classList.add('hidden');
+        if (recoveryError) {
+          showAuthTab('recover');
+          setNotice('auth-msg', recoveryError, 'err');
+        }
       }
     }
 

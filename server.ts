@@ -972,8 +972,8 @@ function escapeHtml(value: unknown) {
 function providerClaimPage(input: { ticket: string; username: string; displayName: string; purpose: 'claim' | 'recover' }) {
   const action = input.purpose === 'claim' ? 'Claim your SPMT identity' : 'Recover your SPMT identity';
   const explanation = input.purpose === 'claim'
-    ? 'Discord and Twitch ownership are verified. Set a password to finish taking ownership of this existing SPMT identity.'
-    : 'Discord and Twitch ownership are verified. Set a new password to recover this SPMT identity.';
+    ? 'Your linked account ownership is verified. Set a password to finish taking ownership of this existing SPMT identity.'
+    : 'Your linked account ownership is verified. Set a new password to recover this SPMT identity.';
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -2172,9 +2172,9 @@ app.post('/api/auth/register', async (req, res) => {
 
   const existing = db.prepare('SELECT id, password_hash FROM users WHERE username = ?').get(clean) as any;
   if (existing?.password_hash === 'SYSTEM_NO_LOGIN') {
-    return res.status(409).json({ error: 'That username belongs to an existing imported profile. Contact support to claim and merge it safely.' });
+    return res.status(409).json({ error: 'You already have an SPMT account from Space Mountain. Click Recover, verify with Twitch, and set your password.' });
   }
-  if (existing) return res.status(409).json({ error: 'Username already taken' });
+  if (existing) return res.status(409).json({ error: 'You already have an account with that username. Click Recover to verify ownership and set or change your password.' });
 
   // Resolve Discord ID from username if provided
   let discordId: string | null = null;
@@ -2235,6 +2235,71 @@ app.post('/api/auth/register', async (req, res) => {
   const recoveryCode = createRecoveryCode(id);
   setSessionCookie(res, token);
   res.status(201).json({ user: serializeUser(user), token, recoveryCode });
+});
+
+// ─── Auth: Provider-verified recovery ───
+// Existing Space Mountain identities already have an immutable Twitch ID. We
+// verify that provider account, then issue the same short-lived password setup
+// ticket used by the app onboarding flow. No Firebase identity is involved.
+app.get('/api/auth/recover/twitch', (req, res) => {
+  const clientId = String(process.env.TWITCH_CLIENT_ID || '').trim();
+  if (!clientId) return res.redirect('/?recoverError=' + encodeURIComponent('Twitch recovery is temporarily unavailable.'));
+  const state = randomCredential(24);
+  const redirectUri = String(process.env.SPMT_TWITCH_RECOVERY_REDIRECT_URI || `${providerClaimOrigin(req)}/api/auth/recover/twitch/callback`);
+  res.cookie('spmt_recovery_oauth_state', state, {
+    httpOnly: true,
+    secure: IS_PRODUCTION,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 10 * 60 * 1000,
+  });
+  const authorizeUrl = new URL('https://id.twitch.tv/oauth2/authorize');
+  authorizeUrl.searchParams.set('client_id', clientId);
+  authorizeUrl.searchParams.set('redirect_uri', redirectUri);
+  authorizeUrl.searchParams.set('response_type', 'code');
+  authorizeUrl.searchParams.set('scope', 'user:read:email');
+  authorizeUrl.searchParams.set('state', state);
+  res.redirect(authorizeUrl.toString());
+});
+
+app.get('/api/auth/recover/twitch/callback', async (req, res) => {
+  const code = String(req.query?.code || '');
+  const state = String(req.query?.state || '');
+  const expectedState = String(req.cookies?.spmt_recovery_oauth_state || '');
+  const clientId = String(process.env.TWITCH_CLIENT_ID || '').trim();
+  const clientSecret = String(process.env.TWITCH_CLIENT_SECRET || '').trim();
+  const redirectUri = String(process.env.SPMT_TWITCH_RECOVERY_REDIRECT_URI || `${providerClaimOrigin(req)}/api/auth/recover/twitch/callback`);
+  res.clearCookie('spmt_recovery_oauth_state', { path: '/' });
+
+  const fail = (message: string) => res.redirect('/?recoverError=' + encodeURIComponent(message));
+  if (!code || !state || !expectedState || state !== expectedState) return fail('That recovery link expired. Click Recover and try again.');
+  if (!clientId || !clientSecret) return fail('Twitch recovery is temporarily unavailable.');
+
+  try {
+    const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, code, grant_type: 'authorization_code', redirect_uri: redirectUri }),
+    });
+    const tokenData = await tokenResponse.json().catch(() => ({}));
+    if (!tokenResponse.ok || !tokenData.access_token) return fail('Twitch could not verify your account. Please try again.');
+
+    const userResponse = await fetch('https://api.twitch.tv/helix/users', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}`, 'Client-ID': clientId },
+    });
+    const userData = await userResponse.json().catch(() => ({}));
+    const twitchUser = userData.data?.[0];
+    if (!userResponse.ok || !twitchUser?.id) return fail('Twitch could not return your verified profile. Please try again.');
+
+    const user = findSingleProviderIdentity('twitch_id', String(twitchUser.id));
+    if (!user) return fail('No SPMT account is linked to that Twitch account. You can create a new account instead.');
+    const purpose = user.password_hash === 'SYSTEM_NO_LOGIN' ? 'claim' : 'recover';
+    const issued = issueProviderIdentityTicket(user.id, purpose, 'spmt-recovery');
+    return res.redirect(`/api/auth/provider-claim?ticket=${encodeURIComponent(issued.ticket)}`);
+  } catch (error) {
+    console.warn('[SPMT] Twitch recovery failed', error);
+    return fail('Recovery is temporarily unavailable. Please try again.');
+  }
 });
 
 // ─── Auth: Login ───
@@ -2455,6 +2520,10 @@ app.post('/api/auth/provider-claim', async (req, res) => {
       `).run(usedAt, hashSecret(ticket), usedAt);
       if (!consumed.changes) throw Object.assign(new Error('This SPMT link expired or was already used'), { statusCode: 400 });
       db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, row.user_id);
+      // Password setup converts imported/provider-owned identities into normal
+      // user-owned credentials and invalidates every older setup/recovery path.
+      db.prepare('DELETE FROM provider_identity_tickets WHERE user_id = ? AND ticket_hash != ?').run(row.user_id, hashSecret(ticket));
+      db.prepare('DELETE FROM account_recovery_codes WHERE user_id = ?').run(row.user_id);
       return String(row.user_id);
     })();
 

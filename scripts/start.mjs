@@ -9,10 +9,15 @@ if (!String(process.env.SPMT_CODEX_SERVICE_SECRET || '').trim() && spmtApiKey) {
 await import('../dist/server.cjs');
 
 // Rotator is a separate SPMT application from MountainView. Seed its OAuth
-// registration after the server initializes the persistent schema. Reuse the
-// existing MountainView client secret until ROTATOR_CLIENT_SECRET is set so
-// this migration does not require a coordinated secret rotation to go live.
-const rotatorClientSecret = String(process.env.ROTATOR_CLIENT_SECRET || process.env.MOUNTAINVIEW_CLIENT_SECRET || '').trim();
+// registration after the server initializes the persistent schema. Prefer a
+// dedicated client secret, but reuse an already-deployed ecosystem credential
+// during migration so a new secret is not required just to decouple sessions.
+const rotatorClientSecret = String(
+  process.env.ROTATOR_CLIENT_SECRET
+  || process.env.MOUNTAINVIEW_CLIENT_SECRET
+  || spmtApiKey
+  || '',
+).trim();
 if (rotatorClientSecret) {
   const { default: Database } = await import('better-sqlite3');
   const databasePath = process.env.DATABASE_PATH || (process.env.NODE_ENV === 'production' || process.env.FLY_APP_NAME ? '/data/spmt.db' : new URL('../spmt.db', import.meta.url).pathname);
@@ -36,5 +41,5 @@ if (rotatorClientSecret) {
     db.close();
   }
 } else {
-  console.warn('Rotator OAuth client was not seeded because ROTATOR_CLIENT_SECRET and MOUNTAINVIEW_CLIENT_SECRET are both unset.');
+  console.warn('Rotator OAuth client was not seeded because no migration-safe client credential is configured.');
 }

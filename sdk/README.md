@@ -1,4 +1,4 @@
-# SPMT SDK 0.2.1
+# SPMT SDK 0.3.0
 
 This is the public `@spmt/sdk` partner SDK and `spmt` developer CLI. It is published on npm and mirrored directly by SPMT.
 
@@ -11,7 +11,7 @@ npm exec --yes --package=@spmt/sdk -- spmt install
 If npm is unavailable or you need the SPMT-hosted mirror, use the versioned package URL:
 
 ```powershell
-npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.2.1.tgz -- spmt install
+npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.3.0.tgz -- spmt install
 ```
 
 The command creates:
@@ -57,7 +57,7 @@ npx spmt event server.status --data-file status.json
 Hosted mirror fallback:
 
 ```bash
-npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.2.1.tgz -- spmt event server.status --data-file status.json
+npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.3.0.tgz -- spmt event server.status --data-file status.json
 ```
 
 The stored event type becomes `game.server.status`, the source app comes from `spmt.app.json`, and the payload keeps the exact JSON shape above.
@@ -83,7 +83,8 @@ await spmt.game.publish("session.started", {
 
 ```ts
 const spmt = new SpaceMountainClient({
-  token: () => localStorage.getItem("spmt_token") || undefined,
+  // Same-origin browser surfaces use the HttpOnly SPMT session cookie.
+  // Native clients may supply an in-memory token provider here instead.
 });
 
 const me = await spmt.identity.me();
@@ -95,6 +96,10 @@ const apps = await spmt.apps.list();
 - `identity`
 - `apps`
 - `developer`
+- `surfaces`
+  - `list()` discovers the canonical Commlink, Settings, Worktray, Notifications, Profile, and Overlay surfaces.
+  - `url(surfaceId, { mode, hostApp })` returns a token-free embed URL.
+  - `developer.registerComponent()` publishes a card, panel, dock, overlay, action, or settings component with an app-bound key.
 - `events`
 - `game`
 - `commlink`
@@ -108,3 +113,5 @@ const apps = await spmt.apps.list();
 - `webhooks`
 
 The SDK requires Node 18 or newer. Non-Node apps can use the same HTTPS contract; the Atherrea starter ZIP includes PowerShell and C# examples.
+
+The same component contract is available through `spmt component add`, `POST /api/platform/components`, and the `spmt.components.register` MCP tool at `/api/mcp`.

@@ -291,6 +291,29 @@ try {
   assert.match(commlinkJs, /replies stay source-locked/);
   assert.match(commlinkJs, /data-stream-mode="audio"/);
 
+  const surfaceRegistryResponse = await fetch(`${baseUrl}/api/platform/surfaces`);
+  const surfaceRegistry = await surfaceRegistryResponse.json();
+  assert.equal(surfaceRegistryResponse.status, 200);
+  assert.equal(surfaceRegistry.version, 'shared-surfaces.v1');
+  assert.equal(surfaceRegistry.auth.tokenInUrl, false);
+  assert.equal(surfaceRegistry.surfaces.some((surface) => surface.id === 'settings' && surface.modes.includes('panel')), true);
+  assert.equal(surfaceRegistry.surfaces.some((surface) => surface.id === 'commlink' && surface.path === '/embed/commlink'), true);
+  const sharedSurfaceResponse = await fetch(`${baseUrl}/embed/settings?mode=panel&app=smoke-game`);
+  const sharedSurfaceHtml = await sharedSurfaceResponse.text();
+  assert.equal(sharedSurfaceResponse.status, 200);
+  assert.match(sharedSurfaceHtml, /SPMT shared surface/);
+  const commlinkEmbedResponse = await fetch(`${baseUrl}/embed/commlink?mode=compact&app=smoke-game`, { redirect: 'manual' });
+  assert.equal(commlinkEmbedResponse.status, 302);
+  assert.equal(commlinkEmbedResponse.headers.get('location'), '/commlink/?embedded=1&mode=compact&app=smoke-game');
+
+  const mcpInitializeResponse = await fetch(`${baseUrl}/api/mcp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
+  });
+  const mcpInitialize = await mcpInitializeResponse.json();
+  assert.equal(mcpInitialize.result.serverInfo.name, 'spmt-platform');
+
   const sdkMetadataResponse = await fetch(`${baseUrl}/api/platform/sdk`);
   const sdkMetadata = await sdkMetadataResponse.json();
   assert.equal(sdkMetadataResponse.status, 200);
@@ -592,11 +615,19 @@ try {
     },
     body: JSON.stringify({
       profile: {
-        appearance: { themeId: 'nebula-purple', glowIntensity: 73 },
+        appearance: {
+          themeId: 'nebula-purple', glowIntensity: 73, accentColor: '#a855f7', accentSaturation: 92,
+          borderGlow: true, hoverGlow: false, pushToTalkKey: 'Space', micButtonStyle: 'minimal', voiceWaveStyle: 'bars',
+          accessibility: { highContrast: true, colorVisionMode: 'default', textScale: 110, reduceMotion: true, focusHighlight: true },
+        },
         dockSlots: updatedDockSlots,
         activeOverlaySceneId: 'scene-main',
         ttsSubscriptions: ['streamweaver-main'],
         appThemeMappings: { streamweaver: 'follow-workspace' },
+        savedThemes: [{
+          id: 'smoke-purple', name: 'Smoke Purple', appearance: { ...workspace.profile.appearance, themeId: 'nebula-purple', accentColor: '#a855f7' },
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        }],
       },
     }),
   });
@@ -605,9 +636,12 @@ try {
   assert.equal(workspaceUpdate.profile.revision, 2);
   assert.equal(workspaceUpdate.profile.appearance.themeId, 'nebula-purple');
   assert.equal(workspaceUpdate.profile.appearance.glowIntensity, 73);
+  assert.equal(workspaceUpdate.profile.appearance.accentColor, '#a855f7');
+  assert.equal(workspaceUpdate.profile.appearance.accessibility.reduceMotion, true);
+  assert.equal(workspaceUpdate.profile.savedThemes.length, 1);
   assert.equal(workspaceUpdate.profile.dockSlots[0].muted, true);
   assert.equal(workspaceUpdateResponse.headers.get('etag'), '"workspace-2"');
-  assert.deepEqual(workspaceUpdate.changed.sort(), ['activeOverlaySceneId', 'appThemeMappings', 'appearance', 'dockSlots', 'ttsSubscriptions']);
+  assert.deepEqual(workspaceUpdate.changed.sort(), ['activeOverlaySceneId', 'appThemeMappings', 'appearance', 'dockSlots', 'savedThemes', 'ttsSubscriptions']);
 
   const staleWorkspaceResponse = await fetch(`${baseUrl}/api/workspace-profile`, {
     method: 'PATCH',
@@ -722,7 +756,7 @@ try {
   const integrations = await integrationsResponse.json();
   assert.equal(integrationsResponse.status, 200);
   assert.equal(integrations.primarySurface, '/?view=commlink');
-  assert.equal(integrations.embeddedSurface, '/commlink/?embedded=1');
+  assert.equal(integrations.embeddedSurface, '/embed/commlink?mode=panel');
   assert.equal(integrations.popoutSurface, '/commlink/');
   assert.equal(integrations.cleanupApproved, false);
   assert.equal(integrations.adapters.some((adapter) => adapter.appId === 'streamweaver' && adapter.status === 'connected'), true);
@@ -982,6 +1016,30 @@ try {
   assert.equal(keyResponse.status, 201);
   assert.equal(key.appId, 'smoke-game');
   assert.match(key.token, /^spmt_/);
+
+  const componentResponse = await fetch(`${baseUrl}/api/platform/components`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.token}` },
+    body: JSON.stringify({
+      componentId: 'crew-panel', name: 'Crew Panel', description: 'Smoke shared crew controls.',
+      kind: 'panel', launchUrl: 'https://example.com/spmt/crew', modes: ['panel', 'dock'], permissions: ['identity:read'],
+    }),
+  });
+  const component = await componentResponse.json();
+  assert.equal(componentResponse.status, 201);
+  assert.equal(component.component.appId, 'smoke-game');
+  assert.equal(component.component.componentId, 'crew-panel');
+  const componentListResponse = await fetch(`${baseUrl}/api/platform/components`);
+  const componentList = await componentListResponse.json();
+  assert.equal(componentList.components.some((item) => item.id === 'smoke-game:crew-panel'), true);
+
+  const mcpComponentResponse = await fetch(`${baseUrl}/api/mcp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.token}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'spmt.components.register', arguments: { componentId: 'status-card', name: 'Status Card', description: 'Compact app status.', kind: 'card', launchUrl: 'https://example.com/spmt/status', modes: ['compact'] } } }),
+  });
+  const mcpComponent = await mcpComponentResponse.json();
+  assert.equal(mcpComponent.result.structuredContent.component.componentId, 'status-card');
 
   const keyVerificationResponse = await fetch(`${baseUrl}/api/platform/api-keys/verify`, {
     method: 'POST',
@@ -1294,6 +1352,12 @@ try {
   ], { cwd: cliProject, env: cliEnvironment, encoding: 'utf8' });
   assert.equal(cliEvent.status, 0, cliEvent.stderr);
   assert.match(cliEvent.stdout, /Published game\.player\.progressed/);
+  const cliSurfaces = spawnSync(process.execPath, [cliPath, 'surfaces', '--mode', 'dock'], { cwd: cliProject, env: cliEnvironment, encoding: 'utf8' });
+  assert.equal(cliSurfaces.status, 0, cliSurfaces.stderr);
+  assert.match(cliSurfaces.stdout, /embed\/settings\?mode=dock/);
+  const cliComponent = spawnSync(process.execPath, [cliPath, 'component', 'add', 'score-dock', '--kind', 'dock', '--modes', 'dock,compact', '--url', 'https://example.com/spmt/score'], { cwd: cliProject, env: cliEnvironment, encoding: 'utf8' });
+  assert.equal(cliComponent.status, 0, cliComponent.stderr);
+  assert.match(cliComponent.stdout, /Registered Score Dock/);
 
   const catalogBeforeApprovalResponse = await fetch(`${baseUrl}/api/apps`);
   const catalogBeforeApproval = await catalogBeforeApprovalResponse.json();

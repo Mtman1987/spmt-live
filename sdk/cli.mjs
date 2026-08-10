@@ -139,6 +139,7 @@ async function install(flags) {
     version: String(flags.version || packageJson?.version || '0.1.1'),
     permissions: ['identity:read', 'apps:read', 'events:write'],
     events: ['game.session.started', 'game.session.ended', 'game.player.progressed', 'game.server.status'],
+    components: [],
   };
 
   const manifestWritten = await writeIfAllowed(
@@ -287,6 +288,46 @@ async function status(flags) {
   console.log(JSON.stringify({ submissions: submissions.submissions, recentEvents: events.events }, null, 2));
 }
 
+async function surfaces(flags) {
+  const context = await projectContext(flags);
+  const client = new SpaceMountainClient({ baseUrl: context.baseUrl, appId: context.manifest?.appId });
+  const result = await client.surfaces.list();
+  console.log(JSON.stringify(result.surfaces.map((surface) => ({
+    id: surface.id,
+    name: surface.name,
+    modes: surface.modes,
+    url: client.surfaces.url(surface.id, { mode: String(flags.mode || 'panel'), hostApp: context.manifest?.appId }),
+  })), null, 2));
+}
+
+async function components(positional, flags) {
+  const context = await projectContext(flags);
+  const action = positional[1] || 'list';
+  const client = new SpaceMountainClient({ apiKey: context.apiKey, appId: context.manifest?.appId, baseUrl: context.baseUrl });
+  if (action === 'list') {
+    const result = await client.developer.components();
+    console.log(JSON.stringify(result.components, null, 2));
+    return;
+  }
+  if (action !== 'add' && action !== 'register') throw new Error('component action must be list or add');
+  if (!context.manifest?.appId) throw new Error('spmt.app.json is missing; run spmt install first');
+  if (!context.apiKey) throw new Error('SPMT_API_KEY is missing from the environment or local .env');
+  const componentId = slugify(positional[2] || flags.id);
+  const launchUrl = String(flags.url || flags['launch-url'] || '').trim();
+  if (!componentId || !launchUrl) throw new Error('component id and --url are required');
+  const result = await client.developer.registerComponent({
+    componentId,
+    name: String(flags.name || titleize(componentId)),
+    description: String(flags.description || `${titleize(componentId)} component from ${context.manifest.name}.`),
+    kind: String(flags.kind || 'panel'),
+    launchUrl,
+    icon: String(flags.icon || 'blocks'),
+    modes: String(flags.modes || 'panel').split(',').map((mode) => mode.trim()).filter(Boolean),
+    permissions: String(flags.permissions || '').split(',').map((permission) => permission.trim()).filter(Boolean),
+  });
+  console.log(`Registered ${result.component.name} as ${result.component.appId}:${result.component.componentId}.`);
+}
+
 function help() {
   console.log(`SPMT developer CLI
 
@@ -299,6 +340,9 @@ Commands:
   spmt event <type> --data @status.json
   spmt event <type> --stdin
   spmt status                  Show submissions and recent app events
+  spmt surfaces                List shared surfaces and embed URLs
+  spmt component list          List app-provided components
+  spmt component add <id> --url https://app.example.com/panel
 
 Useful install command:
   npm exec --yes --package=${SDK_URL} -- spmt install
@@ -315,6 +359,8 @@ try {
   else if (command === 'submit') await submit(flags);
   else if (command === 'event') await publishEvent(positional, flags);
   else if (command === 'status') await status(flags);
+  else if (command === 'surfaces') await surfaces(flags);
+  else if (command === 'component' || command === 'components') await components(positional, flags);
   else if (command === 'help' || command === '--help' || command === '-h') help();
   else throw new Error(`Unknown command: ${command}`);
 } catch (error) {

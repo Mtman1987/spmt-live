@@ -405,6 +405,35 @@ body.popout-mode .app-shell { grid-template-columns: 1fr; }
 body.popout-mode .workspace { min-width: 0; }
 body.popout-mode .focus-view { grid-template-columns: 1fr; }
 
+body.surface-compact .space-rail,
+body.surface-compact .source-strip,
+body.surface-compact .context-panel,
+body.surface-compact .feed-actions,
+body.surface-dock .space-rail,
+body.surface-dock .context-panel { display: none !important; }
+body.surface-compact .app-shell,
+body.surface-dock .app-shell { grid-template-columns: 1fr; }
+body.surface-compact .workspace { grid-template-rows: 48px minmax(0,1fr); }
+body.surface-compact .topbar { min-height: 48px; }
+body.surface-compact .topbar-actions .view-switch,
+body.surface-compact .topbar-actions .production-button,
+body.surface-compact .topbar-actions #settings-button { display: none; }
+body.surface-compact .focus-view,
+body.surface-dock .focus-view,
+body.surface-overlay .focus-view { grid-template-columns: 1fr; }
+body.surface-overlay { background: transparent; }
+body.surface-overlay .space-background,
+body.surface-overlay .space-rail,
+body.surface-overlay .topbar,
+body.surface-overlay .source-strip,
+body.surface-overlay .feed-toolbar,
+body.surface-overlay .composer,
+body.surface-overlay .context-panel { display: none !important; }
+body.surface-overlay .app-shell { grid-template-columns: 1fr; background: transparent; }
+body.surface-overlay .workspace { grid-template-rows: minmax(0,1fr); background: transparent; }
+body.surface-overlay .conversation-pane,
+body.surface-overlay .message-feed { background: transparent; }
+
 @media (max-width: 620px) {
   .production-drawer { inset-top: 28px; }
   .show-stats, .event-metrics { grid-template-columns: repeat(2, 1fr); }

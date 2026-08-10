@@ -2,6 +2,8 @@ export const WORKSPACE_PROFILE_SCHEMA_VERSION = 1 as const;
 
 export type WorkspaceAppearanceV1 = {
   themeId: string;
+  accentColor: string;
+  accentSaturation: number;
   glowIntensity: number;
   starDensity: number;
   glassOpacity: number;
@@ -9,6 +11,8 @@ export type WorkspaceAppearanceV1 = {
   nebulaIntensity: number;
   parallaxDepth: number;
   borderStrength: number;
+  borderGlow: boolean;
+  hoverGlow: boolean;
   cornerRadius: 'sm' | 'md' | 'lg' | 'full';
   density: 'compact' | 'comfortable' | 'spacious';
   sidebarCollapsed: boolean;
@@ -21,6 +25,16 @@ export type WorkspaceAppearanceV1 = {
   showAvatars: boolean;
   smoothTransitions: boolean;
   pushToTalk: boolean;
+  pushToTalkKey: string;
+  micButtonStyle: 'round' | 'square' | 'minimal';
+  voiceWaveStyle: 'bars' | 'wave' | 'pulse';
+  accessibility: {
+    highContrast: boolean;
+    colorVisionMode: 'default' | 'deuteranopia' | 'protanopia' | 'tritanopia';
+    textScale: number;
+    reduceMotion: boolean;
+    focusHighlight: boolean;
+  };
   animation: {
     enabled: boolean;
     speed: number;
@@ -46,6 +60,15 @@ export type WorkspaceProfileV1 = {
   activeOverlaySceneId: string | null;
   ttsSubscriptions: string[];
   appThemeMappings: Record<string, string>;
+  savedThemes: WorkspaceSavedThemeV1[];
+  updatedAt: string;
+};
+
+export type WorkspaceSavedThemeV1 = {
+  id: string;
+  name: string;
+  appearance: WorkspaceAppearanceV1;
+  createdAt: string;
   updatedAt: string;
 };
 
@@ -62,6 +85,9 @@ const SIDEBAR_POSITIONS = new Set(['left', 'right']);
 const TOPBAR_STYLES = new Set(['transparent', 'glass']);
 const TAB_STYLES = new Set(['pills', 'underline', 'cards']);
 const TAB_POSITIONS = new Set(['top', 'bottom', 'left', 'right']);
+const MIC_BUTTON_STYLES = new Set(['round', 'square', 'minimal']);
+const VOICE_WAVE_STYLES = new Set(['bars', 'wave', 'pulse']);
+const COLOR_VISION_MODES = new Set(['default', 'deuteranopia', 'protanopia', 'tritanopia']);
 const SENSITIVE_URL_KEYS = /^(?:access_?token|api_?key|auth|authorization|key|password|secret|session|token)$/i;
 
 export function createDefaultWorkspaceProfile(now = new Date().toISOString(), themeId = 'solar-flare'): WorkspaceProfileV1 {
@@ -70,6 +96,8 @@ export function createDefaultWorkspaceProfile(now = new Date().toISOString(), th
     revision: 1,
     appearance: {
       themeId: THEME_IDS.has(themeId) ? themeId : 'solar-flare',
+      accentColor: '#f97316',
+      accentSaturation: 90,
       glowIntensity: 80,
       starDensity: 70,
       glassOpacity: 65,
@@ -77,6 +105,8 @@ export function createDefaultWorkspaceProfile(now = new Date().toISOString(), th
       nebulaIntensity: 80,
       parallaxDepth: 65,
       borderStrength: 60,
+      borderGlow: true,
+      hoverGlow: true,
       cornerRadius: 'md',
       density: 'comfortable',
       sidebarCollapsed: false,
@@ -89,6 +119,16 @@ export function createDefaultWorkspaceProfile(now = new Date().toISOString(), th
       showAvatars: true,
       smoothTransitions: true,
       pushToTalk: true,
+      pushToTalkKey: 'V',
+      micButtonStyle: 'round',
+      voiceWaveStyle: 'wave',
+      accessibility: {
+        highContrast: false,
+        colorVisionMode: 'default',
+        textScale: 100,
+        reduceMotion: false,
+        focusHighlight: true,
+      },
       animation: { enabled: true, speed: 85, particles: true, shootingStars: true },
     },
     dockSlots: [
@@ -99,6 +139,7 @@ export function createDefaultWorkspaceProfile(now = new Date().toISOString(), th
     activeOverlaySceneId: null,
     ttsSubscriptions: [],
     appThemeMappings: {},
+    savedThemes: [],
     updatedAt: now,
   };
 }
@@ -110,6 +151,9 @@ export function mergeWorkspaceProfile(current: WorkspaceProfileV1, patch: any): 
   const animationPatch = appearancePatch.animation && typeof appearancePatch.animation === 'object' && !Array.isArray(appearancePatch.animation)
     ? appearancePatch.animation
     : {};
+  const accessibilityPatch = appearancePatch.accessibility && typeof appearancePatch.accessibility === 'object' && !Array.isArray(appearancePatch.accessibility)
+    ? appearancePatch.accessibility
+    : {};
   return {
     ...current,
     ...patch,
@@ -120,11 +164,13 @@ export function mergeWorkspaceProfile(current: WorkspaceProfileV1, patch: any): 
       ...current.appearance,
       ...appearancePatch,
       animation: { ...current.appearance.animation, ...animationPatch },
+      accessibility: { ...current.appearance.accessibility, ...accessibilityPatch },
     },
     dockSlots: patch?.dockSlots ?? current.dockSlots,
     activeOverlaySceneId: patch?.activeOverlaySceneId === undefined ? current.activeOverlaySceneId : patch.activeOverlaySceneId,
     ttsSubscriptions: patch?.ttsSubscriptions ?? current.ttsSubscriptions,
     appThemeMappings: patch?.appThemeMappings ?? current.appThemeMappings,
+    savedThemes: patch?.savedThemes ?? current.savedThemes,
   };
 }
 
@@ -135,6 +181,9 @@ export function validateWorkspaceProfile(input: any, fallback = createDefaultWor
     : {};
   const animation = appearance.animation && typeof appearance.animation === 'object' && !Array.isArray(appearance.animation)
     ? appearance.animation
+    : {};
+  const accessibility = appearance.accessibility && typeof appearance.accessibility === 'object' && !Array.isArray(appearance.accessibility)
+    ? appearance.accessibility
     : {};
 
   const number = (value: unknown, path: string, minimum: number, maximum: number, defaultValue: number) => {
@@ -166,6 +215,22 @@ export function validateWorkspaceProfile(input: any, fallback = createDefaultWor
       return defaultValue;
     }
     return text;
+  };
+  const shortText = (value: unknown, path: string, maximum: number, defaultValue: string) => {
+    const text = String(value ?? '').trim();
+    if (!text || text.length > maximum) {
+      fields[path] = `Must contain 1 to ${maximum} characters`;
+      return defaultValue;
+    }
+    return text;
+  };
+  const color = (value: unknown, path: string, defaultValue: string) => {
+    const text = String(value ?? '').trim();
+    if (!/^#[0-9a-f]{6}$/i.test(text)) {
+      fields[path] = 'Must be a six-digit hex color';
+      return defaultValue;
+    }
+    return text.toLowerCase();
   };
   const dockUrl = (value: unknown, path: string, defaultValue: string) => {
     const text = String(value ?? '').trim();
@@ -239,6 +304,29 @@ export function validateWorkspaceProfile(input: any, fallback = createDefaultWor
     ? null
     : compactIdentifier(input?.activeOverlaySceneId, 'activeOverlaySceneId', 80, fallback.activeOverlaySceneId || '');
 
+  const rawSavedThemes = Array.isArray(input?.savedThemes) ? input.savedThemes : [];
+  if (input?.savedThemes !== undefined && !Array.isArray(input?.savedThemes)) fields.savedThemes = 'Must be an array';
+  if (rawSavedThemes.length > 20) fields.savedThemes = 'No more than 20 saved themes are allowed';
+  const savedThemes = rawSavedThemes.slice(0, 20).map((item: any, index: number) => {
+    const savedFallback = fallback.savedThemes[index];
+    const savedAppearance = validateWorkspaceProfile({
+      ...fallback,
+      appearance: item?.appearance || fallback.appearance,
+      savedThemes: [],
+    }, fallback);
+    for (const [path, message] of Object.entries(savedAppearance.fields)) {
+      if (path.startsWith('appearance.')) fields[`savedThemes.${index}.${path}`] = message;
+    }
+    const now = new Date().toISOString();
+    return {
+      id: compactIdentifier(item?.id, `savedThemes.${index}.id`, 80, savedFallback?.id || `theme-${index + 1}`),
+      name: shortText(item?.name, `savedThemes.${index}.name`, 80, savedFallback?.name || `Theme ${index + 1}`),
+      appearance: savedAppearance.profile.appearance,
+      createdAt: typeof item?.createdAt === 'string' && item.createdAt ? item.createdAt : savedFallback?.createdAt || now,
+      updatedAt: typeof item?.updatedAt === 'string' && item.updatedAt ? item.updatedAt : savedFallback?.updatedAt || now,
+    };
+  });
+
   return {
     fields,
     profile: {
@@ -246,6 +334,8 @@ export function validateWorkspaceProfile(input: any, fallback = createDefaultWor
       revision: Number.isInteger(Number(input?.revision)) ? Math.max(1, Number(input.revision)) : fallback.revision,
       appearance: {
         themeId: THEME_IDS.has(themeId) ? themeId : fallback.appearance.themeId,
+        accentColor: appearance.accentColor === undefined ? fallback.appearance.accentColor : color(appearance.accentColor, 'appearance.accentColor', fallback.appearance.accentColor),
+        accentSaturation: appearance.accentSaturation === undefined ? fallback.appearance.accentSaturation : number(appearance.accentSaturation, 'appearance.accentSaturation', 0, 100, fallback.appearance.accentSaturation),
         glowIntensity: number(appearance.glowIntensity, 'appearance.glowIntensity', 0, 100, fallback.appearance.glowIntensity),
         starDensity: number(appearance.starDensity, 'appearance.starDensity', 0, 100, fallback.appearance.starDensity),
         glassOpacity: number(appearance.glassOpacity, 'appearance.glassOpacity', 0, 100, fallback.appearance.glassOpacity),
@@ -253,6 +343,8 @@ export function validateWorkspaceProfile(input: any, fallback = createDefaultWor
         nebulaIntensity: number(appearance.nebulaIntensity, 'appearance.nebulaIntensity', 0, 100, fallback.appearance.nebulaIntensity),
         parallaxDepth: number(appearance.parallaxDepth, 'appearance.parallaxDepth', 0, 100, fallback.appearance.parallaxDepth),
         borderStrength: number(appearance.borderStrength, 'appearance.borderStrength', 0, 100, fallback.appearance.borderStrength),
+        borderGlow: appearance.borderGlow === undefined ? fallback.appearance.borderGlow : boolean(appearance.borderGlow, 'appearance.borderGlow', fallback.appearance.borderGlow),
+        hoverGlow: appearance.hoverGlow === undefined ? fallback.appearance.hoverGlow : boolean(appearance.hoverGlow, 'appearance.hoverGlow', fallback.appearance.hoverGlow),
         cornerRadius: enumValue(appearance.cornerRadius, 'appearance.cornerRadius', CORNER_RADII, fallback.appearance.cornerRadius),
         density: enumValue(appearance.density, 'appearance.density', DENSITIES, fallback.appearance.density),
         sidebarCollapsed: boolean(appearance.sidebarCollapsed, 'appearance.sidebarCollapsed', fallback.appearance.sidebarCollapsed),
@@ -265,6 +357,16 @@ export function validateWorkspaceProfile(input: any, fallback = createDefaultWor
         showAvatars: boolean(appearance.showAvatars, 'appearance.showAvatars', fallback.appearance.showAvatars),
         smoothTransitions: boolean(appearance.smoothTransitions, 'appearance.smoothTransitions', fallback.appearance.smoothTransitions),
         pushToTalk: boolean(appearance.pushToTalk, 'appearance.pushToTalk', fallback.appearance.pushToTalk),
+        pushToTalkKey: appearance.pushToTalkKey === undefined ? fallback.appearance.pushToTalkKey : shortText(appearance.pushToTalkKey, 'appearance.pushToTalkKey', 24, fallback.appearance.pushToTalkKey),
+        micButtonStyle: appearance.micButtonStyle === undefined ? fallback.appearance.micButtonStyle : enumValue(appearance.micButtonStyle, 'appearance.micButtonStyle', MIC_BUTTON_STYLES, fallback.appearance.micButtonStyle),
+        voiceWaveStyle: appearance.voiceWaveStyle === undefined ? fallback.appearance.voiceWaveStyle : enumValue(appearance.voiceWaveStyle, 'appearance.voiceWaveStyle', VOICE_WAVE_STYLES, fallback.appearance.voiceWaveStyle),
+        accessibility: {
+          highContrast: accessibility.highContrast === undefined ? fallback.appearance.accessibility.highContrast : boolean(accessibility.highContrast, 'appearance.accessibility.highContrast', fallback.appearance.accessibility.highContrast),
+          colorVisionMode: accessibility.colorVisionMode === undefined ? fallback.appearance.accessibility.colorVisionMode : enumValue(accessibility.colorVisionMode, 'appearance.accessibility.colorVisionMode', COLOR_VISION_MODES, fallback.appearance.accessibility.colorVisionMode),
+          textScale: accessibility.textScale === undefined ? fallback.appearance.accessibility.textScale : number(accessibility.textScale, 'appearance.accessibility.textScale', 80, 140, fallback.appearance.accessibility.textScale),
+          reduceMotion: accessibility.reduceMotion === undefined ? fallback.appearance.accessibility.reduceMotion : boolean(accessibility.reduceMotion, 'appearance.accessibility.reduceMotion', fallback.appearance.accessibility.reduceMotion),
+          focusHighlight: accessibility.focusHighlight === undefined ? fallback.appearance.accessibility.focusHighlight : boolean(accessibility.focusHighlight, 'appearance.accessibility.focusHighlight', fallback.appearance.accessibility.focusHighlight),
+        },
         animation: {
           enabled: boolean(animation.enabled, 'appearance.animation.enabled', fallback.appearance.animation.enabled),
           speed: number(animation.speed, 'appearance.animation.speed', 20, 200, fallback.appearance.animation.speed),
@@ -276,6 +378,7 @@ export function validateWorkspaceProfile(input: any, fallback = createDefaultWor
       activeOverlaySceneId: activeOverlaySceneId || null,
       ttsSubscriptions,
       appThemeMappings,
+      savedThemes,
       updatedAt: typeof input?.updatedAt === 'string' && input.updatedAt ? input.updatedAt : fallback.updatedAt,
     },
   };

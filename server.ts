@@ -15,6 +15,7 @@ import {
 } from './workspace-profile.js';
 import { migrateLegacyXpBalance } from './xp-balance-migration.js';
 import { settleGambleWallet } from './xp-gamble-settlement.js';
+import { SHARED_SURFACES, SHARED_SURFACE_MODES, sharedSurface } from './shared-surfaces.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -1289,7 +1290,7 @@ async function proxyCodexWorker(req: any, res: any, workerPath: string, method =
 
 function authenticatePlatformKey(requiredScope: string) {
   return (req: any, res: any, next: any) => {
-    const token = String(req.headers.authorization?.replace('Bearer ', '') || req.body?.token || req.query?.token || '').trim();
+    const token = String(req.headers.authorization?.replace('Bearer ', '') || req.headers['x-spmt-key'] || '').trim();
     if (!token) return res.status(401).json({ error: 'Platform API key required' });
 
     const row = db.prepare(`
@@ -1557,6 +1558,9 @@ app.get('/api/platform', (req, res) => {
       apiKeys: '/api/platform/api-keys',
       webhooks: '/api/platform/webhooks',
       oauthClients: '/api/oauth/authorize',
+      surfaces: '/api/platform/surfaces',
+      components: '/api/platform/components',
+      mcp: '/api/mcp',
     },
   });
 });
@@ -1564,14 +1568,14 @@ app.get('/api/platform', (req, res) => {
 app.get('/api/platform/sdk', (req, res) => {
   res.json({
     package: '@spmt/sdk',
-    version: '0.2.1',
+    version: '0.3.0',
     npmPublished: true,
     install: 'npm install @spmt/sdk',
     quickInstall: 'npm exec --yes --package=@spmt/sdk -- spmt install',
     download: 'https://spmt.live/sdk/spmt-sdk.tgz',
     starterZip: 'https://spmt.live/sdk/atherrea-spmt-starter.zip',
     example: "const spmt = new SpaceMountainClient({ apiKey: process.env.SPMT_API_KEY, appId: 'atherrea' }); await spmt.experience.award(mappedXpAwardV1({ userId, mappedEventType: 'dsh.discord.message', upstreamEventId }));",
-    modules: ['identity', 'apps', 'developer', 'events', 'game', 'experience', 'workspace', 'sharedChat', 'commlink', 'athena', 'webhooks'],
+    modules: ['identity', 'apps', 'developer', 'surfaces', 'events', 'game', 'experience', 'workspace', 'sharedChat', 'commlink', 'athena', 'webhooks'],
   });
 });
 
@@ -1593,6 +1597,164 @@ app.get('/api/platform/docs', (req, res) => {
       'Register webhooks or submit apps through the developer portal.',
     ],
   });
+});
+
+function serializeDeveloperComponent(row: any) {
+  return {
+    id: `${row.app_id}:${row.component_id}`,
+    appId: row.app_id,
+    componentId: row.component_id,
+    name: row.name,
+    description: row.description,
+    kind: row.kind,
+    launchUrl: row.launch_url,
+    icon: row.icon || 'blocks',
+    modes: parseStringArray(row.modes),
+    permissions: parseStringArray(row.permissions),
+    active: Boolean(row.active),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function listDeveloperComponents(includeInactive = false) {
+  const rows = db.prepare(`
+    SELECT * FROM developer_components
+    ${includeInactive ? '' : 'WHERE active = 1'}
+    ORDER BY app_id ASC, name ASC
+  `).all() as any[];
+  return rows.map(serializeDeveloperComponent);
+}
+
+function validateComponentInput(input: any, appId: string) {
+  const componentId = String(input?.componentId || input?.component_id || '').trim().toLowerCase();
+  const name = compactText(input?.name, 80);
+  const description = compactText(input?.description, 300);
+  const kind = String(input?.kind || 'panel').trim().toLowerCase();
+  const launchUrl = String(input?.launchUrl || input?.launch_url || '').trim();
+  const icon = compactText(input?.icon || 'blocks', 60);
+  const modes = Array.from(new Set((Array.isArray(input?.modes) ? input.modes : ['panel'])
+    .map((mode: unknown) => String(mode).trim().toLowerCase())
+    .filter((mode: string) => (SHARED_SURFACE_MODES as readonly string[]).includes(mode))));
+  const permissions = normalizeScopes(input?.permissions || []);
+  if (!appId || !/^[a-z0-9][a-z0-9-]{1,49}$/.test(appId)) throw Object.assign(new Error('An app-bound SPMT key is required'), { statusCode: 403 });
+  if (!/^[a-z0-9][a-z0-9-]{1,49}$/.test(componentId)) throw Object.assign(new Error('componentId must be a lowercase slug'), { statusCode: 400 });
+  if (!name || !description) throw Object.assign(new Error('name and description are required'), { statusCode: 400 });
+  if (!['card', 'panel', 'dock', 'overlay', 'action', 'settings'].includes(kind)) throw Object.assign(new Error('kind must be card, panel, dock, overlay, action, or settings'), { statusCode: 400 });
+  if (!modes.length) throw Object.assign(new Error('At least one supported surface mode is required'), { statusCode: 400 });
+  let parsedUrl: URL;
+  try { parsedUrl = new URL(launchUrl); } catch { throw Object.assign(new Error('launchUrl must be a valid HTTPS URL'), { statusCode: 400 }); }
+  if (parsedUrl.protocol !== 'https:') throw Object.assign(new Error('launchUrl must use HTTPS'), { statusCode: 400 });
+  for (const key of parsedUrl.searchParams.keys()) {
+    if (/^(?:access_?token|api_?key|auth|authorization|key|password|secret|session|token)$/i.test(key)) {
+      throw Object.assign(new Error(`launchUrl cannot contain the sensitive ${key} query parameter`), { statusCode: 400 });
+    }
+  }
+  return { appId, componentId, name, description, kind, launchUrl: parsedUrl.toString(), icon, modes, permissions };
+}
+
+function upsertDeveloperComponent(userId: string, appId: string, input: any) {
+  const component = validateComponentInput(input, appId);
+  const now = new Date().toISOString();
+  const id = uuidv4();
+  db.prepare(`
+    INSERT INTO developer_components (
+      id, user_id, app_id, component_id, name, description, kind, launch_url,
+      icon, modes, permissions, active, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    ON CONFLICT(app_id, component_id) DO UPDATE SET
+      user_id = excluded.user_id,
+      name = excluded.name,
+      description = excluded.description,
+      kind = excluded.kind,
+      launch_url = excluded.launch_url,
+      icon = excluded.icon,
+      modes = excluded.modes,
+      permissions = excluded.permissions,
+      active = 1,
+      updated_at = excluded.updated_at
+  `).run(
+    id, userId, component.appId, component.componentId, component.name, component.description,
+    component.kind, component.launchUrl, component.icon, JSON.stringify(component.modes),
+    JSON.stringify(component.permissions), now, now,
+  );
+  const row = db.prepare('SELECT * FROM developer_components WHERE app_id = ? AND component_id = ?')
+    .get(component.appId, component.componentId);
+  return serializeDeveloperComponent(row);
+}
+
+app.get('/api/platform/surfaces', (_req, res) => {
+  res.json({
+    version: 'shared-surfaces.v1',
+    auth: {
+      user: 'SPMT session cookie or Authorization: Bearer <SPMT token>',
+      externalApp: 'SPMT app-bound API key',
+      embed: 'POST /api/embed/launch for a short-lived one-time exchange code',
+      tokenInUrl: false,
+    },
+    modes: SHARED_SURFACE_MODES,
+    surfaces: SHARED_SURFACES,
+    componentsEndpoint: '/api/platform/components',
+  });
+});
+
+app.get('/api/platform/components', (_req, res) => {
+  res.json({ version: 'shared-components.v1', components: listDeveloperComponents() });
+});
+
+app.post('/api/platform/components', authenticatePlatformKey('apps:write'), (req: any, res) => {
+  try {
+    const component = upsertDeveloperComponent(req.platformKey.userId, req.platformKey.appId, req.body);
+    res.status(201).json({ component });
+  } catch (error: any) {
+    res.status(error.statusCode || 400).json({ error: error.message || 'Invalid component manifest' });
+  }
+});
+
+app.get('/api/platform/mcp', (_req, res) => {
+  res.json({
+    name: 'spmt-platform',
+    transport: 'streamable-http-json-rpc',
+    endpoint: '/api/mcp',
+    authentication: 'Bearer SPMT app-bound API key for write tools',
+    tools: ['spmt.surfaces.list', 'spmt.components.list', 'spmt.components.register'],
+  });
+});
+
+app.post('/api/mcp', async (req: any, res) => {
+  const id = req.body?.id ?? null;
+  const method = String(req.body?.method || '');
+  const ok = (result: any) => res.json({ jsonrpc: '2.0', id, result });
+  const fail = (code: number, message: string, data?: unknown) => res.json({ jsonrpc: '2.0', id, error: { code, message, ...(data === undefined ? {} : { data }) } });
+  if (method === 'initialize') return ok({ protocolVersion: '2025-06-18', capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'spmt-platform', version: APP_VERSION } });
+  if (method === 'notifications/initialized') return res.status(202).end();
+  if (method === 'tools/list') return ok({ tools: [
+    { name: 'spmt.surfaces.list', description: 'List canonical SPMT shared surfaces and supported embed modes.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+    { name: 'spmt.components.list', description: 'List active app-provided components.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+    { name: 'spmt.components.register', description: 'Register or update a component using an app-bound SPMT key.', inputSchema: { type: 'object', required: ['componentId', 'name', 'description', 'kind', 'launchUrl'], properties: { componentId: { type: 'string' }, name: { type: 'string' }, description: { type: 'string' }, kind: { enum: ['card', 'panel', 'dock', 'overlay', 'action', 'settings'] }, launchUrl: { type: 'string', format: 'uri' }, icon: { type: 'string' }, modes: { type: 'array', items: { enum: SHARED_SURFACE_MODES } }, permissions: { type: 'array', items: { type: 'string' } } }, additionalProperties: false } },
+  ] });
+  if (method !== 'tools/call') return fail(-32601, 'Method not found');
+  const name = String(req.body?.params?.name || '');
+  const args = req.body?.params?.arguments || {};
+  const toolResult = (value: unknown) => ok({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }], structuredContent: value });
+  if (name === 'spmt.surfaces.list') return toolResult({ version: 'shared-surfaces.v1', surfaces: SHARED_SURFACES });
+  if (name === 'spmt.components.list') return toolResult({ version: 'shared-components.v1', components: listDeveloperComponents() });
+  if (name !== 'spmt.components.register') return fail(-32602, 'Unknown tool');
+
+  const token = String(req.headers.authorization?.replace('Bearer ', '') || '').trim();
+  if (!token) return fail(-32001, 'SPMT app-bound API key required');
+  const key = db.prepare(`
+    SELECT id, user_id, app_id, scopes FROM developer_api_keys
+    WHERE key_hash = ? AND revoked_at IS NULL
+  `).get(hashSecret(token)) as any;
+  const scopes = parseStringArray(key?.scopes);
+  if (!key || !key.app_id || !scopes.includes('apps:write')) return fail(-32003, 'An app-bound key with apps:write is required');
+  try {
+    db.prepare('UPDATE developer_api_keys SET last_used_at = ? WHERE id = ?').run(new Date().toISOString(), key.id);
+    return toolResult({ component: upsertDeveloperComponent(key.user_id, key.app_id, args) });
+  } catch (error: any) {
+    return fail(-32602, error.message || 'Invalid component manifest');
+  }
 });
 
 app.get('/api/platform/api-keys', authenticate, (req: any, res) => {
@@ -3209,7 +3371,7 @@ function expectedWorkspaceRevision(req: express.Request) {
 }
 
 function changedWorkspaceSections(previous: WorkspaceProfileV1, next: WorkspaceProfileV1) {
-  return ['appearance', 'dockSlots', 'activeOverlaySceneId', 'ttsSubscriptions', 'appThemeMappings']
+  return ['appearance', 'dockSlots', 'activeOverlaySceneId', 'ttsSubscriptions', 'appThemeMappings', 'savedThemes']
     .filter((key) => JSON.stringify((previous as any)[key]) !== JSON.stringify((next as any)[key]));
 }
 
@@ -4177,7 +4339,7 @@ app.get('/api/commlink/integrations', authenticate, (_req: any, res) => {
   res.json({
     version: 'commlink-integrations.v1',
     primarySurface: '/?view=commlink',
-    embeddedSurface: '/commlink/?embedded=1',
+    embeddedSurface: '/embed/commlink?mode=panel',
     popoutSurface: '/commlink/',
     rollbackSurface: '/?legacyMessages=1#messages',
     cleanupApproved: false,
@@ -5315,6 +5477,23 @@ app.use((err: any, req: any, res: any, next: any) => {
 
 // ─── Static fallback (for minimal frontend later) ───
 app.use('/docs', express.static('docs'));
+app.get('/embed/commlink', (req, res) => {
+  const requestedMode = String(req.query.mode || 'panel').toLowerCase();
+  const mode = (SHARED_SURFACE_MODES as readonly string[]).includes(requestedMode) ? requestedMode : 'panel';
+  const target = new URL('/commlink/', `${req.protocol}://${req.get('host')}`);
+  target.searchParams.set('embedded', '1');
+  target.searchParams.set('mode', mode);
+  if (req.query.app) target.searchParams.set('app', compactText(req.query.app, 50));
+  if (req.query.demo === '1') target.searchParams.set('demo', '1');
+  res.redirect(302, `${target.pathname}${target.search}`);
+});
+
+app.get('/embed/:surface', (req, res, next) => {
+  if (!sharedSurface(req.params.surface)) return next();
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile('shared/index.html', { root: 'public' });
+});
+
 app.use(express.static('public'));
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });

@@ -469,6 +469,28 @@ export function initDb() {
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS developer_components (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      app_id TEXT NOT NULL,
+      component_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      launch_url TEXT NOT NULL,
+      icon TEXT,
+      modes TEXT NOT NULL DEFAULT '[]',
+      permissions TEXT NOT NULL DEFAULT '[]',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(app_id, component_id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_developer_components_app
+      ON developer_components(app_id, active, updated_at);
+
     CREATE TABLE IF NOT EXISTS plugin_installs (
       user_id TEXT NOT NULL,
       plugin_id TEXT NOT NULL,

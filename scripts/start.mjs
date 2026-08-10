@@ -9,6 +9,17 @@ if (!String(process.env.SPMT_CODEX_SERVICE_SECRET || '').trim() && spmtApiKey) {
   process.env.SPMT_CODEX_SERVICE_SECRET = spmtApiKey;
 }
 
+// Keep the primary SPMT account shell on the same canonical workspace appearance
+// as the shared surfaces. The shell remains app-specific, but its theme/layout
+// values come from WorkspaceProfileV1 instead of a second settings store.
+const publicIndexPath = fileURLToPath(new URL('../public/index.html', import.meta.url));
+let publicIndex = await readFile(publicIndexPath, 'utf8');
+if (!publicIndex.includes('/shared/shell-theme.js')) {
+  if (!publicIndex.includes('</body>')) throw new Error('SPMT shell theme bootstrap could not find </body>');
+  publicIndex = publicIndex.replace('</body>', '  <script src="/shared/shell-theme.js" defer></script>\n</body>');
+  await writeFile(publicIndexPath, publicIndex, 'utf8');
+}
+
 // Auth deployment guardrails. These are intentionally narrow replacements in
 // the generated server bundle so the live bootstrap can correct the launcher
 // and owner-assisted recovery without rewriting unrelated server.ts content.

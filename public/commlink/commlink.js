@@ -9,6 +9,20 @@ const providers = {
   'social-stream': { name: 'Social Stream', short: 'SS', rgb: '56, 189, 248' },
 };
 
+const commlinkParams = new URLSearchParams(window.location.search);
+const demoMode = commlinkParams.get('demo') === '1';
+const accountChatSpaces = [
+  { id: 'account', name: 'All messages', detail: 'Account-scoped live sources', icon: 'CM', rgb: '167,139,250', unread: 0, sources: [], bridgeSourceIds: [] },
+];
+const accountDesks = [
+  { id: 'account', name: 'Account', panels: [{ panelId: 'account-feed', label: 'account-feed', chatSpaceId: 'account', accessMode: 'owner' }], hiddenSourceIds: [] },
+];
+
+function commlinkAuthHeaders(extra = {}) {
+  const token = localStorage.getItem('spmt_token');
+  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
+}
+
 const defaultSources = [
   { id: 'twitch-creatora', provider: 'twitch', channelId: 'creatorA', channel: 'creatorA', state: 'Live · can send', capabilities: { compose: true, reply: true, timeout: true, delete: false } },
   { id: 'kick-creatorc', provider: 'kick', channelId: 'creatorC', channel: 'creatorC', state: 'Live · can send', capabilities: { compose: true, reply: false, timeout: false, delete: false } },
@@ -118,13 +132,13 @@ const defaultProduction = {
 };
 
 const state = {
-  activeSpace: 'friday',
-  activeDesk: 'live-show',
+  activeSpace: demoMode ? 'friday' : 'account',
+  activeDesk: demoMode ? 'live-show' : 'account',
   activeFilter: 'all',
   activeView: 'focus',
-  sources: structuredClone(defaultSources),
+  sources: demoMode ? structuredClone(defaultSources) : [],
   sourceHealth: [],
-  feedMode: 'synthetic',
+  feedMode: demoMode ? 'synthetic' : 'loading',
   feedCursor: null,
   feedPollTimer: null,
   liveMessages: [],
@@ -133,10 +147,10 @@ const state = {
   selectedMessage: null,
   replyToMessageId: null,
   lastDispatchGroup: null,
-  selectedDestinations: defaultSources.filter((source) => source.capabilities.compose).map((source) => source.id),
-  messages: initialMessages.map((message) => ({ ...message, xpLinked: message.xp > 0 })),
-  chatSpaces: structuredClone(defaultChatSpaces),
-  desks: structuredClone(defaultDesks),
+  selectedDestinations: demoMode ? defaultSources.filter((source) => source.capabilities.compose).map((source) => source.id) : [],
+  messages: demoMode ? initialMessages.map((message) => ({ ...message, xpLinked: message.xp > 0 })) : [],
+  chatSpaces: structuredClone(demoMode ? defaultChatSpaces : accountChatSpaces),
+  desks: structuredClone(demoMode ? defaultDesks : accountDesks),
   workspaceRecord: null,
   workspaceEtag: null,
   workspaceSaveTimer: null,
@@ -303,9 +317,13 @@ function renderMessages() {
       : state.feedMode === 'real'
         ? 'Live Commlink feed · actions are capability-gated'
         : state.feedMode === 'degraded'
-          ? 'Feed degraded · preview data shown'
-          : 'Synthetic preview · sign in for real sources';
-  $('#message-feed').innerHTML = `<div class="date-separator">${modeLabel}</div>${visible.map((message) => messageCard(message)).join('') || '<div class="feed-empty">No messages match this view. The source is connected, but this bounded window is empty.</div>'}`;
+          ? 'Feed degraded · real data unavailable'
+          : state.feedMode === 'signed-out'
+            ? 'Sign in to load your account feed'
+            : state.feedMode === 'loading'
+              ? 'Loading account-scoped messages…'
+              : 'Explicit demo mode · sample data';
+  $('#message-feed').innerHTML = `<div class="date-separator">${modeLabel}</div>${visible.map((message) => messageCard(message)).join('') || '<div class="feed-empty">No account messages are available in this view.</div>'}`;
   $$('.message-card').forEach((card) => card.addEventListener('click', () => {
     state.selectedMessage = state.selectedMessage === card.dataset.message ? null : card.dataset.message;
     renderMessages();
@@ -627,11 +645,10 @@ function dispatchDestination(source) {
 }
 
 async function requestCommlinkDispatch(body) {
-  const token = localStorage.getItem('spmt_token');
-  if (!token) throw new Error('Sign in to send through Commlink.');
   const response = await fetch('/api/commlink/dispatch', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: commlinkAuthHeaders({ 'content-type': 'application/json' }),
+    credentials: 'include',
     body: JSON.stringify(body),
   });
   const result = await response.json().catch(() => ({}));
@@ -665,10 +682,10 @@ async function dispatchComposer() {
   if (button.dataset.receiptMode === 'retry') {
     button.disabled = true;
     try {
-      const token = localStorage.getItem('spmt_token');
       const response = await fetch(`/api/commlink/dispatch/${encodeURIComponent(state.lastDispatchGroup.groupId)}/retry`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: commlinkAuthHeaders(),
+        credentials: 'include',
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok && response.status !== 207) throw new Error(result.error || 'Retry failed');
@@ -929,14 +946,13 @@ function mergeFeedMessages(incoming) {
 
 function scheduleFeedPoll() {
   clearTimeout(state.feedPollTimer);
-  if (!localStorage.getItem('spmt_token') || state.searchQuery || state.replayActive) return;
+  if (demoMode || state.feedMode === 'signed-out' || state.searchQuery || state.replayActive) return;
   state.feedPollTimer = setTimeout(() => loadCommlinkFeed({ incremental: true }), 5_000);
 }
 
 async function loadCommlinkFeed({ incremental = false, query = '', replayMinutes = 0 } = {}) {
-  const token = localStorage.getItem('spmt_token');
-  if (!token) {
-    setFeedBanner('synthetic', 'Synthetic preview · sign in for account-scoped live feeds');
+  if (demoMode) {
+    setFeedBanner('synthetic', 'Explicit demo mode · sample data only · no provider writes');
     renderAll();
     return;
   }
@@ -947,8 +963,16 @@ async function loadCommlinkFeed({ incremental = false, query = '', replayMinutes
   if (!incremental) setFeedBanner(state.feedMode, query ? 'Searching bounded account history…' : replayMinutes ? 'Loading safe five-minute replay…' : 'Loading real account feeds…');
   try {
     const response = await fetch(`/api/commlink/feed?${params}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: commlinkAuthHeaders(),
+      credentials: 'include',
     });
+    if (response.status === 401) {
+      state.messages = [];
+      state.sources = [];
+      setFeedBanner('signed-out', 'Sign in to load your account-scoped Commlink feed');
+      renderAll();
+      return;
+    }
     if (!response.ok) throw new Error(`Commlink feed returned ${response.status}`);
     const payload = await response.json();
     state.commands = Array.isArray(payload.commands) ? payload.commands : state.commands;
@@ -979,11 +1003,8 @@ async function loadCommlinkFeed({ incremental = false, query = '', replayMinutes
     $('#replay-button').textContent = state.replayActive ? '● Return live' : '↻ Replay 5m';
     renderAll();
   } catch {
-    if (!state.liveMessages.length) {
-      state.messages = initialMessages.map((message) => ({ ...message }));
-      state.sources = structuredClone(defaultSources);
-      setFeedBanner('degraded', 'Real feed unavailable · labeled preview data shown · no provider writes');
-    }
+    if (!state.liveMessages.length) state.messages = [];
+    setFeedBanner('degraded', 'Real feed temporarily unavailable · no sample messages substituted');
     renderAll();
   } finally {
     scheduleFeedPoll();
@@ -1936,9 +1957,10 @@ function wireEvents() {
 renderAll();
 wireEvents();
 setupEmojiMenu();
-const launchParams = new URLSearchParams(window.location.search);
+const launchParams = commlinkParams;
 if (launchParams.get('embedded') === '1') document.body.classList.add('embedded-mode');
 if (launchParams.get('popout') === '1') document.body.classList.add('popout-mode');
+if (['full', 'panel', 'dock', 'compact', 'overlay'].includes(launchParams.get('mode'))) document.body.classList.add(`surface-${launchParams.get('mode')}`);
 if (launchParams.get('chatSpace') && state.chatSpaces.some((space) => space.id === launchParams.get('chatSpace'))) {
   state.activeSpace = launchParams.get('chatSpace');
 }

@@ -171,6 +171,39 @@ export type AppSubmissionInput = {
   permissions?: string[];
 };
 
+export type SharedSurfaceModeV1 = 'full' | 'panel' | 'dock' | 'compact' | 'overlay';
+
+export type SharedSurfaceV1 = {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  path: string;
+  modes: SharedSurfaceModeV1[];
+  scopes: string[];
+  dataSources: string[];
+  status: 'ready' | 'beta';
+};
+
+export type DeveloperComponentInputV1 = {
+  componentId: string;
+  name: string;
+  description: string;
+  kind: 'card' | 'panel' | 'dock' | 'overlay' | 'action' | 'settings';
+  launchUrl: string;
+  icon?: string;
+  modes?: SharedSurfaceModeV1[];
+  permissions?: string[];
+};
+
+export type DeveloperComponentV1 = DeveloperComponentInputV1 & {
+  id: string;
+  appId: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type GameEventOptions = {
   sourceApp?: string;
   visibility?: EventVisibility;
@@ -188,6 +221,8 @@ export type AppStateInput = {
 
 export type WorkspaceAppearanceV1 = {
   themeId: string;
+  accentColor: string;
+  accentSaturation: number;
   glowIntensity: number;
   starDensity: number;
   glassOpacity: number;
@@ -195,6 +230,8 @@ export type WorkspaceAppearanceV1 = {
   nebulaIntensity: number;
   parallaxDepth: number;
   borderStrength: number;
+  borderGlow: boolean;
+  hoverGlow: boolean;
   cornerRadius: 'sm' | 'md' | 'lg' | 'full';
   density: 'compact' | 'comfortable' | 'spacious';
   sidebarCollapsed: boolean;
@@ -207,6 +244,16 @@ export type WorkspaceAppearanceV1 = {
   showAvatars: boolean;
   smoothTransitions: boolean;
   pushToTalk: boolean;
+  pushToTalkKey: string;
+  micButtonStyle: 'round' | 'square' | 'minimal';
+  voiceWaveStyle: 'bars' | 'wave' | 'pulse';
+  accessibility: {
+    highContrast: boolean;
+    colorVisionMode: 'default' | 'deuteranopia' | 'protanopia' | 'tritanopia';
+    textScale: number;
+    reduceMotion: boolean;
+    focusHighlight: boolean;
+  };
   animation: { enabled: boolean; speed: number; particles: boolean; shootingStars: boolean };
 };
 
@@ -257,6 +304,13 @@ export type WorkspaceProfileV1 = {
   activeOverlaySceneId: string | null;
   ttsSubscriptions: string[];
   appThemeMappings: Record<string, string>;
+  savedThemes: Array<{
+    id: string;
+    name: string;
+    appearance: WorkspaceAppearanceV1;
+    createdAt: string;
+    updatedAt: string;
+  }>;
   updatedAt: string;
 };
 
@@ -757,6 +811,29 @@ export class SpaceMountainClient {
       body: input,
     }),
     submissions: () => this.request('/api/platform/apps/submissions', { authMode: 'apiKey' }),
+    components: () => this.request('/api/platform/components') as Promise<{ version: 'shared-components.v1'; components: DeveloperComponentV1[] }>,
+    registerComponent: (input: DeveloperComponentInputV1) => this.request('/api/platform/components', {
+      method: 'POST',
+      authMode: 'apiKey',
+      body: input,
+    }) as Promise<{ component: DeveloperComponentV1 }>,
+  };
+
+  surfaces = {
+    list: () => this.request('/api/platform/surfaces') as Promise<{
+      version: 'shared-surfaces.v1';
+      modes: SharedSurfaceModeV1[];
+      surfaces: SharedSurfaceV1[];
+      componentsEndpoint: string;
+    }>,
+    url: (surfaceId: string, options: { mode?: SharedSurfaceModeV1; hostApp?: string } = {}) => {
+      const surface = String(surfaceId || '').trim().toLowerCase();
+      if (!/^[a-z0-9-]+$/.test(surface)) throw new Error('surfaceId must be a lowercase slug');
+      const url = new URL(`/embed/${surface}`, this.baseUrl);
+      url.searchParams.set('mode', options.mode || 'panel');
+      if (options.hostApp || this.appId) url.searchParams.set('app', options.hostApp || this.appId || '');
+      return url.toString();
+    },
   };
 
   events = {
@@ -870,7 +947,7 @@ export class SpaceMountainClient {
   commlink = {
     workspaceUrl: (mode: 'shell' | 'embedded' | 'popout' = 'shell') => {
       const path = mode === 'embedded'
-        ? '/commlink/?embedded=1'
+        ? '/embed/commlink?mode=panel'
         : mode === 'popout'
           ? '/commlink/'
           : '/?view=commlink';

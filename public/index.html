@@ -114,12 +114,21 @@
     .modal-card h2 { margin: 0 0 8px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
     .code-block { width: 100%; overflow: auto; white-space: pre-wrap; word-break: break-word; background: #05080d; border: 1px solid var(--line); border-radius: 8px; color: #bae6fd; padding: 12px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+    .developer-hero { overflow: hidden; background: linear-gradient(135deg, rgba(124,58,237,.18), rgba(14,165,233,.08)), var(--panel); }
+    .developer-paths { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin-top: 16px; }
+    .developer-path { min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: rgba(4,7,20,.46); }
+    .developer-path strong { display: block; margin-bottom: 5px; }
+    .surface-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; margin-top: 12px; }
+    .surface-tile { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(4,7,20,.42); }
+    .surface-tile strong { display:block; font-size:13px; }
+    .surface-tile small { color:var(--muted); }
     @media (max-width: 900px) {
       .shell { grid-template-columns: 1fr; }
       .sidebar { position: static; height: auto; }
       .cols, .auth-grid, .split { grid-template-columns: 1fr; }
       .span-4, .span-5, .span-7, .span-8, .span-12 { grid-column: span 1; }
       .topbar { align-items: flex-start; flex-direction: column; }
+      .developer-paths, .surface-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -366,9 +375,25 @@
       </section>
 
       <section id="view-developers" class="hidden grid cols">
-        <div class="card span-12">
-          <h3>Install the SPMT developer kit</h3>
-          <p class="muted small" style="margin-bottom:12px">Run this inside the app folder on Windows, macOS, or Linux. It creates the public manifest and a working game-event proof.</p>
+        <div class="card span-12 developer-hero">
+          <div class="row between" style="align-items:flex-start;flex-wrap:wrap">
+            <div>
+              <span class="badge good">Shared surfaces v1</span>
+              <h3 style="font-size:21px;margin-top:10px">Build once. Add it anywhere in SpaceMountain.</h3>
+              <p class="muted small">Register cards, panels, docks, overlays, actions, or settings through the same component contract. SPMT owns identity, permissions, and the canonical surface URLs.</p>
+            </div>
+            <a class="btn primary" href="/embed/worktray?mode=full&app=developer-portal">Preview worktray</a>
+          </div>
+          <div class="developer-paths">
+            <div class="developer-path"><strong>SDK</strong><span class="small muted">Typed surfaces and component registration from JavaScript or TypeScript.</span></div>
+            <div class="developer-path"><strong>CLI</strong><span class="small muted">Install, inspect, register, and verify without hand-writing requests.</span></div>
+            <div class="developer-path"><strong>MCP</strong><span class="small muted">Discover and call SPMT tools at <code>/api/mcp</code>.</span></div>
+            <div class="developer-path"><strong>REST API</strong><span class="small muted">Use the same manifests from any HTTPS-capable stack.</span></div>
+          </div>
+        </div>
+        <div class="card span-7">
+          <h3>Install the developer kit</h3>
+          <p class="muted small" style="margin-bottom:12px">The starter creates <code>spmt.app.json</code>, keeps the SPMT key in <code>.env</code>, and includes a working event proof.</p>
           <pre id="sdk-install-command" class="code-block">Loading SDK command...</pre>
           <div class="row" style="margin-top:10px;flex-wrap:wrap">
             <button class="btn" onclick="copySdkCommand()">Copy command</button>
@@ -376,6 +401,23 @@
             <a id="sdk-download-link" class="btn" href="/sdk/spmt-sdk.tgz">Download package</a>
             <a id="sdk-starter-link" class="btn" href="/sdk/atherrea-spmt-starter.zip">Download Atherrea ZIP</a>
           </div>
+        </div>
+        <div class="card span-5">
+          <h3>Register a component</h3>
+          <p class="muted small" style="margin-bottom:12px">One command publishes the same manifest used by the SDK, MCP tool, and REST endpoint.</p>
+          <pre class="code-block">npx spmt component add crew-panel \
+  --kind panel \
+  --modes panel,dock \
+  --url https://app.example.com/spmt/crew</pre>
+          <p class="muted small">Authentication: app-bound <code>SPMT_API_KEY</code>. Never place the key in a URL or component manifest.</p>
+        </div>
+        <div class="card span-7">
+          <div class="row between"><h3>Canonical shared surfaces</h3><a class="btn" href="/api/platform/surfaces">JSON</a></div>
+          <div id="developer-surfaces" class="surface-grid"><div class="surface-tile muted">Loading surfaces…</div></div>
+        </div>
+        <div class="card span-5">
+          <div class="row between"><h3>App components</h3><a class="btn" href="/api/platform/components">JSON</a></div>
+          <div id="developer-components" class="list"><div class="item muted">Loading components…</div></div>
         </div>
         <div class="card span-5">
           <h3>Create an app-bound key</h3>
@@ -768,18 +810,32 @@
     }
 
     async function loadDeveloperPortal() {
-      const [keysRes, submissionsRes, sdkRes] = await Promise.all([
+      const [keysRes, submissionsRes, sdkRes, surfacesRes, componentsRes] = await Promise.all([
         api('/api/platform/api-keys'),
         api('/api/platform/apps'),
-        fetch('/api/platform/sdk')
+        fetch('/api/platform/sdk'),
+        fetch('/api/platform/surfaces'),
+        fetch('/api/platform/components')
       ]);
       const keysData = keysRes.ok ? await keysRes.json() : { keys: [] };
       const submissionsData = submissionsRes.ok ? await submissionsRes.json() : { submissions: [] };
       sdkMetadata = sdkRes.ok ? await sdkRes.json() : null;
+      const surfacesData = surfacesRes.ok ? await surfacesRes.json() : { surfaces: [] };
+      const componentsData = componentsRes.ok ? await componentsRes.json() : { components: [] };
 
       document.getElementById('sdk-install-command').textContent = sdkMetadata?.quickInstall || 'SDK metadata unavailable';
       if (sdkMetadata?.download) document.getElementById('sdk-download-link').href = sdkMetadata.download;
       if (sdkMetadata?.starterZip) document.getElementById('sdk-starter-link').href = sdkMetadata.starterZip;
+
+      document.getElementById('developer-surfaces').innerHTML = (surfacesData.surfaces || []).map((surface) => `
+        <div class="surface-tile">
+          <div class="row between"><strong>${escapeHtml(surface.name)}</strong><span class="badge ${surface.status === 'ready' ? 'good' : 'warn'}">${escapeHtml(surface.status)}</span></div>
+          <small>${escapeHtml(surface.modes.join(' · '))}</small>
+        </div>`).join('') || '<div class="surface-tile muted">Surface registry unavailable.</div>';
+
+      document.getElementById('developer-components').innerHTML = (componentsData.components || []).length
+        ? componentsData.components.map((component) => `<div class="item"><div class="row between"><strong>${escapeHtml(component.name)}</strong><span class="badge">${escapeHtml(component.kind)}</span></div><div class="small muted">${escapeHtml(component.appId)} · ${escapeHtml(component.modes.join(', '))}</div></div>`).join('')
+        : '<div class="item muted">No external components registered yet.</div>';
 
       const keys = keysData.keys || [];
       document.getElementById('developer-keys').innerHTML = keys.length ? keys.map((key) => `

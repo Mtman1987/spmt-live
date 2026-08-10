@@ -9,6 +9,25 @@ if (!String(process.env.SPMT_CODEX_SERVICE_SECRET || '').trim() && spmtApiKey) {
   process.env.SPMT_CODEX_SERVICE_SECRET = spmtApiKey;
 }
 
+// Keep the primary SPMT account shell and Commlink on the same canonical
+// WorkspaceProfileV1 appearance contract as the reusable shared surfaces.
+const publicIndexPath = fileURLToPath(new URL('../public/index.html', import.meta.url));
+let publicIndex = await readFile(publicIndexPath, 'utf8');
+if (!publicIndex.includes('/shared/shell-theme.js')) {
+  if (!publicIndex.includes('</body>')) throw new Error('SPMT shell theme bootstrap could not find </body>');
+  publicIndex = publicIndex.replace('</body>', '  <script src="/shared/shell-theme.js" defer></script>\n</body>');
+  await writeFile(publicIndexPath, publicIndex, 'utf8');
+}
+
+const commlinkIndexPath = fileURLToPath(new URL('../public/commlink/index.html', import.meta.url));
+let commlinkIndex = await readFile(commlinkIndexPath, 'utf8');
+if (!commlinkIndex.includes('/shared/commlink-canonical.js')) {
+  const marker = '  <script src="/commlink/commlink.js" defer></script>';
+  if (!commlinkIndex.includes(marker)) throw new Error('Commlink canonical UI bootstrap marker was not found');
+  commlinkIndex = commlinkIndex.replace(marker, `  <script src="/shared/commlink-canonical.js" defer></script>\n${marker}`);
+  await writeFile(commlinkIndexPath, commlinkIndex, 'utf8');
+}
+
 // Auth deployment guardrails. These are intentionally narrow replacements in
 // the generated server bundle so the live bootstrap can correct the launcher
 // and owner-assisted recovery without rewriting unrelated server.ts content.

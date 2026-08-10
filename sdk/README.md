@@ -1,14 +1,14 @@
 # SPMT SDK 0.3.0
 
-This is the public `@spmt/sdk` partner SDK and `spmt` developer CLI. It is published on npm and mirrored directly by SPMT.
+This is the `@spmt/sdk` partner SDK and `spmt` developer CLI. Version 0.3.0 is distributed from the canonical SPMT mirror; the older npm tag remains available only for legacy consumers.
 
 ## One-command project setup
 
 ```powershell
-npm exec --yes --package=@spmt/sdk -- spmt install
+npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt install
 ```
 
-If npm is unavailable or you need the SPMT-hosted mirror, use the versioned package URL:
+For an immutable build, pin the versioned package URL:
 
 ```powershell
 npm exec --yes --package=https://spmt.live/sdk/spmt-sdk-0.3.0.tgz -- spmt install

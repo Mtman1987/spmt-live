@@ -318,8 +318,8 @@ try {
   const sdkMetadata = await sdkMetadataResponse.json();
   assert.equal(sdkMetadataResponse.status, 200);
   assert.equal(sdkMetadata.package, '@spmt/sdk');
-  assert.equal(sdkMetadata.npmPublished, true);
-  assert.match(sdkMetadata.quickInstall, /spmt install/);
+  assert.equal(sdkMetadata.npmPublished, false);
+  assert.match(sdkMetadata.quickInstall, /spmt-sdk\.tgz.*spmt install/);
   const sdkPackageResponse = await fetch(`${baseUrl}/sdk/spmt-sdk.tgz`);
   assert.equal(sdkPackageResponse.status, 200);
   assert.ok((await sdkPackageResponse.arrayBuffer()).byteLength > 1_000);

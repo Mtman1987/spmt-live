@@ -1569,9 +1569,9 @@ app.get('/api/platform/sdk', (req, res) => {
   res.json({
     package: '@spmt/sdk',
     version: '0.3.0',
-    npmPublished: true,
-    install: 'npm install @spmt/sdk',
-    quickInstall: 'npm exec --yes --package=@spmt/sdk -- spmt install',
+    npmPublished: false,
+    install: 'npm install https://spmt.live/sdk/spmt-sdk.tgz',
+    quickInstall: 'npm exec --yes --package=https://spmt.live/sdk/spmt-sdk.tgz -- spmt install',
     download: 'https://spmt.live/sdk/spmt-sdk.tgz',
     starterZip: 'https://spmt.live/sdk/atherrea-spmt-starter.zip',
     example: "const spmt = new SpaceMountainClient({ apiKey: process.env.SPMT_API_KEY, appId: 'atherrea' }); await spmt.experience.award(mappedXpAwardV1({ userId, mappedEventType: 'dsh.discord.message', upstreamEventId }));",

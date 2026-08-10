@@ -1,10 +1,51 @@
 // Production bootstrap for SPMT.
 // Reuse the existing SPMT_API_KEY for the Athena Codex gateway so the
 // deployment does not require a second duplicate service credential.
+import { readFile, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+
 const spmtApiKey = String(process.env.SPMT_API_KEY || '').trim();
 if (!String(process.env.SPMT_CODEX_SERVICE_SECRET || '').trim() && spmtApiKey) {
   process.env.SPMT_CODEX_SERVICE_SECRET = spmtApiKey;
 }
+
+// Auth deployment guardrails. These are intentionally narrow replacements in
+// the generated server bundle so the live bootstrap can correct the launcher
+// and owner-assisted recovery without rewriting unrelated server.ts content.
+// If any expected marker disappears, fail startup rather than silently running
+// a partially-applied authentication fix.
+const serverBundlePath = fileURLToPath(new URL('../dist/server.cjs', import.meta.url));
+let serverBundle = await readFile(serverBundlePath, 'utf8');
+
+function replaceRequired(source, from, to, label) {
+  if (!source.includes(from)) {
+    throw new Error(`SPMT auth bootstrap could not apply ${label}; expected bundle marker was not found`);
+  }
+  return source.replace(from, to);
+}
+
+serverBundle = replaceRequired(
+  serverBundle,
+  'https://spmt.live/api/oauth/authorize?client_id=spacemountain-live&redirect_uri=https%3A%2F%2Fspacemountain.live%2Fauth%2Fcallback',
+  'https://spacemountain.live/auth/login',
+  'SpaceMountain state-preserving launcher',
+);
+
+serverBundle = replaceRequired(
+  serverBundle,
+  "SELECT id, username FROM users WHERE username = ? AND password_hash != 'SYSTEM_NO_LOGIN'",
+  'SELECT id, username FROM users WHERE username = ?',
+  'owner-assisted provider account recovery',
+);
+
+serverBundle = replaceRequired(
+  serverBundle,
+  "SELECT id FROM users WHERE username = ? AND password_hash != 'SYSTEM_NO_LOGIN'",
+  'SELECT id FROM users WHERE username = ?',
+  'provider-owned password reset',
+);
+
+await writeFile(serverBundlePath, serverBundle, 'utf8');
 
 await import('../dist/server.cjs');
 

@@ -18,7 +18,11 @@ function ensureWorkspaceShellBootstrap() {
     ? path.resolve(process.env.SPMT_PUBLIC_INDEX_PATH)
     : path.join(__dirname, 'public', 'index.html');
   let publicIndex = fs.readFileSync(publicIndexPath, 'utf8');
-  const scripts = ['/shared/shell-theme.js', '/shared/shell-chrome.js'];
+  const scripts = [
+    '/shared/shell-theme.js',
+    '/shared/shell-chrome.js',
+    '/shared/companion-installer-ui.js',
+  ];
   if (!publicIndex.includes('</body>')) {
     throw new Error('SPMT shell bootstrap could not find </body>');
   }

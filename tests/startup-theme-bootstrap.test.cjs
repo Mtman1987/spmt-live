@@ -37,6 +37,7 @@ test('production entrypoint installs the canonical workspace shell loaders exact
   let html = fs.readFileSync(publicIndexPath, 'utf8');
   assert.match(html, /<script src="\/shared\/shell-theme\.js" defer><\/script>/);
   assert.match(html, /<script src="\/shared\/shell-chrome\.js" defer><\/script>/);
+  assert.match(html, /<script src="\/shared\/companion-installer-ui\.js" defer><\/script>/);
 
   const second = run();
   assert.equal(second.error, undefined, second.error?.message || 'second startup process failed to launch');
@@ -44,6 +45,7 @@ test('production entrypoint installs the canonical workspace shell loaders exact
   html = fs.readFileSync(publicIndexPath, 'utf8');
   assert.equal((html.match(/\/shared\/shell-theme\.js/g) || []).length, 1, 'theme loader must not be duplicated across restarts');
   assert.equal((html.match(/\/shared\/shell-chrome\.js/g) || []).length, 1, 'shell chrome loader must not be duplicated across restarts');
+  assert.equal((html.match(/\/shared\/companion-installer-ui\.js/g) || []).length, 1, 'Companion installer UI loader must not be duplicated across restarts');
 });
 
 test('canonical shell renderer uses scattered stars and derived glass surfaces', () => {
@@ -64,4 +66,11 @@ test('canonical shell chrome mounts branding, welcome heroes, sidebar collapse, 
   assert.match(source, /spmt-workspace-tray/, 'signed-in shell should mount the Worktray footer');
   assert.match(source, /\/api\/overlay-workspace/, 'signed-in shell should read the canonical overlay workspace');
   assert.match(source, /spmt-overlay-runtime/, 'saved overlays should render on the account shell');
+});
+
+test('Companion desktop download is described as an installer, not a ZIP', () => {
+  const source = fs.readFileSync(path.join(repoRoot, 'public', 'shared', 'companion-installer-ui.js'), 'utf8');
+  assert.doesNotThrow(() => new vm.Script(source), 'Companion installer UI patch must remain valid browser JavaScript');
+  assert.match(source, /Download installer/, 'Companion download action should say installer');
+  assert.match(source, /Unsigned installer/, 'Companion status should truthfully say unsigned installer');
 });

@@ -12,24 +12,26 @@ if (!process.env.SPMT_CODEX_SERVICE_SECRET && process.env.SPMT_API_KEY) {
 
 // The Docker image runs this file directly, so production shell bootstraps must
 // live here instead of only in scripts/start.mjs. Ensure the canonical workspace
-// theme loader is present before Express begins serving public/index.html.
-function ensureWorkspaceThemeBootstrap() {
+// renderers are present before Express begins serving public/index.html.
+function ensureWorkspaceShellBootstrap() {
   const publicIndexPath = process.env.SPMT_PUBLIC_INDEX_PATH
     ? path.resolve(process.env.SPMT_PUBLIC_INDEX_PATH)
     : path.join(__dirname, 'public', 'index.html');
   let publicIndex = fs.readFileSync(publicIndexPath, 'utf8');
-  const themeScript = '/shared/shell-theme.js';
-  if (publicIndex.includes(themeScript)) return;
+  const scripts = ['/shared/shell-theme.js', '/shared/shell-chrome.js'];
   if (!publicIndex.includes('</body>')) {
-    throw new Error('SPMT shell theme bootstrap could not find </body>');
+    throw new Error('SPMT shell bootstrap could not find </body>');
   }
-  publicIndex = publicIndex.replace(
-    '</body>',
-    `  <script src="${themeScript}" defer></script>\n</body>`,
-  );
+  for (const script of scripts) {
+    if (publicIndex.includes(script)) continue;
+    publicIndex = publicIndex.replace(
+      '</body>',
+      `  <script src="${script}" defer></script>\n</body>`,
+    );
+  }
   fs.writeFileSync(publicIndexPath, publicIndex, 'utf8');
 }
 
-ensureWorkspaceThemeBootstrap();
+ensureWorkspaceShellBootstrap();
 
 require('./dist/server.cjs');

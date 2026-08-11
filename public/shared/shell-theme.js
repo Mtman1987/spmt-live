@@ -70,6 +70,48 @@
     document.body.classList.toggle(name, Boolean(enabled));
   }
 
+  function seededRandom(seed) {
+    let value = seed >>> 0;
+    return () => {
+      value = (value * 1664525 + 1013904223) >>> 0;
+      return value / 4294967296;
+    };
+  }
+
+  function renderStars(density, enabled) {
+    let layer = document.getElementById('spmt-canonical-stars');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.id = 'spmt-canonical-stars';
+      layer.className = 'spmt-canonical-stars';
+      layer.setAttribute('aria-hidden', 'true');
+      document.body.append(layer);
+    }
+
+    const roundedDensity = Math.max(0, Math.min(100, Math.round(Number(density) || 0)));
+    const key = `${enabled ? 'on' : 'off'}:${roundedDensity}`;
+    if (layer.dataset.renderKey === key) return;
+    layer.dataset.renderKey = key;
+    layer.replaceChildren();
+    layer.hidden = !enabled || roundedDensity <= 0;
+    if (layer.hidden) return;
+
+    const random = seededRandom(0x53a9d5 ^ (roundedDensity * 7919));
+    const count = Math.round(10 + roundedDensity * 0.5);
+    const fragment = document.createDocumentFragment();
+    for (let index = 0; index < count; index += 1) {
+      const star = document.createElement('span');
+      const size = 0.65 + random() * 1.45;
+      star.style.left = `${(random() * 100).toFixed(2)}%`;
+      star.style.top = `${(random() * 100).toFixed(2)}%`;
+      star.style.width = `${size.toFixed(2)}px`;
+      star.style.height = `${size.toFixed(2)}px`;
+      star.style.opacity = `${(0.24 + random() * 0.58).toFixed(2)}`;
+      fragment.append(star);
+    }
+    layer.append(fragment);
+  }
+
   function apply(appearance) {
     if (!appearance) return;
     const theme = THEMES[appearance.themeId] || THEMES['solar-flare'];
@@ -79,6 +121,9 @@
     const root = document.documentElement;
     const borderAlpha = Math.max(0.02, Math.min(0.55, Number(appearance.borderStrength ?? 60) / 100 * 0.36));
     const glass = Math.max(0.08, Math.min(0.9, Number(appearance.glassOpacity ?? 65) / 100));
+    const surfaceGlass = Math.max(0.06, Math.min(0.72, glass * 0.72));
+    const sidebarGlass = Math.max(0.08, Math.min(0.78, glass * 0.78));
+    const controlGlass = Math.max(0.12, Math.min(0.82, glass * 0.8));
     const glow = Math.max(0, Math.min(1.5, Number(appearance.glowIntensity ?? 80) / 100));
     const starDensity = Math.max(0, Math.min(100, Number(appearance.starDensity ?? 70)));
     const nebula = Math.max(0, Math.min(1, Number(appearance.nebulaIntensity ?? 80) / 100));
@@ -92,8 +137,8 @@
     root.style.setProperty('--orange', accent);
     root.style.setProperty('--blue', secondary);
     root.style.setProperty('--line', `rgba(${rgb.r},${rgb.g},${rgb.b},${borderAlpha})`);
-    root.style.setProperty('--panel', `rgba(6,8,22,${glass})`);
-    root.style.setProperty('--panel-2', `rgba(12,15,28,${Math.min(0.96, glass + 0.08)})`);
+    root.style.setProperty('--panel', `rgba(6,8,22,${surfaceGlass})`);
+    root.style.setProperty('--panel-2', `rgba(12,15,28,${controlGlass})`);
     root.style.setProperty('--spmt-accent', accent);
     root.style.setProperty('--spmt-secondary', secondary);
     root.style.setProperty('--spmt-accent-rgb', `${rgb.r},${rgb.g},${rgb.b}`);
@@ -101,14 +146,14 @@
     root.style.setProperty('--spmt-line-strong', `rgba(${rgb.r},${rgb.g},${rgb.b},${Math.min(0.75, borderAlpha + 0.18)})`);
     root.style.setProperty('--spmt-glow', String(glow));
     root.style.setProperty('--spmt-glass', String(glass));
+    root.style.setProperty('--spmt-surface-glass', String(surfaceGlass));
+    root.style.setProperty('--spmt-sidebar-glass', String(sidebarGlass));
+    root.style.setProperty('--spmt-control-glass', String(controlGlass));
     root.style.setProperty('--spmt-blur', `${appearance.blurStrength ?? 22}px`);
     root.style.setProperty('--spmt-radius', radius);
     root.style.setProperty('--spmt-chat-opacity', String((appearance.chatTransparency ?? 65) / 100));
     root.style.setProperty('--spmt-text-scale', String(textScale(appearance.accessibility?.textScale ?? 100)));
     root.style.setProperty('--spmt-nebula-opacity', String(nebula));
-    root.style.setProperty('--spmt-star-opacity', String(Math.max(0.04, starDensity / 100 * 0.62)));
-    root.style.setProperty('--spmt-star-spacing', `${Math.max(18, Math.round(72 - starDensity * 0.48))}px`);
-    root.style.setProperty('--spmt-star-spacing-2', `${Math.max(31, Math.round(118 - starDensity * 0.71))}px`);
     root.style.setProperty('--spmt-bg-image', `url("${theme.backgroundImage}")`);
     root.style.setProperty('--spmt-parallax-depth', String(Math.max(0, Math.min(100, Number(appearance.parallaxDepth ?? 65)))));
     root.style.setProperty('--spmt-animation-speed', `${Math.max(0.2, Number(appearance.animation?.speed ?? 85) / 100)}s`);
@@ -126,6 +171,7 @@
     toggleBodyClass('spmt-focus-highlight', appearance.accessibility?.focusHighlight);
     toggleBodyClass('spmt-high-contrast', appearance.accessibility?.highContrast);
     toggleBodyClass('spmt-particles-off', appearance.animation?.particles === false);
+    renderStars(starDensity, appearance.animation?.particles !== false);
   }
 
   function installStyle() {
@@ -135,19 +181,22 @@
     style.textContent = `
       html{background:#03050b}
       body{font-size:calc(16px*var(--spmt-text-scale,1));background:#03050b!important;position:relative;isolation:isolate;overflow-x:hidden}
-      body:before{content:"";position:fixed;inset:-3%;z-index:0;pointer-events:none;background-image:linear-gradient(180deg,rgba(2,6,18,.3),rgba(2,6,18,.78)),var(--spmt-bg-image);background-size:cover;background-position:center;background-repeat:no-repeat;transform:translate3d(var(--spmt-parallax-x,0px),var(--spmt-parallax-y,0px),0) scale(1.035);transition:transform .2s ease;filter:saturate(1.03)}
-      body:after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background-image:radial-gradient(circle at 20% 18%,rgba(var(--spmt-accent-rgb,249,115,22),.22),transparent 30rem),radial-gradient(circle at 78% 68%,color-mix(in srgb,var(--spmt-secondary,#fbbf24) 14%,transparent),transparent 28rem),radial-gradient(circle,#fff 0 1px,transparent 1.3px),radial-gradient(circle,rgba(255,255,255,.75) 0 .8px,transparent 1.1px);background-size:auto,auto,var(--spmt-star-spacing,38px) var(--spmt-star-spacing,38px),var(--spmt-star-spacing-2,68px) var(--spmt-star-spacing-2,68px);background-position:center,center,0 0,17px 29px;opacity:var(--spmt-nebula-opacity,.8)}
-      body.spmt-particles-off:after{background-image:radial-gradient(circle at 20% 18%,rgba(var(--spmt-accent-rgb,249,115,22),.22),transparent 30rem),radial-gradient(circle at 78% 68%,color-mix(in srgb,var(--spmt-secondary,#fbbf24) 14%,transparent),transparent 28rem)}
-      .shell,.auth-wrap{position:relative;z-index:1}
-      .sidebar{border-color:var(--spmt-line)!important;background:rgba(5,7,16,var(--spmt-glass,.65))!important;backdrop-filter:blur(var(--spmt-blur,22px))!important}
-      .card,.account,.item,.modal-card,.developer-path,.surface-tile{border-color:var(--spmt-line)!important;border-radius:var(--spmt-radius,18px)!important;backdrop-filter:blur(var(--spmt-blur,22px))!important;background:rgba(7,9,20,var(--spmt-glass,.65))!important}
-      .card,.account,.modal-card{box-shadow:0 18px calc(34px + 20px*var(--spmt-glow,.8)) rgba(0,0,0,.28)!important}
-      body.spmt-border-glow .card,body.spmt-border-glow .account,body.spmt-border-glow .modal-card{box-shadow:0 18px 54px rgba(0,0,0,.3),0 0 calc(24px*var(--spmt-glow,.8)) rgba(var(--spmt-accent-rgb),.16)!important}
+      body:before{content:"";position:fixed;inset:-3%;z-index:0;pointer-events:none;background-image:linear-gradient(180deg,rgba(2,6,18,.3),rgba(2,6,18,.76)),var(--spmt-bg-image);background-size:cover;background-position:center;background-repeat:no-repeat;transform:translate3d(var(--spmt-parallax-x,0px),var(--spmt-parallax-y,0px),0) scale(1.035);transition:transform .2s ease;filter:saturate(1.03)}
+      body:after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background-image:radial-gradient(circle at 20% 18%,rgba(var(--spmt-accent-rgb,249,115,22),.2),transparent 30rem),radial-gradient(circle at 78% 68%,color-mix(in srgb,var(--spmt-secondary,#fbbf24) 12%,transparent),transparent 28rem);opacity:var(--spmt-nebula-opacity,.8)}
+      .spmt-canonical-stars{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+      .spmt-canonical-stars[hidden]{display:none}
+      .spmt-canonical-stars span{position:absolute;display:block;border-radius:50%;background:#fff;box-shadow:0 0 3px rgba(255,255,255,.42)}
+      .shell,.auth-wrap{position:relative;z-index:2}
+      .main,.grid,.cols{background:transparent!important}
+      .sidebar{border-color:var(--spmt-line)!important;background:rgba(5,7,16,var(--spmt-sidebar-glass,.5))!important;backdrop-filter:blur(var(--spmt-blur,22px))!important}
+      .card,.account,.item,.modal-card,.developer-path,.surface-tile{border-color:var(--spmt-line)!important;border-radius:var(--spmt-radius,18px)!important;backdrop-filter:blur(var(--spmt-blur,22px))!important;background:rgba(7,9,20,var(--spmt-surface-glass,.47))!important}
+      .card,.account,.modal-card{box-shadow:0 18px calc(34px + 20px*var(--spmt-glow,.8)) rgba(0,0,0,.22)!important}
+      body.spmt-border-glow .card,body.spmt-border-glow .account,body.spmt-border-glow .modal-card{box-shadow:0 18px 54px rgba(0,0,0,.22),0 0 calc(24px*var(--spmt-glow,.8)) rgba(var(--spmt-accent-rgb),.14)!important}
       .mark{background:radial-gradient(circle,#fff 0 4%,var(--spmt-accent) 8% 31%,color-mix(in srgb,var(--spmt-accent) 48%,#05070d) 34% 55%,#05070d 58%)!important;box-shadow:0 0 calc(28px*var(--spmt-glow,.8)) rgba(var(--spmt-accent-rgb),.45)!important}
-      .btn{border-color:var(--spmt-line)!important;background:rgba(10,13,27,.72)!important;border-radius:min(var(--spmt-radius,18px),14px)!important}
+      .btn{border-color:var(--spmt-line)!important;background:rgba(10,13,27,var(--spmt-control-glass,.52))!important;border-radius:min(var(--spmt-radius,18px),14px)!important}
       .btn.primary{background:linear-gradient(135deg,var(--spmt-accent,#f97316),var(--spmt-secondary,#fbbf24))!important;color:#050608!important;border-color:transparent!important}
-      .btn.blue{background:color-mix(in srgb,var(--spmt-accent) 24%,#07101f)!important;border-color:var(--spmt-line-strong)!important;color:#f8fafc!important}
-      input,textarea,select{border-color:var(--spmt-line)!important;border-radius:min(var(--spmt-radius,18px),14px)!important;background:rgba(3,5,12,.78)!important}
+      .btn.blue{background:color-mix(in srgb,var(--spmt-accent) 24%,rgba(7,16,31,var(--spmt-control-glass,.52)))!important;border-color:var(--spmt-line-strong)!important;color:#f8fafc!important}
+      input,textarea,select{border-color:var(--spmt-line)!important;border-radius:min(var(--spmt-radius,18px),14px)!important;background:rgba(3,5,12,var(--spmt-control-glass,.52))!important}
       input:focus,textarea:focus,select:focus{border-color:var(--spmt-line-strong)!important;box-shadow:0 0 0 2px rgba(var(--spmt-accent-rgb),.12)}
       .badge{border-color:var(--spmt-line)!important}
       .nav button{border-radius:min(var(--spmt-radius,18px),16px)!important}
@@ -156,7 +205,7 @@
       .tabs button.active{background:rgba(var(--spmt-accent-rgb),.16)!important;color:#fff!important}
       [data-spmt-theme]{transition:background-color .2s ease,border-color .2s ease,box-shadow .2s ease}
       body.spmt-hover-glow .card:hover,body.spmt-hover-glow .item:hover{border-color:var(--spmt-line-strong)!important;box-shadow:0 0 calc(20px*var(--spmt-glow,.8)) rgba(var(--spmt-accent-rgb),.15)!important}
-      body.spmt-topbar-glass .topbar{padding:12px 14px;border:1px solid var(--spmt-line);border-radius:var(--spmt-radius);background:rgba(6,8,18,var(--spmt-glass,.65));backdrop-filter:blur(var(--spmt-blur,22px))}
+      body.spmt-topbar-glass .topbar{padding:12px 14px;border:1px solid var(--spmt-line);border-radius:var(--spmt-radius);background:rgba(6,8,18,var(--spmt-surface-glass,.47));backdrop-filter:blur(var(--spmt-blur,22px))}
       body.spmt-sidebar-right .shell{grid-template-columns:minmax(0,1fr) 260px}body.spmt-sidebar-right .sidebar{grid-column:2;grid-row:1;border-right:0;border-left:1px solid var(--spmt-line)}body.spmt-sidebar-right .main{grid-column:1;grid-row:1}
       body.spmt-sidebar-hidden .shell{grid-template-columns:1fr}body.spmt-sidebar-hidden .sidebar{display:none}
       body.spmt-sidebar-floating .sidebar{margin:14px;height:calc(100vh - 28px);border:1px solid var(--spmt-line)!important;border-radius:var(--spmt-radius)!important}

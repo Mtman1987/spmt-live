@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const vm = require('node:vm');
 
 const repoRoot = path.resolve(__dirname, '..');
 const entrypoint = path.join(repoRoot, 'start.cjs');
@@ -55,6 +56,7 @@ test('canonical shell renderer uses scattered stars and derived glass surfaces',
 
 test('canonical shell chrome mounts branding, welcome heroes, sidebar collapse, worktray, and overlay runtime', () => {
   const source = fs.readFileSync(path.join(repoRoot, 'public', 'shared', 'shell-chrome.js'), 'utf8');
+  assert.doesNotThrow(() => new vm.Script(source), 'shell chrome must remain valid browser JavaScript');
   assert.match(source, /space-logo-main\.png/, 'welcome hero should use the canonical SpaceMountain logo asset');
   assert.match(source, /model-rocket\.png/, 'shell brand should use the canonical rocket mark');
   assert.match(source, /spmt-welcome-hero/, 'login and dashboard should receive the welcome hero');

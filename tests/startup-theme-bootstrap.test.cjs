@@ -42,3 +42,11 @@ test('production entrypoint installs the canonical workspace theme loader exactl
   html = fs.readFileSync(publicIndexPath, 'utf8');
   assert.equal((html.match(/\/shared\/shell-theme\.js/g) || []).length, 1, 'theme loader must not be duplicated across restarts');
 });
+
+test('canonical shell renderer uses scattered stars and derived glass surfaces', () => {
+  const source = fs.readFileSync(path.join(repoRoot, 'public', 'shared', 'shell-theme.js'), 'utf8');
+  assert.match(source, /spmt-canonical-stars/, 'theme renderer should create a scattered star layer');
+  assert.match(source, /--spmt-surface-glass/, 'theme renderer should derive transparent content surfaces');
+  assert.match(source, /--spmt-sidebar-glass/, 'theme renderer should derive sidebar transparency separately');
+  assert.doesNotMatch(source, /--spmt-star-spacing/, 'theme renderer must not use tiled star spacing that creates a visible grid');
+});

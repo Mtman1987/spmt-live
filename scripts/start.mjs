@@ -2,8 +2,10 @@
 // Reuse the existing SPMT_API_KEY for the Athena Codex gateway so the
 // deployment does not require a second duplicate service credential.
 import { readFile, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
+const require = createRequire(import.meta.url);
 const spmtApiKey = String(process.env.SPMT_API_KEY || '').trim();
 if (!String(process.env.SPMT_CODEX_SERVICE_SECRET || '').trim() && spmtApiKey) {
   process.env.SPMT_CODEX_SERVICE_SECRET = spmtApiKey;
@@ -74,6 +76,11 @@ serverBundle = replaceRequired(
 );
 
 await writeFile(serverBundlePath, serverBundle, 'utf8');
+
+// Register the canonical Athena command route before the bundled server's old
+// 501 placeholder. Authentication is the existing SPMT OAuth/session bearer;
+// no cross-app service key is introduced for this runtime command path.
+require('../athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
 
 await import('../dist/server.cjs');
 

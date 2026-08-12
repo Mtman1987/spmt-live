@@ -23,6 +23,14 @@
     }
   }
 
+  function diagnosticBody(payload) {
+    if (!payload) return null;
+    if (payload.diagnostics && typeof payload.diagnostics === 'object') {
+      return { ...payload.diagnostics, resources: payload.resources || null, active: Boolean(payload.running) };
+    }
+    return payload;
+  }
+
   function firstUsefulLine(text) {
     const lines = String(text || '')
       .split(/\r?\n/)
@@ -32,16 +40,26 @@
     return lines.slice(-3).join('\n').slice(0, 900);
   }
 
-  function summary(diag) {
-    if (!diag) return 'The cloud browser did not produce a readable diagnostic yet.';
+  function summary(payload) {
+    const diag = diagnosticBody(payload);
+    if (!diag) return 'The Xbox worker did not produce a readable diagnostic yet.';
     const parts = [];
     if (diag.lastError) parts.push(diag.lastError);
     else if (diag.exitSignal) parts.push(`Chromium exited via ${diag.exitSignal}.`);
     else if (diag.exitCode !== null && diag.exitCode !== undefined) parts.push(`Chromium exited with code ${diag.exitCode}.`);
     if (diag.vmMemoryMb) parts.push(`Fly VM memory: ${diag.vmMemoryMb} MB.`);
+    const resources = diag.resources || {};
+    if (resources.systemTotalMb) {
+      const free = resources.systemFreeMb !== null && resources.systemFreeMb !== undefined
+        ? `, ${resources.systemFreeMb} MB free`
+        : '';
+      parts.push(`Xbox worker memory: ${resources.systemTotalMb} MB total${free}.`);
+    }
+    if (resources.workerRssMb) parts.push(`Worker RSS: ${resources.workerRssMb} MB.`);
+    if (resources.chromiumParentRssMb) parts.push(`Chromium parent RSS: ${resources.chromiumParentRssMb} MB.`);
     const tail = firstUsefulLine(diag.stderrTail);
     if (tail && !parts.some((part) => tail.includes(part))) parts.push(tail);
-    return parts.join('\n') || (diag.active ? 'Chromium is still starting.' : 'Cloud Chromium is not running.');
+    return parts.join('\n') || (diag.active ? 'Chromium is still starting.' : 'Xbox worker Chromium is not running.');
   }
 
   function showMessage(root, title, detail) {
@@ -59,16 +77,17 @@
   }
 
   async function showFailure(root) {
-    const diag = await diagnostics();
-    const text = summary(diag);
-    showMessage(root, 'Cloud browser stopped', text);
+    const payload = await diagnostics();
+    const diag = diagnosticBody(payload);
+    const text = summary(payload);
+    showMessage(root, 'Xbox worker stopped', text);
     const status = root.querySelector('[data-cloud-xbox-status]');
     if (status && !diag?.active) {
       status.textContent = diag?.exitSignal
         ? `Chromium ${diag.exitSignal}`
         : Number.isInteger(diag?.exitCode)
           ? `Chromium exit ${diag.exitCode}`
-          : 'cloud browser stopped';
+          : 'Xbox worker stopped';
       status.style.color = '#ff9caa';
     }
   }
@@ -87,10 +106,10 @@
       image.addEventListener('error', async () => {
         image.classList.remove('cloud-xbox-frame-ready');
         const current = String(status?.textContent || '').toLowerCase();
-        if (current.includes('stopped') || current.includes('exit') || current.includes('unavailable')) {
+        if (current.includes('stopped') || current.includes('exit') || current.includes('unavailable') || current.includes('worker')) {
           await showFailure(root);
         } else {
-          showMessage(root, 'Starting cloud browser…', 'Waiting for the first usable Chromium frame. No local browser helper is involved.');
+          showMessage(root, 'Starting Xbox worker…', 'Waiting for the first usable Chromium frame. The browser is running on its own Fly Machine, not inside the SPMT web server.');
         }
       });
     }
@@ -98,7 +117,7 @@
     if (status) {
       const observer = new MutationObserver(() => {
         const text = String(status.textContent || '').toLowerCase();
-        if (text.includes('stopped') || text.includes('unavailable') || text.includes('chromium exit')) {
+        if (text.includes('stopped') || text.includes('unavailable') || text.includes('chromium exit') || text.includes('worker timed out')) {
           showFailure(root);
         }
       });

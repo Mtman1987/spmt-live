@@ -152,8 +152,9 @@
           clearXboxFrame();
           return;
         }
-        const visibleWidgets = (layout.widgets || []).filter((widget) => widget.visible !== false);
-        const hasSavedAlert = visibleWidgets.some((widget) => widget.kind === 'alert');
+        const allWidgets = layout.widgets || [];
+        const visibleWidgets = allWidgets.filter((widget) => widget.visible !== false);
+        const hasSavedAlert = allWidgets.some((widget) => widget.kind === 'alert');
         const savedMarkup = visibleWidgets.map((widget) =>
           `<section class="tenant-widget kind-${escapeHtml(widget.kind)}" data-tenant-widget="${escapeHtml(widget.id)}" style="${widgetStyle(widget)}">${sourceMarkup(widget)}</section>`
         ).join('');

@@ -140,6 +140,68 @@ test('post-connect CDP socket errors reject requests instead of becoming unhandl
   assert.equal(client.pending.size, 0);
 });
 
+test('a delayed close from a failed socket cannot reject requests on a recovered socket', async () => {
+  class FakeWebSocket extends EventEmitter {
+    static OPEN = 1;
+    static instances = [];
+
+    constructor() {
+      super();
+      this.readyState = 0;
+      this.sent = [];
+      FakeWebSocket.instances.push(this);
+      queueMicrotask(() => {
+        this.readyState = FakeWebSocket.OPEN;
+        this.emit('open');
+      });
+    }
+
+    send(payload, callback) {
+      this.sent.push(String(payload));
+      if (callback) callback();
+    }
+
+    close() {
+      this.readyState = 3;
+      this.emit('close');
+    }
+
+    terminate() {
+      // Model a real socket where close can arrive on a later turn.
+      this.readyState = 3;
+    }
+  }
+
+  const CdpClient = loadCdpClient(FakeWebSocket);
+  const client = new CdpClient('ws://fake');
+  await client.connect();
+  const oldSocket = client.ws;
+
+  const oldCall = client.call('Runtime.evaluate', {}, 1000);
+  await new Promise((resolve) => setImmediate(resolve));
+  oldSocket.emit('error', new Error('old socket failed'));
+  await assert.rejects(oldCall, /old socket failed/);
+  assert.equal(client.ws, null);
+
+  await client.connect();
+  const recoveredSocket = client.ws;
+  assert.notEqual(recoveredSocket, oldSocket);
+  const recoveredCall = client.call('Runtime.evaluate', {}, 1000);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(client.pending.size, 1);
+
+  oldSocket.emit('close');
+  assert.equal(client.ws, recoveredSocket);
+  assert.equal(client.pending.size, 1, 'stale close must not reject the recovered request');
+
+  const request = JSON.parse(recoveredSocket.sent.at(-1));
+  recoveredSocket.emit('message', JSON.stringify({ id: request.id, result: { ok: true } }));
+  const result = await recoveredCall;
+  assert.equal(result.ok, true);
+  assert.equal(client.pending.size, 0);
+  client.close();
+});
+
 test('connect timeout terminates its stale socket before rejecting', () => {
   const classSource = source.slice(classStart, classEnd);
   const terminateAt = classSource.indexOf('socket.terminate()');

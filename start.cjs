@@ -3,9 +3,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Athena's server-to-server bridge reuses the existing SPMT_API_KEY.
-// Keep the legacy variable populated internally so the current verifier
-// can continue to use its constant-time comparison without a second secret.
+// Athena's coding gateway migration compatibility is unrelated to the runtime
+// command route below. The live Athena command path uses the caller's SPMT
+// OAuth/session bearer and does not depend on this legacy Codex setting.
 if (!process.env.SPMT_CODEX_SERVICE_SECRET && process.env.SPMT_API_KEY) {
   process.env.SPMT_CODEX_SERVICE_SECRET = process.env.SPMT_API_KEY;
 }
@@ -39,9 +39,9 @@ function ensureWorkspaceShellBootstrap() {
 
 ensureWorkspaceShellBootstrap();
 
-// Production installs the authenticated Cloud Xbox routes before the bundled
-// server creates its Express app. The cloud browser stays server-side; Overlay
-// Bay only receives sanitized screenshots/status and forwards user input.
+// Install authenticated pre-routes before the bundled server creates Express.
+// Cloud Xbox and Athena both use the caller's existing SPMT session/bearer.
 require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
+require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
 
 require('./dist/server.cjs');

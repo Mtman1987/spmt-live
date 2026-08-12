@@ -54,6 +54,8 @@ test('canonical renderer polls tenant alert events and Overlay Bay publishes tes
 test('empty outputs still have a replaceable default alert surface', () => {
   const renderer = read('public/tenant-output.html');
   assert.match(renderer, /const DEFAULT_ALERT_WIDGET =/);
+  assert.match(renderer, /const allWidgets = layout\.widgets \|\| \[\]/);
+  assert.match(renderer, /const hasSavedAlert = allWidgets\.some\(\(widget\) => widget\.kind === 'alert'\)/);
   assert.match(renderer, /hasSavedAlert \? ''/);
   assert.match(renderer, /alertId === DEFAULT_ALERT_WIDGET\.id/);
   assert.match(renderer, /SpaceMountain Default Alert/);

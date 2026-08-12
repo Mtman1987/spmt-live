@@ -5,6 +5,8 @@ const path = require('node:path');
 const childProcess = require('node:child_process');
 const jwt = require('jsonwebtoken');
 
+const MAX_TAIL = 6000;
+const STATUS_FILE = process.env.CLOUD_XBOX_DIAGNOSTIC_FILE || '/data/cloud-xbox-last.json';
 const state = {
   active: false,
   pid: null,
@@ -16,9 +18,6 @@ const state = {
   stderrTail: '',
   vmMemoryMb: Number(process.env.FLY_VM_MEMORY_MB || 0) || null,
 };
-
-const MAX_TAIL = 6000;
-const STATUS_FILE = process.env.CLOUD_XBOX_DIAGNOSTIC_FILE || '/data/cloud-xbox-last.json';
 let installed = false;
 
 function redact(text) {
@@ -28,6 +27,26 @@ function redact(text) {
     .replace(/\/data\/cloud-xbox-profiles\/[^\s/'"]+/g, '/data/cloud-xbox-profiles/[user]')
     .slice(-MAX_TAIL);
 }
+
+function restorePersistedState() {
+  try {
+    if (!fs.existsSync(STATUS_FILE)) return;
+    const saved = JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8'));
+    if (!saved || typeof saved !== 'object') return;
+    state.startedAt = saved.startedAt || null;
+    state.exitedAt = saved.exitedAt || null;
+    state.exitCode = Number.isInteger(saved.exitCode) ? saved.exitCode : null;
+    state.exitSignal = saved.exitSignal || null;
+    state.lastError = redact(saved.lastError || '');
+    state.stderrTail = redact(saved.stderrTail || '');
+    state.vmMemoryMb = Number(process.env.FLY_VM_MEMORY_MB || saved.vmMemoryMb || 0) || null;
+    if (saved.active) {
+      state.lastError = state.lastError || 'SPMT restarted while the previous Chromium session was active.';
+    }
+  } catch {}
+}
+
+restorePersistedState();
 
 function persist() {
   try {
@@ -107,6 +126,9 @@ function installSpawnGuard() {
       state.exitSignal = signal || null;
       if (!state.lastError && (code || signal)) {
         state.lastError = signal ? `Chromium exited via ${signal}` : `Chromium exited with code ${code}`;
+      }
+      if (signal === 'SIGKILL') {
+        state.lastError = 'Chromium was killed with SIGKILL. This commonly indicates VM memory or resource pressure.';
       }
       persist();
     });

@@ -77,6 +77,15 @@ test('Overlay Bay v3 exposes tenant outputs and standardized source controls', (
   assert.match(source, /\/api\/tenant-scene\/\$\{platformState\.output\}/);
 });
 
+test('new browser scripts parse before deployment', () => {
+  assert.doesNotThrow(() => new vm.Script(read('public/shared/overlay-widget-contract.js')));
+  assert.doesNotThrow(() => new vm.Script(read('public/shared/overlay-platform-v3.js')));
+  const html = read('public/tenant-output.html');
+  const inlineScripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((match) => match[1]);
+  assert.ok(inlineScripts.length >= 1);
+  inlineScripts.forEach((script) => assert.doesNotThrow(() => new vm.Script(script)));
+});
+
 test('startup and shared surface load tenant overlay platform without replacing Xbox worker code', () => {
   const start = read('start.cjs');
   const localStart = read('scripts/start.mjs');

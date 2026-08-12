@@ -5,7 +5,7 @@ primary_region = "lax"
 
 [processes]
   app = "node start.cjs"
-  xbox = "node xbox-worker.cjs"
+  xbox = "node xbox-worker-guard.cjs"
 
 [env]
   CODEX_WORKER_URL = "https://mtman-machine-rotator.fly.dev"

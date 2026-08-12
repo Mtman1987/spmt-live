@@ -63,32 +63,39 @@ Xbox WebRTC remote MediaStreamTrack
   -> clone()
   -> Xbox Bridge video element
   -> saved SPMT Overlay Bay layout
-  -> transparent Overlay Bay runtime
+  -> native Xbox-page Overlay Bay renderer
   -> browser/broadcaster captures the finished tab/window
 ```
 
 The bridge runtime is stored at `public/shared/xbox-bridge-runtime.js`. It expects Xbox Cloud Gaming to already have a live `video.srcObject` MediaStream.
 
-The Windows test launcher first opens SPMT and Xbox in one reusable Edge profile. After the user saves Overlay Bay and starts gameplay, the launcher reads only the saved overlay layout from the authenticated top-level SPMT tab and injects that layout plus the bridge runtime into the Xbox tab. This avoids depending on third-party SPMT cookies inside the Xbox-hosted runtime iframe.
+The Windows test launcher first opens SPMT and Xbox in one reusable Edge profile. After the user saves Overlay Bay and starts gameplay, the launcher reads only the saved overlay layout from the authenticated top-level SPMT tab and injects that layout plus the bridge runtime into the Xbox tab.
 
-The bridge keeps its controls inside the Xbox page so clicking **Overlay**, **Test follow**, **Test raid**, **Hide controls**, or **Exit** does not require switching to the command window. While active it suppresses Xbox element-fullscreen requests so the injected overlay remains visible. Exiting restores the normal `requestFullscreen` implementation.
+The saved scene is rendered directly by the bridge inside the Xbox page. The Xbox base source is skipped because the cloned WebRTC video already supplies the base picture. Saved Text, Image, Web/embed, Alert, Camera, and Screen widgets are drawn above it. This avoids depending on a cross-site SPMT scene iframe inside `play.xbox.com`, which proved unreliable during live testing.
+
+The bridge keeps controls inside the Xbox page for **Overlay**, **Test follow**, **Test raid**, Camera/Screen session connections, **Collapse**, and **Exit**. Collapse leaves a compact **SPMT controls** pill so the controls are always recoverable. While active the bridge suppresses Xbox element-fullscreen requests so the injected overlay remains visible. Exiting restores the normal `requestFullscreen` implementation.
+
+Live testing also showed that browser focus is not a hard bridge requirement once the injected bridge is active. The test flow therefore does not rely on keeping Xbox focused; if Xbox itself pauses because of a future visibility/focus policy, that is treated as a host behavior rather than a bridge requirement.
 
 ## Manual validation
 
 1. Open `https://spmt.live/overlay-bay.html` after the feature is deployed.
 2. Add **Xbox** as the base source.
 3. Add any easy test sources: **Text**, **Image**, **Web**, and **Alert**.
-4. Use the alert tester buttons to confirm follow/sub/resub/raid/cheer/gift/custom rendering.
+4. Use the alert tester buttons to confirm follow/sub/resub/raid/cheer/gift/custom rendering in Overlay Bay.
 5. Add a Camera source and press **Connect camera**.
 6. Add a Screen source and press **Share screen / window**.
 7. Drag/resize sources, use **Front**, **Lock**, **Hide**, and save the workspace.
 8. Download `/downloads/RUN_XBOX_OVERLAY_BAY_TEST.bat` from Overlay Bay.
 9. Run it. The reusable Edge profile opens SPMT and Xbox.
 10. Sign into SPMT/Xbox in that test profile if needed, then start Xbox Cloud Gaming.
-11. When gameplay is live, press Enter in the launcher once, then click back into Xbox.
+11. When gameplay is live, press Enter in the launcher once.
 12. Verify the cloned game is moving underneath the saved SPMT overlays.
-13. Use **Test follow** and **Test raid** inside the Xbox page to prove the generic alerts fire over gameplay.
-14. Use **Overlay** to hide/show the whole saved SPMT layer, then **Exit** to remove the bridge.
+13. Use **Test follow** and **Test raid** inside the Xbox page to prove the native generic alerts fire over gameplay.
+14. If the scene contains Camera or Screen widgets, use their in-page buttons to grant the current-session capture permissions.
+15. Use **Overlay** to hide/show the whole saved SPMT layer.
+16. Use **Collapse**, then click the **SPMT controls** pill to restore the full controls.
+17. Use **Exit** to remove the bridge and restore normal fullscreen behavior.
 
 ## Ownership rule
 

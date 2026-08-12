@@ -23,6 +23,7 @@ COPY scripts/operations ./scripts/operations
 COPY start.cjs ./start.cjs
 COPY cloud-xbox-bootstrap.cjs ./cloud-xbox-bootstrap.cjs
 COPY xbox-worker.cjs ./xbox-worker.cjs
+COPY xbox-worker-guard.cjs ./xbox-worker-guard.cjs
 COPY athena-command-bootstrap.cjs ./athena-command-bootstrap.cjs
 ENV NODE_ENV=production
 ENV DATABASE_PATH=/data/spmt.db

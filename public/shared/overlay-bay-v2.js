@@ -254,7 +254,13 @@
       gift: { eventType: 'gift', user: 'GiftCaptain', count: 5 },
       custom: { eventType: 'custom', headline: 'SpaceMountain Test', message: 'Generic alerts are replaceable and working.' },
     };
-    fireGenericAlert(samples[eventType] || samples.follow);
+    const payload = { ...(samples[eventType] || samples.follow), isTest: true };
+    fireGenericAlert(payload);
+    if (typeof window.publishTenantOverlayAlert === 'function') {
+      window.publishTenantOverlayAlert(payload).catch((error) => {
+        try { setStatus(error?.message || 'Alert test could not reach the output URL.', 'error'); } catch {}
+      });
+    }
   }
 
   function renderSourceBody(widget) {

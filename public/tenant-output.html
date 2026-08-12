@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
   <title>SpaceMountain Tenant Output</title>
   <style>
     *{box-sizing:border-box}
@@ -36,6 +37,7 @@
       const pathParts = location.pathname.split('/').filter(Boolean);
       const tenant = decodeURIComponent(pathParts[1] || '').toLowerCase();
       const output = pathParts[2] === 'personal' ? 'personal' : 'public';
+      const personalKey = output === 'personal' ? new URLSearchParams(location.search).get('key') || '' : '';
       const state = {
         layout: contract.emptyLayout(),
         signature: '',
@@ -45,6 +47,7 @@
         frameBusy: false,
         lastFrameUrl: '',
         alertTimers: new Map(),
+        seenAlertIds: new Set(),
       };
 
       const ALERT_TEMPLATES = {
@@ -80,6 +83,7 @@
           headline: payload.headline || 'SpaceMountain Alert',
           message: payload.message || '',
           imageUrl: payload.imageUrl || '',
+          isTest: Boolean(payload.isTest || payload.test),
         };
       }
 
@@ -164,7 +168,8 @@
       }
 
       async function sceneRequest() {
-        const url = `/api/tenant/${encodeURIComponent(tenant)}/${output}`;
+        const query = output === 'personal' && personalKey ? `?key=${encodeURIComponent(personalKey)}` : '';
+        const url = `/api/tenant/${encodeURIComponent(tenant)}/${output}${query}`;
         const response = await fetch(url, { credentials: 'include', cache: 'no-store', headers: { Accept: 'application/json' } });
         if (!response.ok) throw new Error(`scene ${response.status}`);
         return response.json();
@@ -182,6 +187,16 @@
             renderScene();
           } else {
             state.layout = layout;
+          }
+          const now = Date.now();
+          for (const alert of Array.isArray(data.alerts) ? data.alerts : []) {
+            if (!alert?.id || state.seenAlertIds.has(alert.id)) continue;
+            state.seenAlertIds.add(alert.id);
+            const createdAt = Date.parse(String(alert.createdAt || ''));
+            const expiresAt = Date.parse(String(alert.expiresAt || ''));
+            if (Number.isFinite(createdAt) && createdAt >= now - 15_000 && (!Number.isFinite(expiresAt) || expiresAt > now)) {
+              fireAlert(alert);
+            }
           }
         } catch {
           // A renderer failure must not paint a login page or SPMT chrome over the broadcaster. Stay transparent/last-known.
@@ -254,8 +269,19 @@
 
       function fireAlert(rawPayload = {}) {
         const payload = normalizeAlert(rawPayload);
-        document.querySelectorAll('[data-tenant-alert]').forEach((stage) => {
-          const widget = (state.layout.widgets || []).find((item) => item.id === stage.dataset.tenantAlert);
+        let stages = [...document.querySelectorAll('[data-tenant-alert]')];
+        if (!stages.length && payload.isTest) {
+          const fallback = document.createElement('section');
+          fallback.className = 'tenant-widget kind-alert';
+          fallback.dataset.tenantWidget = 'runtime-test-alert';
+          fallback.style.cssText = 'left:20%;top:30%;width:576px;height:216px;opacity:1;z-index:100000';
+          fallback.innerHTML = sourceMarkup({ id: 'runtime-test-alert', kind: 'alert' });
+          sceneEl.append(fallback);
+          stages = [...fallback.querySelectorAll('[data-tenant-alert]')];
+        }
+        stages.forEach((stage) => {
+          const widget = (state.layout.widgets || []).find((item) => item.id === stage.dataset.tenantAlert)
+            || (stage.dataset.tenantAlert === 'runtime-test-alert' ? { id: 'runtime-test-alert', visible: true } : null);
           if (!widget || widget.visible === false) return;
           const accepts = widget.accepts || Object.keys(ALERT_TEMPLATES);
           if (!accepts.includes(payload.eventType) && !accepts.includes('custom')) return;
@@ -282,6 +308,14 @@
 
       window.spmtOverlayAlert = fireAlert;
       window.addEventListener('spmt:overlay-alert', (event) => fireAlert(event.detail || {}));
+      if (typeof BroadcastChannel === 'function') {
+        const alertChannel = new BroadcastChannel(`spmt-overlay:${tenant}:${output}`);
+        alertChannel.addEventListener('message', (event) => {
+          const alert = event.data || {};
+          if (alert.id) state.seenAlertIds.add(alert.id);
+          fireAlert(alert);
+        });
+      }
       window.addEventListener('message', (event) => {
         if (event.source === window || event.origin === location.origin) {
           const data = event.data || {};

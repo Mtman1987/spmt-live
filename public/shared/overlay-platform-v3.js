@@ -82,6 +82,25 @@
     return true;
   }
 
+  async function publishTenantAlert(payload = {}) {
+    if (!platformState.tenant) await loadTenantOverlay(platformState.output);
+    const response = await request(`/api/tenant-alert/${platformState.output}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `${outputLabel()} alert could not be published.`);
+    if (typeof BroadcastChannel === 'function' && data.alert) {
+      const channel = new BroadcastChannel(`spmt-overlay:${data.tenant}:${data.output}`);
+      channel.postMessage(data.alert);
+      channel.close();
+    }
+    setUiStatus(`${outputLabel()} alert sent to the output URL.`, 'ok');
+    return data.alert;
+  }
+
+  window.publishTenantOverlayAlert = publishTenantAlert;
+
   function sceneScale(canvas) {
     const rect = canvas?.getBoundingClientRect?.();
     return rect?.width ? rect.width / contract.scene.width : 1;

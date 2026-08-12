@@ -22,8 +22,8 @@ test('tenant server contract uses one tenant record with public and personal out
   assert.match(source, /app\.put\('\/api\/tenant-scene\/:output'/);
   assert.match(source, /app\.get\('\/tenant\/:tenant\/public'/);
   assert.match(source, /app\.get\('\/tenant\/:tenant\/personal'/);
-  assert.match(source, /\/tenant\/\$\{encodeURIComponent\(tenant\)\}\/public/);
-  assert.match(source, /\/tenant\/\$\{encodeURIComponent\(tenant\)\}\/personal/);
+  assert.match(source, /\/tenant\/\$\{encodeURIComponent\(canonicalTenant\)\}\/public/);
+  assert.match(source, /\/tenant\/\$\{encodeURIComponent\(canonicalTenant\)\}\/personal/);
 });
 
 test('canonical widget contract standardizes geometry, opacity and media fit', () => {
@@ -54,6 +54,10 @@ test('tenant output is transparent and renders saved zIndex instead of inventing
   assert.match(source, /\/api\/tenant-xbox\/status/);
   assert.match(source, /\/api\/tenant-xbox\/frame/);
   assert.doesNotMatch(source, /spmt_token=.*[?&]/i);
+  assert.match(source, /new URLSearchParams\(location\.search\)\.get\('key'\)/);
+  assert.match(source, /Array\.isArray\(data\.alerts\)/);
+  assert.match(source, /BroadcastChannel\(`spmt-overlay:/);
+  assert.match(source, /runtime-test-alert/);
 });
 
 test('Overlay Bay v3 exposes tenant outputs and standardized source controls', () => {
@@ -76,6 +80,37 @@ test('Overlay Bay v3 exposes tenant outputs and standardized source controls', (
   ]) assert.ok(source.includes(marker), `missing ${marker}`);
   assert.match(source, /\/api\/tenant-scene\?output=/);
   assert.match(source, /\/api\/tenant-scene\/\$\{platformState\.output\}/);
+  assert.match(source, /\/api\/tenant-alert\/\$\{platformState\.output\}/);
+  assert.match(source, /window\.publishTenantOverlayAlert = publishTenantAlert/);
+});
+
+test('personal output URLs carry a stable view-only key and reject mismatches', () => {
+  const previous = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = 'tenant-overlay-contract-secret';
+  try {
+    const first = bootstrap._test.urlsForTenant('mtman1987', 'user-1');
+    const second = bootstrap._test.urlsForTenant('mtman1987', 'user-1');
+    assert.equal(first.personal, second.personal);
+    const key = new URL(first.personal).searchParams.get('key');
+    assert.ok(key);
+    assert.equal(bootstrap._test.safeKeyEqual(key, bootstrap._test.personalViewKey({ id: 'user-1', username: 'mtman1987' })), true);
+    assert.equal(bootstrap._test.safeKeyEqual('wrong', key), false);
+  } finally {
+    if (previous === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = previous;
+  }
+});
+
+test('alert relay normalizes supported event types and expires queued events', () => {
+  assert.deepEqual(bootstrap._test.normalizeAlertPayload({ eventType: 'FOLLOW', username: 'Tester' }), {
+    eventType: 'follow', user: 'Tester', count: 1, amount: 0, months: 0, headline: '', message: '', imageUrl: '', isTest: false,
+  });
+  assert.equal(bootstrap._test.normalizeAlertPayload({ eventType: 'follow', test: true }).isTest, true);
+  const now = Date.now();
+  assert.deepEqual(bootstrap._test.liveAlerts([
+    { id: 'old', expiresAt: new Date(now - 1).toISOString() },
+    { id: 'live', expiresAt: new Date(now + 1000).toISOString() },
+  ], now).map((alert) => alert.id), ['live']);
 });
 
 test('binding guard reloads requested output after legacy first render and removes stale save listener', () => {

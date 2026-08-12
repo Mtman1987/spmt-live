@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const jwt = require('jsonwebtoken');
 const Database = require('better-sqlite3');
 
@@ -13,6 +14,8 @@ const DATABASE_PATH = process.env.DATABASE_PATH || (process.env.NODE_ENV === 'pr
 const WORKER_URL = String(process.env.CLOUD_XBOX_WORKER_URL || 'http://xbox.process.spmt-live.internal:3003').replace(/\/+$/, '');
 const WORKER_SECRET = String(process.env.CLOUD_XBOX_WORKER_SECRET || process.env.JWT_SECRET || '').trim();
 const PUBLIC_RELAY_SECONDS = 10 * 60;
+const ALERT_RELAY_SECONDS = 60;
+const MAX_ALERT_QUEUE = 20;
 const MAX_LAYOUT_BYTES = 160_000;
 
 let readDb = null;
@@ -63,6 +66,28 @@ function tenantSlug(value) {
 
 function outputName(value) {
   return value === 'personal' ? 'personal' : value === 'public' ? 'public' : '';
+}
+
+function personalViewKey(user) {
+  const secret = String(process.env.JWT_SECRET || '');
+  const tenant = tenantSlug(user?.username);
+  const userId = String(user?.id || '');
+  if (!secret || !tenant || !userId) return '';
+  return crypto.createHmac('sha256', secret)
+    .update(`spmt-personal-overlay-v1:${userId}:${tenant}`)
+    .digest('base64url');
+}
+
+function safeKeyEqual(actual, expected) {
+  const left = Buffer.from(String(actual || ''));
+  const right = Buffer.from(String(expected || ''));
+  return left.length > 0 && left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
+function hasPersonalViewAccess(req, user) {
+  const authenticated = resolveAuthenticatedUser(req);
+  if (authenticated?.id === String(user.id) && authenticated.username === tenantSlug(user.username)) return true;
+  return safeKeyEqual(req.query?.key, personalViewKey(user));
 }
 
 function openReadDb() {
@@ -135,6 +160,31 @@ function emptyLayout() {
   };
 }
 
+function normalizeAlertPayload(input) {
+  const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  const eventType = String(source.eventType || source.kind || source.alertType || 'custom').trim().toLowerCase();
+  const allowedType = ['follow', 'sub', 'resub', 'gift', 'raid', 'cheer', 'custom'].includes(eventType) ? eventType : 'custom';
+  return {
+    eventType: allowedType,
+    user: String(source.user || source.username || source.displayName || 'Someone').slice(0, 160),
+    count: clamp(source.count ?? source.viewers ?? source.gifts, 0, 1_000_000, 1),
+    amount: clamp(source.amount ?? source.bits, 0, 1_000_000_000, 0),
+    months: clamp(source.months, 0, 10_000, 0),
+    headline: String(source.headline || '').slice(0, 240),
+    message: String(source.message || '').slice(0, 1000),
+    imageUrl: String(source.imageUrl || '').slice(0, 2048),
+    isTest: Boolean(source.isTest || source.test),
+  };
+}
+
+function liveAlerts(input, now = Date.now()) {
+  if (!Array.isArray(input)) return [];
+  return input.filter((alert) => {
+    const expiresAt = Date.parse(String(alert?.expiresAt || ''));
+    return alert?.id && Number.isFinite(expiresAt) && expiresAt > now;
+  }).slice(-MAX_ALERT_QUEUE);
+}
+
 function normalizeLayout(input) {
   const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   return {
@@ -171,6 +221,7 @@ function newTenantRecord(user, legacyPublic = null) {
       public: normalizeLayout(legacyPublic || emptyLayout()),
       personal: emptyLayout(),
     },
+    alertQueues: { public: [], personal: [] },
     outputUpdatedAt: { public: now, personal: now },
     createdAt: now,
     updatedAt: now,
@@ -201,6 +252,10 @@ function readTenantRecord(user, create = true) {
           public: normalizeLayout(parsed?.outputs?.public || legacyLayoutForUser(user.id) || emptyLayout()),
           personal: normalizeLayout(parsed?.outputs?.personal || emptyLayout()),
         },
+        alertQueues: {
+          public: liveAlerts(parsed?.alertQueues?.public),
+          personal: liveAlerts(parsed?.alertQueues?.personal),
+        },
         outputUpdatedAt: {
           public: parsed?.outputUpdatedAt?.public || parsed?.updatedAt || new Date().toISOString(),
           personal: parsed?.outputUpdatedAt?.personal || parsed?.updatedAt || new Date().toISOString(),
@@ -216,10 +271,12 @@ function readTenantRecord(user, create = true) {
   return record;
 }
 
-function urlsForTenant(tenant) {
+function urlsForTenant(tenant, userId = '') {
+  const canonicalTenant = tenantSlug(tenant);
+  const personalKey = personalViewKey({ id: userId, username: canonicalTenant });
   return {
-    public: `${CANONICAL_ORIGIN}/tenant/${encodeURIComponent(tenant)}/public`,
-    personal: `${CANONICAL_ORIGIN}/tenant/${encodeURIComponent(tenant)}/personal`,
+    public: `${CANONICAL_ORIGIN}/tenant/${encodeURIComponent(canonicalTenant)}/public`,
+    personal: `${CANONICAL_ORIGIN}/tenant/${encodeURIComponent(canonicalTenant)}/personal${personalKey ? `?key=${encodeURIComponent(personalKey)}` : ''}`,
   };
 }
 
@@ -238,6 +295,23 @@ function updateOutput(user, output, layout) {
   record.updatedAt = now;
   writeTenantRecord(record);
   return { record, layout: normalized, updatedAt: now };
+}
+
+function publishAlert(user, output, payload) {
+  const record = readTenantRecord(user, true) || newTenantRecord(user);
+  const createdAt = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + ALERT_RELAY_SECONDS * 1000).toISOString();
+  const alert = {
+    id: crypto.randomUUID(),
+    ...normalizeAlertPayload(payload),
+    createdAt,
+    expiresAt,
+  };
+  record.alertQueues ||= { public: [], personal: [] };
+  record.alertQueues[output] = [...liveAlerts(record.alertQueues[output]), alert].slice(-MAX_ALERT_QUEUE);
+  record.updatedAt = createdAt;
+  writeTenantRecord(record);
+  return alert;
 }
 
 function requireSameOrigin(req, res, next) {
@@ -314,7 +388,7 @@ function installRoutes(app, express) {
     if (!layout || typeof layout !== 'object' || Array.isArray(layout)) return safeJson(res, 400, { error: 'A layout object is required' });
     try {
       const saved = updateOutput(user, 'public', layout);
-      return safeJson(res, 200, { ok: true, layout: saved.layout, updatedAt: saved.updatedAt, tenant: user.username, output: 'public', urls: urlsForTenant(user.username) });
+      return safeJson(res, 200, { ok: true, layout: saved.layout, updatedAt: saved.updatedAt, tenant: user.username, output: 'public', urls: urlsForTenant(user.username, user.id) });
     } catch (error) {
       return safeJson(res, error.statusCode || 500, { error: error.message || 'Overlay workspace could not be saved' });
     }
@@ -331,7 +405,7 @@ function installRoutes(app, express) {
       output,
       layout: record.outputs[output],
       updatedAt: record.outputUpdatedAt[output],
-      urls: urlsForTenant(user.username),
+      urls: urlsForTenant(user.username, user.id),
       scene: { width: SCENE_WIDTH, height: SCENE_HEIGHT },
     });
   });
@@ -351,7 +425,7 @@ function installRoutes(app, express) {
         output,
         layout: saved.layout,
         updatedAt: saved.updatedAt,
-        urls: urlsForTenant(user.username),
+        urls: urlsForTenant(user.username, user.id),
       });
     } catch (error) {
       return safeJson(res, error.statusCode || 500, { error: error.message || 'Tenant overlay could not be saved' });
@@ -369,22 +443,40 @@ function installRoutes(app, express) {
       output: 'public',
       layout: record.outputs.public,
       updatedAt: record.outputUpdatedAt.public,
+      alerts: liveAlerts(record.alertQueues?.public),
       scene: { width: SCENE_WIDTH, height: SCENE_HEIGHT },
       xboxRelayToken: issuePublicRelayToken(tenant),
     });
   });
 
   app.get('/api/tenant/:tenant/personal', (req, res) => {
-    const user = resolveAuthenticatedUser(req);
     const tenant = tenantSlug(req.params.tenant);
-    if (!user || !tenant || user.username !== tenant) return safeJson(res, 401, { error: 'Not authenticated for this tenant' });
+    const tenantUser = tenant ? lookupUserByTenant(tenant) : null;
+    if (!tenantUser || !hasPersonalViewAccess(req, tenantUser)) return safeJson(res, 401, { error: 'Not authenticated for this tenant' });
+    const user = { id: String(tenantUser.id), username: tenant };
     const record = readTenantRecord(user, true);
     return safeJson(res, 200, {
       tenant,
       output: 'personal',
       layout: record.outputs.personal,
       updatedAt: record.outputUpdatedAt.personal,
+      alerts: liveAlerts(record.alertQueues?.personal),
       scene: { width: SCENE_WIDTH, height: SCENE_HEIGHT },
+    });
+  });
+
+  app.post('/api/tenant-alert/:output', requireSameOrigin, jsonBody, (req, res) => {
+    const user = resolveAuthenticatedUser(req);
+    if (!user) return safeJson(res, 401, { error: 'Not authenticated' });
+    const output = outputName(req.params.output);
+    if (!output) return safeJson(res, 400, { error: 'output must be public or personal' });
+    const alert = publishAlert(user, output, req.body || {});
+    return safeJson(res, 201, {
+      ok: true,
+      tenant: user.username,
+      output,
+      alert,
+      urls: urlsForTenant(user.username, user.id),
     });
   });
 
@@ -466,7 +558,11 @@ module.exports = {
     outputName,
     normalizeWidget,
     normalizeLayout,
+    normalizeAlertPayload,
+    liveAlerts,
     emptyLayout,
     urlsForTenant,
+    personalViewKey,
+    safeKeyEqual,
   },
 };

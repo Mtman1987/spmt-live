@@ -44,5 +44,8 @@ ensureWorkspaceShellBootstrap();
 // process only authenticates the user and proxies Overlay Bay control requests.
 require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
 require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
+// Canonical tenant outputs shadow the legacy single-overlay API as a PUBLIC
+// compatibility alias, so existing Xbox/Worktray consumers keep one source of truth.
+require('./tenant-overlay-bootstrap.cjs').installTenantOverlayBootstrap();
 
 require('./dist/server.cjs');

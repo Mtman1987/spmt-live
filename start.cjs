@@ -10,6 +10,16 @@ if (!process.env.SPMT_CODEX_SERVICE_SECRET && process.env.SPMT_API_KEY) {
   process.env.SPMT_CODEX_SERVICE_SECRET = process.env.SPMT_API_KEY;
 }
 
+function ensureScripts(filePath, scripts) {
+  let html = fs.readFileSync(filePath, 'utf8');
+  if (!html.includes('</body>')) throw new Error(`SPMT shell bootstrap could not find </body> in ${filePath}`);
+  for (const script of scripts) {
+    if (html.includes(script)) continue;
+    html = html.replace('</body>', `  <script src="${script}" defer></script>\n</body>`);
+  }
+  fs.writeFileSync(filePath, html, 'utf8');
+}
+
 // The Docker image runs this file directly, so production shell bootstraps must
 // live here instead of only in scripts/start.mjs. Ensure the canonical workspace
 // renderers are present before Express begins serving public/index.html.
@@ -17,24 +27,21 @@ function ensureWorkspaceShellBootstrap() {
   const publicIndexPath = process.env.SPMT_PUBLIC_INDEX_PATH
     ? path.resolve(process.env.SPMT_PUBLIC_INDEX_PATH)
     : path.join(__dirname, 'public', 'index.html');
-  let publicIndex = fs.readFileSync(publicIndexPath, 'utf8');
-  const scripts = [
+  ensureScripts(publicIndexPath, [
     '/shared/shell-theme.js',
     '/shared/shell-chrome.js',
     '/shared/companion-installer-ui.js',
     '/shared/overlay-bay-shell-nav.js',
-  ];
-  if (!publicIndex.includes('</body>')) {
-    throw new Error('SPMT shell bootstrap could not find </body>');
-  }
-  for (const script of scripts) {
-    if (publicIndex.includes(script)) continue;
-    publicIndex = publicIndex.replace(
-      '</body>',
-      `  <script src="${script}" defer></script>\n</body>`,
-    );
-  }
-  fs.writeFileSync(publicIndexPath, publicIndex, 'utf8');
+  ]);
+
+  // Shared surfaces need the same tenant event publisher and the copyable,
+  // read-only Personal renderer URL. These scripts enhance the existing v2/v3
+  // Overlay Bay instead of introducing another editor/runtime.
+  const sharedIndexPath = path.join(__dirname, 'public', 'shared', 'index.html');
+  ensureScripts(sharedIndexPath, [
+    '/shared/tenant-overlay-alert-publisher.js',
+    '/shared/personal-overlay-launch-client.js',
+  ]);
 }
 
 ensureWorkspaceShellBootstrap();
@@ -44,6 +51,9 @@ ensureWorkspaceShellBootstrap();
 // process only authenticates the user and proxies Overlay Bay control requests.
 require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
 require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
+// Event/grant routes must be installed before the older tenant routes because
+// they extend the Personal data contract with a narrow read-only render key.
+require('./tenant-overlay-events-bootstrap.cjs').installTenantOverlayEventsBootstrap();
 // Canonical tenant outputs shadow the legacy single-overlay API as a PUBLIC
 // compatibility alias, so existing Xbox/Worktray consumers keep one source of truth.
 require('./tenant-overlay-bootstrap.cjs').installTenantOverlayBootstrap();

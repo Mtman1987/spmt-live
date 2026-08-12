@@ -1,0 +1,37 @@
+(() => {
+  'use strict';
+  const parts = location.pathname.split('/').filter(Boolean);
+  const tenant = decodeURIComponent(parts[1] || '').toLowerCase();
+  const output = parts[2] === 'personal' ? 'personal' : 'public';
+  if (!tenant || output !== 'personal') return;
+
+  const storageKey = `spmt.personal-render-key:${tenant}`;
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const fragmentKey = String(hash.get('render') || '').trim();
+  if (fragmentKey) {
+    try { sessionStorage.setItem(storageKey, fragmentKey); } catch {}
+    try { history.replaceState(null, '', `${location.pathname}${location.search}`); } catch {}
+  }
+  let renderKey = fragmentKey;
+  if (!renderKey) {
+    try { renderKey = String(sessionStorage.getItem(storageKey) || '').trim(); } catch {}
+  }
+  if (!renderKey) return;
+
+  window.__spmtPersonalRenderKey = renderKey;
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = (input, init = {}) => {
+    try {
+      const raw = typeof input === 'string' || input instanceof URL ? String(input) : input?.url;
+      const url = new URL(raw, location.href);
+      const personalScenePath = `/api/tenant/${encodeURIComponent(tenant)}/personal`;
+      const alertPath = `/api/tenant/${encodeURIComponent(tenant)}/alerts`;
+      if (url.origin === location.origin && (url.pathname === personalScenePath || url.pathname === alertPath)) {
+        const headers = new Headers(init.headers || (typeof input === 'object' ? input.headers : undefined) || {});
+        headers.set('x-spmt-render-key', renderKey);
+        return originalFetch(input, { ...init, headers });
+      }
+    } catch {}
+    return originalFetch(input, init);
+  };
+})();

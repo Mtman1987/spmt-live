@@ -113,18 +113,28 @@ class CdpClient {
         try { socket.terminate(); } catch {}
         reject(new Error('CDP websocket timeout'));
       }, 5000);
+      const onSocketError = (error) => {
+        if (this.ws !== socket) return;
+        this.ws = null;
+        const failure = error instanceof Error ? error : new Error(String(error || 'CDP connection error'));
+        for (const pending of [...this.pending.values()]) pending.reject(failure);
+        try { socket.terminate(); } catch {}
+      };
       const onOpen = () => {
         clearTimeout(timer);
-        socket.off('error', onError);
+        socket.off('error', onConnectError);
+        socket.on('error', onSocketError);
         resolve();
       };
-      const onError = (error) => {
+      const onConnectError = (error) => {
         clearTimeout(timer);
         socket.off('open', onOpen);
+        if (this.ws === socket) this.ws = null;
+        try { socket.terminate(); } catch {}
         reject(error);
       };
       socket.once('open', onOpen);
-      socket.once('error', onError);
+      socket.once('error', onConnectError);
     });
 
     try {

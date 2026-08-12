@@ -78,9 +78,20 @@ test('Overlay Bay v3 exposes tenant outputs and standardized source controls', (
   assert.match(source, /\/api\/tenant-scene\/\$\{platformState\.output\}/);
 });
 
+test('binding guard reloads requested output after legacy first render and removes stale save listener', () => {
+  const source = read('public/shared/overlay-platform-v3-binding-fix.js');
+  assert.match(source, /params\.get\('output'\) === 'personal'/);
+  assert.match(source, /await load\(requestedOutput\)/);
+  assert.match(source, /button\.cloneNode\(true\)/);
+  assert.match(source, /button\.replaceWith\(replacement\)/);
+  assert.match(source, /await save\(\)/);
+  assert.match(source, /MutationObserver/);
+});
+
 test('new browser scripts parse before deployment', () => {
   assert.doesNotThrow(() => new vm.Script(read('public/shared/overlay-widget-contract.js')));
   assert.doesNotThrow(() => new vm.Script(read('public/shared/overlay-platform-v3.js')));
+  assert.doesNotThrow(() => new vm.Script(read('public/shared/overlay-platform-v3-binding-fix.js')));
   const html = read('public/tenant-output.html');
   const inlineScripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((match) => match[1]);
   assert.ok(inlineScripts.length >= 1);
@@ -96,6 +107,7 @@ test('startup and shared surface load tenant overlay platform without replacing 
   assert.match(shared, /overlay-widget-contract\.js/);
   assert.match(shared, /overlay-platform-v3\.css/);
   assert.match(shared, /overlay-platform-v3\.js/);
+  assert.match(shared, /overlay-platform-v3-binding-fix\.js/);
   assert.match(start, /cloud-xbox-bootstrap\.cjs/);
 });
 

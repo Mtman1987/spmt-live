@@ -57,7 +57,11 @@ const EMBED_SCOPES_BY_CLIENT: Record<string, string[]> = {
   'discord-stream-hub': ['identity:read', 'workspace:read', 'discord:control'],
   hearmeout: ['identity:read', 'workspace:read', 'media:control', 'rooms:control'],
   'chat-tag': ['identity:read', 'game:control'],
-  'spacemountain-live': ['identity:read', 'xp:write'],
+  'spacemountain-live': ['identity:read'],
+};
+
+const OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT: Record<string, string[]> = {
+  'spacemountain-live': ['xp:write'],
 };
 
 const COMPANION_ACTION_CAPABILITIES: Record<string, string> = {
@@ -382,6 +386,14 @@ function issueOauthAccessToken(user: any, clientId: string, scopes: string[]) {
     client_id: clientId,
     scopes,
     is_admin: Boolean(user.is_admin),
+  }, JWT_SECRET, { expiresIn: OAUTH_ACCESS_TOKEN_SECONDS });
+}
+
+function issueOauthClientAccessToken(clientId: string, scopes: string[]) {
+  return jwt.sign({
+    client_id: clientId,
+    scopes,
+    token_use: 'client_credentials',
   }, JWT_SECRET, { expiresIn: OAUTH_ACCESS_TOKEN_SECONDS });
 }
 
@@ -1296,16 +1308,37 @@ function authenticatePlatformKey(requiredScope: string) {
     const token = bearer || headerKey;
     if (!token) return res.status(401).json({ error: 'SPMT bearer or platform API key required' });
 
-    // First-party and user-facing apps authenticate with normal SPMT OAuth
-    // access tokens. Only accept OAuth JWTs that are app-bound and explicitly
-    // carry the requested platform scope.
+    // Platform OAuth supports two intentionally separate token classes:
+    // user OAuth for ordinary app-scoped calls, and client credentials for
+    // server-to-server writes such as XP awards. Historical user tokens that
+    // still contain xp:write must never become XP service credentials.
     if (bearer) {
       try {
         const payload = jwt.verify(bearer, JWT_SECRET) as any;
         const appId = String(payload?.client_id || '').trim();
         const userId = String(payload?.id || '').trim();
+        const tokenUse = String(payload?.token_use || '').trim();
         const scopes = Array.isArray(payload?.scopes) ? payload.scopes.map(String) : [];
+        if (appId && tokenUse === 'client_credentials') {
+          if (!scopes.includes(requiredScope)) {
+            return res.status(403).json({ error: `Missing required scope: ${requiredScope}` });
+          }
+          req.platformKey = {
+            id: null,
+            userId: null,
+            appId,
+            name: `OAuth client ${appId}`,
+            keyPrefix: null,
+            scopes,
+            oauth: true,
+            service: true,
+          };
+          return next();
+        }
         if (appId && userId) {
+          if (requiredScope === 'xp:write') {
+            return res.status(403).json({ error: 'xp:write requires OAuth client credentials' });
+          }
           if (!scopes.includes(requiredScope)) {
             return res.status(403).json({ error: `Missing required scope: ${requiredScope}` });
           }
@@ -1318,6 +1351,7 @@ function authenticatePlatformKey(requiredScope: string) {
             keyPrefix: null,
             scopes,
             oauth: true,
+            service: false,
           };
           return next();
         }
@@ -3057,11 +3091,26 @@ app.post('/api/embed/exchange', (req, res) => {
 
 // ─── OAuth2: Token exchange ───
 app.post('/api/oauth/token', (req, res) => {
-  const { code, client_id, client_secret, redirect_uri, refresh_token, grant_type } = req.body;
+  const { code, client_id, client_secret, redirect_uri, refresh_token, grant_type, scope } = req.body;
   if (!client_id || !client_secret) return res.status(400).json({ error: 'Missing client credentials' });
 
   const client = db.prepare('SELECT * FROM oauth_clients WHERE client_id = ? AND client_secret = ?').get(client_id, client_secret) as any;
   if (!client) return res.status(401).json({ error: 'Invalid client credentials' });
+
+  if (grant_type === 'client_credentials') {
+    const allowedScopes = OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT[String(client_id)] || [];
+    const requestedScopes = String(scope || '').split(/\s+/).map((value) => value.trim()).filter(Boolean);
+    const scopes = requestedScopes.length ? Array.from(new Set(requestedScopes)) : allowedScopes;
+    if (!scopes.length || scopes.some((value) => !allowedScopes.includes(value))) {
+      return res.status(403).json({ error: 'Requested client-credentials scope is not allowed for this app' });
+    }
+    return res.json({
+      access_token: issueOauthClientAccessToken(String(client_id), scopes),
+      token_type: 'Bearer',
+      expires_in: OAUTH_ACCESS_TOKEN_SECONDS,
+      scopes,
+    });
+  }
 
   if (grant_type === 'refresh_token' || refresh_token) {
     const refreshHash = hashSecret(String(refresh_token || ''));
@@ -3074,7 +3123,10 @@ app.post('/api/oauth/token', (req, res) => {
 
     const user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(stored.user_id) as any;
     if (!user) return res.status(404).json({ error: 'User not found' });
-    const scopes = JSON.parse(stored.scopes || '[]') as string[];
+    const storedScopes = JSON.parse(stored.scopes || '[]') as string[];
+    const scopes = String(client_id) === 'spacemountain-live'
+      ? storedScopes.filter((value) => value !== 'xp:write')
+      : storedScopes;
     const rotatedRefreshToken = issueOauthRefreshToken(user.id, client_id, scopes);
     db.prepare('UPDATE oauth_refresh_tokens SET revoked_at = ?, rotated_to_hash = ? WHERE token_hash = ?')
       .run(new Date().toISOString(), hashSecret(rotatedRefreshToken), refreshHash);

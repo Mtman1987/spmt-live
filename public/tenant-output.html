@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>SpaceMountain Tenant Output</title>
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent!important}
+    body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    #stage-wrap{position:fixed;inset:0;overflow:hidden;background:transparent;pointer-events:none}
+    #scene{position:absolute;left:0;top:0;width:960px;height:540px;overflow:hidden;background:transparent;transform-origin:0 0;pointer-events:none}
+    .tenant-widget{position:absolute;overflow:hidden;background:transparent;pointer-events:none}
+    .tenant-widget iframe,.tenant-widget img,.tenant-widget video{display:block;width:100%;height:100%;border:0;background:transparent}
+    .tenant-text{width:100%;height:100%;display:grid;align-items:center;padding:12px;color:#fff;font-weight:900;line-height:1.05;text-shadow:0 3px 18px rgba(0,0,0,.8);white-space:pre-wrap;overflow:hidden}
+    .tenant-alert-stage{position:absolute;inset:0;display:grid;place-items:center;padding:14px;pointer-events:none}
+    .tenant-alert-card{--alert-accent:#f97316;width:min(100%,500px);display:grid;grid-template-columns:auto 1fr;align-items:center;gap:14px;padding:15px 18px;border:1px solid color-mix(in srgb,var(--alert-accent) 58%,white 8%);border-radius:18px;background:linear-gradient(135deg,color-mix(in srgb,var(--alert-accent) 18%,transparent),rgba(5,7,14,.92));box-shadow:0 18px 50px rgba(0,0,0,.46),0 0 28px color-mix(in srgb,var(--alert-accent) 22%,transparent);opacity:0;transform:translateY(22px) scale(.96);transition:opacity .22s ease,transform .32s cubic-bezier(.2,.8,.2,1)}
+    .tenant-alert-stage.is-showing .tenant-alert-card{opacity:1;transform:translateY(0) scale(1)}
+    .tenant-alert-card img{width:70px;height:70px;object-fit:contain;filter:drop-shadow(0 0 14px color-mix(in srgb,var(--alert-accent) 45%,transparent))}
+    .tenant-alert-card img[hidden]{display:none}
+    .tenant-alert-kicker{display:block;color:var(--alert-accent);font-size:9px;font-weight:900;letter-spacing:.14em}
+    .tenant-alert-card strong{display:block;margin-top:3px;color:#fff;font-size:20px;line-height:1.05}
+    .tenant-alert-card p{margin:6px 0 0;color:#c6cede;font-size:11px;line-height:1.35}
+  </style>
+</head>
+<body>
+  <div id="stage-wrap"><div id="scene"></div></div>
+  <script src="/shared/overlay-widget-contract.js"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const contract = window.SPMTOverlayWidgets;
+      const sceneEl = document.getElementById('scene');
+      const wrapEl = document.getElementById('stage-wrap');
+      const pathParts = location.pathname.split('/').filter(Boolean);
+      const tenant = decodeURIComponent(pathParts[1] || '').toLowerCase();
+      const output = pathParts[2] === 'personal' ? 'personal' : 'public';
+      const state = {
+        layout: contract.emptyLayout(),
+        signature: '',
+        xboxRelayToken: '',
+        xboxStatusKnown: false,
+        xboxRunning: false,
+        frameBusy: false,
+        lastFrameUrl: '',
+        alertTimers: new Map(),
+      };
+
+      const ALERT_TEMPLATES = {
+        follow: { headline: '{user} joined the climb!', body: 'Welcome to SpaceMountain.' },
+        sub: { headline: '{user} subscribed!', body: 'Thanks for fueling the mission.' },
+        resub: { headline: '{user} resubscribed!', body: '{months} months on the mountain.' },
+        gift: { headline: '{user} gifted {count} subs!', body: 'The crew just got bigger.' },
+        raid: { headline: '{user} raided with {count}!', body: 'Raid party incoming.' },
+        cheer: { headline: '{user} cheered {amount}!', body: 'Energy received.' },
+        custom: { headline: '{headline}', body: '{message}' },
+      };
+
+      function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
+        }[char]));
+      }
+
+      function applyTokens(template, payload) {
+        return String(template || '').replace(/\{([a-z0-9_]+)\}/gi, (_, key) => {
+          const value = payload[key];
+          return value === undefined || value === null || value === '' ? '' : String(value);
+        });
+      }
+
+      function normalizeAlert(payload = {}) {
+        return {
+          eventType: String(payload.eventType || payload.kind || payload.alertType || 'custom').toLowerCase(),
+          user: payload.user || payload.username || payload.displayName || 'Someone',
+          count: payload.count ?? payload.viewers ?? payload.gifts ?? 1,
+          amount: payload.amount ?? payload.bits ?? '',
+          months: payload.months ?? '',
+          headline: payload.headline || 'SpaceMountain Alert',
+          message: payload.message || '',
+          imageUrl: payload.imageUrl || '',
+        };
+      }
+
+      function resizeScene() {
+        const width = wrapEl.clientWidth || innerWidth || contract.scene.width;
+        const height = wrapEl.clientHeight || innerHeight || contract.scene.height;
+        const scale = Math.min(width / contract.scene.width, height / contract.scene.height);
+        const renderedWidth = contract.scene.width * scale;
+        const renderedHeight = contract.scene.height * scale;
+        sceneEl.style.left = `${(width - renderedWidth) / 2}px`;
+        sceneEl.style.top = `${(height - renderedHeight) / 2}px`;
+        sceneEl.style.transform = `scale(${scale})`;
+      }
+
+      function widgetStyle(widget) {
+        const z = Number.isFinite(Number(widget.zIndex)) ? Number(widget.zIndex) : 0;
+        return `left:${widget.x}%;top:${widget.y}%;width:${widget.width}px;height:${widget.height}px;opacity:${widget.opacity};z-index:${z}`;
+      }
+
+      function sourceMarkup(widget) {
+        if (widget.kind === 'xbox') {
+          return `<img data-tenant-xbox-frame alt="Xbox program video" style="object-fit:${escapeHtml(widget.fit || 'contain')}">`;
+        }
+        if (widget.kind === 'image') {
+          return widget.url ? `<img src="${escapeHtml(widget.url)}" alt="${escapeHtml(widget.title)}" style="object-fit:${escapeHtml(widget.fit || 'contain')}">` : '';
+        }
+        if (widget.kind === 'embed') {
+          return widget.url ? `<iframe src="${escapeHtml(widget.url)}" title="${escapeHtml(widget.title)}" allow="autoplay; microphone; camera; fullscreen; clipboard-write; display-capture"></iframe>` : '';
+        }
+        if (widget.kind === 'text') {
+          const size = Math.max(12, Number(widget.fontSize) || 42);
+          const align = ['left', 'right', 'center'].includes(widget.align) ? widget.align : 'center';
+          const color = widget.color || '#ffffff';
+          return `<div class="tenant-text" style="font-size:${size}px;text-align:${align};justify-items:${align === 'left' ? 'start' : align === 'right' ? 'end' : 'center'};color:${escapeHtml(color)}">${escapeHtml(widget.text || 'Text')}</div>`;
+        }
+        if (widget.kind === 'alert') {
+          return `<div class="tenant-alert-stage" data-tenant-alert="${escapeHtml(widget.id)}"><div class="tenant-alert-card"><img data-alert-image alt="" hidden><div><span class="tenant-alert-kicker">SPACEMOUNTAIN ALERT</span><strong data-alert-headline></strong><p data-alert-body></p></div></div></div>`;
+        }
+        // Camera and screen are permission-bound local sources. Detached tenant outputs stay transparent until a persistent adapter supplies media.
+        return '';
+      }
+
+      function renderScene() {
+        const layout = state.layout;
+        if (layout.enabled === false) {
+          sceneEl.replaceChildren();
+          clearXboxFrame();
+          return;
+        }
+        sceneEl.innerHTML = (layout.widgets || []).filter((widget) => widget.visible !== false).map((widget) =>
+          `<section class="tenant-widget kind-${escapeHtml(widget.kind)}" data-tenant-widget="${escapeHtml(widget.id)}" style="${widgetStyle(widget)}">${sourceMarkup(widget)}</section>`
+        ).join('');
+        applyXboxVisibility();
+      }
+
+      function xboxWidget() {
+        if (state.layout.enabled === false) return null;
+        return (state.layout.widgets || []).find((widget) => widget.kind === 'xbox' && widget.visible !== false) || null;
+      }
+
+      function xboxElement() {
+        return sceneEl.querySelector('.tenant-widget.kind-xbox');
+      }
+
+      function xboxImage() {
+        return sceneEl.querySelector('[data-tenant-xbox-frame]');
+      }
+
+      function applyXboxVisibility() {
+        const element = xboxElement();
+        if (!element) return;
+        element.style.visibility = state.xboxStatusKnown && state.xboxRunning ? 'visible' : 'hidden';
+      }
+
+      function clearXboxFrame() {
+        const image = xboxImage();
+        if (image) image.removeAttribute('src');
+        if (state.lastFrameUrl) {
+          URL.revokeObjectURL(state.lastFrameUrl);
+          state.lastFrameUrl = '';
+        }
+      }
+
+      async function sceneRequest() {
+        const url = `/api/tenant/${encodeURIComponent(tenant)}/${output}`;
+        const response = await fetch(url, { credentials: 'include', cache: 'no-store', headers: { Accept: 'application/json' } });
+        if (!response.ok) throw new Error(`scene ${response.status}`);
+        return response.json();
+      }
+
+      async function refreshScene() {
+        try {
+          const data = await sceneRequest();
+          const layout = contract.normalizeLayout(data.layout);
+          const signature = JSON.stringify(layout);
+          state.xboxRelayToken = output === 'public' ? String(data.xboxRelayToken || state.xboxRelayToken || '') : '';
+          if (signature !== state.signature) {
+            state.layout = layout;
+            state.signature = signature;
+            renderScene();
+          } else {
+            state.layout = layout;
+          }
+        } catch {
+          // A renderer failure must not paint a login page or SPMT chrome over the broadcaster. Stay transparent/last-known.
+        }
+      }
+
+      function xboxHeaders() {
+        return output === 'public' && state.xboxRelayToken ? { Authorization: `Bearer ${state.xboxRelayToken}` } : {};
+      }
+
+      function xboxApiPath(kind) {
+        if (output === 'public') return kind === 'status' ? '/api/tenant-xbox/status' : '/api/tenant-xbox/frame';
+        return kind === 'status' ? '/api/cloud-xbox/status' : '/api/cloud-xbox/frame';
+      }
+
+      async function refreshXboxStatus() {
+        if (!xboxWidget()) {
+          state.xboxStatusKnown = true;
+          state.xboxRunning = false;
+          clearXboxFrame();
+          applyXboxVisibility();
+          return;
+        }
+        if (output === 'public' && !state.xboxRelayToken) return;
+        try {
+          const response = await fetch(xboxApiPath('status'), {
+            credentials: 'include', cache: 'no-store', headers: { Accept: 'application/json', ...xboxHeaders() },
+          });
+          if (!response.ok) return;
+          const data = await response.json();
+          const wasRunning = state.xboxRunning;
+          state.xboxStatusKnown = true;
+          state.xboxRunning = Boolean(data?.running);
+          applyXboxVisibility();
+          if (wasRunning && !state.xboxRunning) clearXboxFrame();
+        } catch {
+          // Keep last known live state through a transport miss.
+        }
+      }
+
+      async function refreshXboxFrame() {
+        if (state.frameBusy || !xboxWidget() || !state.xboxStatusKnown || !state.xboxRunning) return;
+        if (output === 'public' && !state.xboxRelayToken) return;
+        const image = xboxImage();
+        if (!image) return;
+        state.frameBusy = true;
+        try {
+          const response = await fetch(`${xboxApiPath('frame')}?t=${Date.now()}`, {
+            credentials: 'include', cache: 'no-store', headers: xboxHeaders(),
+          });
+          if (!response.ok) return;
+          const blob = await response.blob();
+          if (!blob.type.startsWith('image/')) return;
+          const objectUrl = URL.createObjectURL(blob);
+          const probe = new Image();
+          probe.onload = () => {
+            const previous = state.lastFrameUrl;
+            state.lastFrameUrl = objectUrl;
+            image.src = objectUrl;
+            if (previous) URL.revokeObjectURL(previous);
+          };
+          probe.onerror = () => URL.revokeObjectURL(objectUrl);
+          probe.src = objectUrl;
+        } catch {
+          // Keep the last good frame while Xbox still reports running.
+        } finally {
+          state.frameBusy = false;
+        }
+      }
+
+      function fireAlert(rawPayload = {}) {
+        const payload = normalizeAlert(rawPayload);
+        document.querySelectorAll('[data-tenant-alert]').forEach((stage) => {
+          const widget = (state.layout.widgets || []).find((item) => item.id === stage.dataset.tenantAlert);
+          if (!widget || widget.visible === false) return;
+          const accepts = widget.accepts || Object.keys(ALERT_TEMPLATES);
+          if (!accepts.includes(payload.eventType) && !accepts.includes('custom')) return;
+          const templates = widget.templates || ALERT_TEMPLATES;
+          const template = templates[payload.eventType] || templates.custom || ALERT_TEMPLATES.custom;
+          const headline = applyTokens(template.headline, payload) || payload.headline;
+          const body = applyTokens(template.body, payload) || payload.message;
+          const imageUrl = payload.imageUrl || widget.imageUrl || '';
+          stage.style.setProperty('--alert-accent', widget.accent || '#f97316');
+          const image = stage.querySelector('[data-alert-image]');
+          if (image) {
+            image.src = imageUrl;
+            image.hidden = !imageUrl;
+          }
+          stage.querySelector('[data-alert-headline]')?.replaceChildren(document.createTextNode(headline));
+          stage.querySelector('[data-alert-body]')?.replaceChildren(document.createTextNode(body));
+          stage.classList.remove('is-showing');
+          void stage.offsetWidth;
+          stage.classList.add('is-showing');
+          clearTimeout(state.alertTimers.get(widget.id));
+          state.alertTimers.set(widget.id, setTimeout(() => stage.classList.remove('is-showing'), Math.max(1500, Number(widget.durationMs) || 6500)));
+        });
+      }
+
+      window.spmtOverlayAlert = fireAlert;
+      window.addEventListener('spmt:overlay-alert', (event) => fireAlert(event.detail || {}));
+      window.addEventListener('message', (event) => {
+        if (event.source === window || event.origin === location.origin) {
+          const data = event.data || {};
+          if (data.type === 'spmt.overlay.alert' || data.type === 'spacemountain.alert') fireAlert(data);
+        }
+      });
+
+      window.addEventListener('resize', resizeScene);
+      window.addEventListener('beforeunload', clearXboxFrame);
+      if (typeof ResizeObserver === 'function') new ResizeObserver(resizeScene).observe(wrapEl);
+
+      resizeScene();
+      refreshScene().then(refreshXboxStatus);
+      setInterval(refreshScene, 2000);
+      setInterval(refreshXboxStatus, 1000);
+      setInterval(refreshXboxFrame, 500);
+    })();
+  </script>
+</body>
+</html>

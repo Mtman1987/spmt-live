@@ -6,6 +6,8 @@ on:
       - fix/xbox-worker-cdp-timeout-crash-20260812
     paths:
       - ".github/workflows/apply-xbox-cdp-resilience.yml"
+      - "tests/xbox-worker-cdp-resilience.test.cjs"
+      - "scripts/patch-xbox-cdp-resilience.py"
 
 permissions:
   contents: write

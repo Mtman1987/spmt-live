@@ -15,6 +15,7 @@
     "test:identity-reconciliation": "tsx --test tests/identity-reconciliation.test.ts",
     "test:startup-theme": "node --test tests/startup-theme-bootstrap.test.cjs",
     "test:overlay-bay": "node --test tests/overlay-bay-v2-contract.test.cjs",
+    "test:tenant-overlay": "node --test tests/tenant-overlay-platform-contract.test.cjs",
     "test:cloud-xbox": "node --test tests/cloud-xbox-source-contract.test.cjs",
     "test:xbox-worker-resilience": "node --test tests/xbox-worker-cdp-resilience.test.cjs",
     "test:platform-oauth": "node --test tests/oauth-platform-auth-contract.test.cjs",
@@ -22,7 +23,7 @@
     "test:athena-command": "node --test tests/athena-command-auth-contract.test.cjs",
     "test:xp-balance-migration": "tsx --test tests/xp-balance-migration.test.ts",
     "backup:verify-restore": "node scripts/operations/verify-restored-volume.mjs",
-    "test": "npm run typecheck && npm run build && npm run test:startup-theme && npm run test:overlay-bay && npm run test:cloud-xbox && npm run test:xbox-worker-resilience && npm run test:platform-oauth && npm run test:service-oauth && npm run test:athena-command && npm run sdk:package && npm run smoke",
+    "test": "npm run typecheck && npm run build && npm run test:startup-theme && npm run test:overlay-bay && npm run test:tenant-overlay && npm run test:cloud-xbox && npm run test:xbox-worker-resilience && npm run test:platform-oauth && npm run test:service-oauth && npm run test:athena-command && npm run sdk:package && npm run smoke",
     "test:xp-gamble-settlement": "tsx --test tests/xp-gamble-settlement.test.ts"
   },
   "dependencies": {
@@ -39,11 +40,10 @@
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/cookie-parser": "^1.4.8",
-    "@types/express": "^4.17.21",
+    "@types/cookie-parser": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.14.0",
-    "@types/uuid": "^10.0.0",
+    "@types/uuid": "^11.1.0",
     "@types/ws": "^8.5.14",
     "esbuild": "^0.25.0",
     "tsx": "^4.21.0",

@@ -40,7 +40,9 @@ function ensureWorkspaceShellBootstrap() {
 ensureWorkspaceShellBootstrap();
 
 // Install authenticated pre-routes before the bundled server creates Express.
-// Cloud Xbox and Athena both use the caller's existing SPMT session/bearer.
+// The process guard wraps only the cloud Chromium child so startup failures are
+// retained safely and low-resource Fly launches get conservative browser flags.
+require('./cloud-xbox-process-guard.cjs').installCloudXboxProcessGuard();
 require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
 require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
 

@@ -26,3 +26,9 @@ primary_region = "lax"
   source = "spmt_data"
   destination = "/data"
   initial_size = "1GB"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "1gb"
+  processes = ["app"]

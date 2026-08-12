@@ -15,9 +15,10 @@
     "test:identity-reconciliation": "tsx --test tests/identity-reconciliation.test.ts",
     "test:startup-theme": "node --test tests/startup-theme-bootstrap.test.cjs",
     "test:overlay-bay": "node --test tests/overlay-bay-v2-contract.test.cjs",
+    "test:cloud-xbox": "node --test tests/cloud-xbox-source-contract.test.cjs",
     "test:xp-balance-migration": "tsx --test tests/xp-balance-migration.test.ts",
     "backup:verify-restore": "node scripts/operations/verify-restored-volume.mjs",
-    "test": "npm run typecheck && npm run build && npm run test:startup-theme && npm run test:overlay-bay && npm run sdk:package && npm run smoke",
+    "test": "npm run typecheck && npm run build && npm run test:startup-theme && npm run test:overlay-bay && npm run test:cloud-xbox && npm run sdk:package && npm run smoke",
     "test:xp-gamble-settlement": "tsx --test tests/xp-gamble-settlement.test.ts"
   },
   "dependencies": {
@@ -34,8 +35,7 @@
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/cookie-parser": "^1.4.8",
-    "@types/express": "^4.17.21",
+    "@types/cookie-parser": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.14.0",
     "@types/uuid": "^10.0.0",

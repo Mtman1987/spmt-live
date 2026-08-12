@@ -2,7 +2,7 @@
 
 const jwt = require('jsonwebtoken');
 
-const DEFAULT_STREAMWEAVER_ATHENA_URL = 'https://streamweaver-new.fly.dev/api/spmt/athena/commands';
+const DEFAULT_STREAMWEAVER_BOT_URL = 'https://streamweaver-new.fly.dev/api/spmt/bot/commands';
 
 function parseCookies(header) {
   const out = {};
@@ -44,12 +44,16 @@ function safeJson(res, status, body) {
   return res.status(status).set('cache-control', 'private, no-store').json(body);
 }
 
-function streamweaverAthenaUrl() {
-  const configured = String(process.env.STREAMWEAVER_ATHENA_URL || '').trim();
-  return configured || DEFAULT_STREAMWEAVER_ATHENA_URL;
+function streamweaverBotUrl() {
+  const configured = String(
+    process.env.STREAMWEAVER_BOT_URL ||
+    process.env.STREAMWEAVER_ATHENA_URL ||
+    '',
+  ).trim();
+  return configured || DEFAULT_STREAMWEAVER_BOT_URL;
 }
 
-async function forwardAthenaCommand(req, res) {
+async function forwardBotCommand(req, res) {
   const auth = authenticatedSpmtUser(req);
   if (!auth) return safeJson(res, 401, { error: 'Not authenticated' });
 
@@ -66,7 +70,7 @@ async function forwardAthenaCommand(req, res) {
   const voice = compactText(req.body?.voice, 128);
 
   try {
-    const upstream = await fetch(streamweaverAthenaUrl(), {
+    const upstream = await fetch(streamweaverBotUrl(), {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${auth.token}`,
@@ -110,29 +114,32 @@ async function forwardAthenaCommand(req, res) {
       roomId: roomId || data?.roomId || undefined,
     });
   } catch (error) {
-    console.error('[AthenaCommand] StreamWeaver routing failed:', error?.message || error);
+    console.error('[BotCommand] StreamWeaver routing failed:', error?.message || error);
     return safeJson(res, 502, {
       accepted: false,
       routed: false,
       status: 'upstream_unavailable',
       command,
       source: sourceApp,
-      error: 'StreamWeaver Athena is unavailable',
+      error: 'StreamWeaver bot runtime is unavailable',
     });
   }
 }
 
 function installRoutes(app, express) {
-  if (app.__spmtAthenaCommandRoutesInstalled) return;
-  app.__spmtAthenaCommandRoutesInstalled = true;
+  if (app.__spmtBotCommandRoutesInstalled) return;
+  app.__spmtBotCommandRoutesInstalled = true;
   const jsonBody = express.json({ limit: '64kb' });
-  app.post('/api/athena/commands', jsonBody, forwardAthenaCommand);
+  app.post('/api/bot/commands', jsonBody, forwardBotCommand);
+  // Compatibility alias for existing clients. There is no Athena-specific
+  // command implementation behind this route anymore.
+  app.post('/api/athena/commands', jsonBody, forwardBotCommand);
 }
 
 function patchExpress() {
   const expressPath = require.resolve('express');
   const currentExpress = require(expressPath);
-  if (currentExpress.__spmtAthenaCommandFactory) return;
+  if (currentExpress.__spmtBotCommandFactory) return;
 
   function wrappedExpress(...args) {
     const app = currentExpress(...args);
@@ -140,14 +147,22 @@ function patchExpress() {
     return app;
   }
   for (const key of Object.keys(currentExpress)) wrappedExpress[key] = currentExpress[key];
+  wrappedExpress.__spmtBotCommandFactory = true;
+  // Keep the old marker during the compatibility window so an older startup
+  // wrapper cannot patch Express a second time.
   wrappedExpress.__spmtAthenaCommandFactory = true;
   require.cache[expressPath].exports = wrappedExpress;
 }
 
-function installAthenaCommandBootstrap() {
+function installBotCommandBootstrap() {
   patchExpress();
 }
 
+function installAthenaCommandBootstrap() {
+  installBotCommandBootstrap();
+}
+
 module.exports = {
+  installBotCommandBootstrap,
   installAthenaCommandBootstrap,
 };

@@ -3,9 +3,17 @@ primary_region = "lax"
 
 [build]
 
+[processes]
+  app = "node start.cjs"
+  xbox = "node xbox-worker.cjs"
+
 [env]
   CODEX_WORKER_URL = "https://mtman-machine-rotator.fly.dev"
   CODEX_REPAIR_DASHBOARD_URL = "https://mtman-machine-rotator.fly.dev/"
+  CLOUD_XBOX_WORKER_URL = "http://xbox.process.spmt-live.internal:3003"
+  CLOUD_XBOX_WORKER_PORT = "3003"
+  CLOUD_XBOX_MAX_SESSIONS = "1"
+  CLOUD_XBOX_PROFILE_ROOT = "/var/lib/spmt-xbox/profiles"
 
 [http_service]
   internal_port = 3000
@@ -26,9 +34,16 @@ primary_region = "lax"
   source = "spmt_data"
   destination = "/data"
   initial_size = "1GB"
+  processes = ["app"]
 
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
   memory = "1gb"
   processes = ["app"]
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 2
+  memory = "2gb"
+  processes = ["xbox"]

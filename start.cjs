@@ -40,9 +40,8 @@ function ensureWorkspaceShellBootstrap() {
 ensureWorkspaceShellBootstrap();
 
 // Install authenticated pre-routes before the bundled server creates Express.
-// The process guard wraps only the cloud Chromium child so startup failures are
-// retained safely and low-resource Fly launches get conservative browser flags.
-require('./cloud-xbox-process-guard.cjs').installCloudXboxProcessGuard();
+// Xbox Chromium now lives in the dedicated Fly xbox process group; this web
+// process only authenticates the user and proxies Overlay Bay control requests.
 require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
 require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
 

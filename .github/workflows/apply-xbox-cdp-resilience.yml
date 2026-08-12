@@ -1,0 +1,41 @@
+name: Apply Xbox CDP resilience fix
+
+on:
+  push:
+    branches:
+      - fix/xbox-worker-cdp-timeout-crash-20260812
+    paths:
+      - ".github/workflows/apply-xbox-cdp-resilience.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/xbox-worker-cdp-timeout-crash-20260812
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply CDP resilience patch
+        run: python scripts/patch-xbox-cdp-resilience.py
+      - name: Validate Xbox worker and full app
+        run: |
+          npm ci --no-audit --no-fund
+          npm run test:xbox-worker-resilience
+          npm run test:cloud-xbox
+          npm test
+      - name: Remove temporary patch files and commit
+        run: |
+          rm .github/workflows/apply-xbox-cdp-resilience.yml scripts/patch-xbox-cdp-resilience.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Keep Xbox CDP timeouts from crashing worker"
+          git push origin HEAD:fix/xbox-worker-cdp-timeout-crash-20260812

@@ -21,6 +21,7 @@ COPY public ./public
 COPY docs ./docs
 COPY scripts/operations ./scripts/operations
 COPY start.cjs ./start.cjs
+COPY cloud-xbox-process-guard.cjs ./cloud-xbox-process-guard.cjs
 COPY cloud-xbox-bootstrap.cjs ./cloud-xbox-bootstrap.cjs
 COPY athena-command-bootstrap.cjs ./athena-command-bootstrap.cjs
 ENV NODE_ENV=production

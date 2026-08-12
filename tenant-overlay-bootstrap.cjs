@@ -104,7 +104,7 @@ function normalizeWidget(input, index = 0) {
   const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const kind = ['xbox', 'camera', 'screen', 'image', 'embed', 'text', 'alert'].includes(source.kind) ? source.kind : 'embed';
   const fallbackWidth = kind === 'xbox' ? SCENE_WIDTH : kind === 'screen' ? 640 : kind === 'alert' ? 520 : 360;
-  const fallbackHeight = kind === 'xbox' ? SCENE_HEIGHT : kind === 'screen' ? 360 : kind === 'alert' ? 220 : 220;
+  const fallbackHeight = kind === 'xbox' ? SCENE_HEIGHT : kind === 'screen' ? 360 : 220;
   const fitDefault = kind === 'camera' ? 'cover' : 'contain';
   const fit = ['contain', 'cover', 'fill'].includes(source.fit) ? source.fit : fitDefault;
   return {
@@ -192,7 +192,7 @@ function readTenantRecord(user, create = true) {
   if (fs.existsSync(target)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(target, 'utf8'));
-      const record = {
+      return {
         ...parsed,
         schemaVersion: 1,
         tenant,
@@ -206,7 +206,6 @@ function readTenantRecord(user, create = true) {
           personal: parsed?.outputUpdatedAt?.personal || parsed?.updatedAt || new Date().toISOString(),
         },
       };
-      return record;
     } catch {
       if (!create) return null;
     }
@@ -365,7 +364,7 @@ function installRoutes(app, express) {
     const user = lookupUserByTenant(tenant);
     if (!user) return safeJson(res, 404, { error: 'Tenant not found' });
     const record = readTenantRecord({ id: user.id, username: tenant }, true);
-    return res.status(200).set('cache-control', 'public, max-age=1, must-revalidate').json({
+    return res.status(200).set('cache-control', 'no-store').json({
       tenant,
       output: 'public',
       layout: record.outputs.public,
@@ -395,10 +394,12 @@ function installRoutes(app, express) {
     return res.sendFile(path.join(__dirname, 'public', 'tenant-output.html'));
   });
 
+  // The page shell is harmless and transparent; Personal scene DATA stays authenticated.
+  // Serving the shell even before auth prevents a host app from ever getting a white/text
+  // error surface when a third-party cookie/session is temporarily unavailable.
   app.get('/tenant/:tenant/personal', (req, res) => {
-    const user = resolveAuthenticatedUser(req);
     const tenant = tenantSlug(req.params.tenant);
-    if (!user || !tenant || user.username !== tenant) return res.status(401).send('Not authenticated for this tenant');
+    if (!tenant || !lookupUserByTenant(tenant)) return res.status(404).send('Tenant not found');
     return res.sendFile(path.join(__dirname, 'public', 'tenant-output.html'));
   });
 

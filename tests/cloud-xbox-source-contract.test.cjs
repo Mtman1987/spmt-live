@@ -7,6 +7,7 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '..');
 const backendPath = path.join(root, 'cloud-xbox-bootstrap.cjs');
 const workerPath = path.join(root, 'xbox-worker.cjs');
+const guardPath = path.join(root, 'xbox-worker-guard.cjs');
 const frontendPath = path.join(root, 'public', 'shared', 'cloud-xbox-source.js');
 const recoveryPath = path.join(root, 'public', 'shared', 'cloud-xbox-recovery.js');
 const sharedIndexPath = path.join(root, 'public', 'shared', 'index.html');
@@ -16,6 +17,7 @@ const flyPath = path.join(root, 'fly.toml');
 
 const backend = fs.readFileSync(backendPath, 'utf8');
 const worker = fs.readFileSync(workerPath, 'utf8');
+const guard = fs.readFileSync(guardPath, 'utf8');
 const frontend = fs.readFileSync(frontendPath, 'utf8');
 const recovery = fs.readFileSync(recoveryPath, 'utf8');
 const sharedIndex = fs.readFileSync(sharedIndexPath, 'utf8');
@@ -23,9 +25,10 @@ const start = fs.readFileSync(startPath, 'utf8');
 const docker = fs.readFileSync(dockerPath, 'utf8');
 const fly = fs.readFileSync(flyPath, 'utf8');
 
-test('cloud Xbox proxy, worker, and browser scripts parse', () => {
+test('cloud Xbox proxy, worker, guard, and browser scripts parse', () => {
   assert.doesNotThrow(() => new vm.Script(backend, { filename: backendPath }));
   assert.doesNotThrow(() => new vm.Script(worker, { filename: workerPath }));
+  assert.doesNotThrow(() => new vm.Script(guard, { filename: guardPath }));
   assert.doesNotThrow(() => new vm.Script(frontend, { filename: frontendPath }));
   assert.doesNotThrow(() => new vm.Script(recovery, { filename: recoveryPath }));
 });
@@ -59,6 +62,17 @@ test('dedicated worker owns Chromium, one stream session, and browser profile', 
   assert.match(worker, /profilePersistent: true/);
   assert.match(docker, /chromium/);
   assert.match(docker, /COPY xbox-worker\.cjs/);
+});
+
+test('Xbox runtime guard logs Chromium lifecycle without printing credentials', () => {
+  assert.match(guard, /Chromium spawned/);
+  assert.match(guard, /Chromium exited/);
+  assert.match(guard, /unhandled rejection kept alive/);
+  assert.match(guard, /\[redacted\]/);
+  assert.match(guard, /redacted-jwt/);
+  assert.match(guard, /require\('\.\/xbox-worker\.cjs'\)/);
+  assert.match(docker, /COPY xbox-worker-guard\.cjs/);
+  assert.match(fly, /xbox\s*=\s*"node xbox-worker-guard\.cjs"/);
 });
 
 test('Overlay Bay can view and control the dedicated browser without a local helper', () => {
@@ -99,7 +113,7 @@ test('cloud Xbox public routes remain authenticated and same-origin for control 
 });
 
 test('Fly splits app and Xbox into separate machines with test sizing', () => {
-  assert.match(fly, /\[processes\][\s\S]*app\s*=\s*"node start\.cjs"[\s\S]*xbox\s*=\s*"node xbox-worker\.cjs"/);
+  assert.match(fly, /\[processes\][\s\S]*app\s*=\s*"node start\.cjs"[\s\S]*xbox\s*=\s*"node xbox-worker-guard\.cjs"/);
   assert.match(fly, /CLOUD_XBOX_WORKER_URL\s*=\s*"http:\/\/xbox\.process\.spmt-live\.internal:3003"/);
   assert.match(fly, /\[http_service\][\s\S]*processes\s*=\s*\["app"\]/);
   assert.match(fly, /memory\s*=\s*"1gb"[\s\S]*processes\s*=\s*\["app"\]/);
@@ -113,4 +127,5 @@ test('production boot loads the proxy and Overlay Bay frontend', () => {
   assert.match(sharedIndex, /cloud-xbox-recovery\.js/);
   assert.match(docker, /COPY cloud-xbox-bootstrap\.cjs/);
   assert.match(docker, /COPY xbox-worker\.cjs/);
+  assert.match(docker, /COPY xbox-worker-guard\.cjs/);
 });

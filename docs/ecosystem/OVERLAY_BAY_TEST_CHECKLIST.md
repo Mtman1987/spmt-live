@@ -13,8 +13,10 @@ After deployment:
 9. Test follow, sub, resub, gift, raid, cheer, and custom alerts from the Alert tester.
 10. Use **Front**, **Lock**, **Hide**, drag, and resize, then save and refresh to confirm layout persistence.
 11. Download and run `/downloads/RUN_XBOX_OVERLAY_BAY_TEST.bat`.
-12. Start Xbox Cloud Gaming, inject the bridge once, then remain in the Xbox page.
-13. Confirm moving Xbox gameplay stays underneath the saved Overlay Bay scene.
-14. Use **Test follow** and **Test raid** inside Xbox and confirm alerts appear without changing windows.
-15. Confirm the repeated Xbox element-fullscreen prompt is suppressed while the bridge is active.
-16. Click **Exit** and confirm the bridge is removed and normal fullscreen behavior is restored.
+12. Start Xbox Cloud Gaming and inject the bridge once. The bridge should continue unless Xbox itself pauses; browser focus is not treated as a requirement.
+13. Confirm moving Xbox gameplay stays underneath the saved Overlay Bay scene and that the scene is rendered directly in the Xbox bridge rather than through a cross-site SPMT scene iframe.
+14. Use **Test follow** and **Test raid** inside Xbox and confirm alerts appear over gameplay.
+15. If Camera or Screen sources are in the saved scene, use their in-page SPMT control buttons to grant/connect them for the current browser session.
+16. Click **Collapse** and confirm the compact **SPMT controls** pill remains visible; click it to restore the full controls.
+17. Confirm the repeated Xbox element-fullscreen prompt is suppressed while the bridge is active.
+18. Click **Exit** and confirm the bridge is removed and normal fullscreen behavior is restored.

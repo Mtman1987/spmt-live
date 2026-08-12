@@ -57,6 +57,7 @@ const EMBED_SCOPES_BY_CLIENT: Record<string, string[]> = {
   'discord-stream-hub': ['identity:read', 'workspace:read', 'discord:control'],
   hearmeout: ['identity:read', 'workspace:read', 'media:control', 'rooms:control'],
   'chat-tag': ['identity:read', 'game:control'],
+  'spacemountain-live': ['identity:read', 'xp:write'],
 };
 
 const COMPANION_ACTION_CAPABILITIES: Record<string, string> = {
@@ -1290,15 +1291,47 @@ async function proxyCodexWorker(req: any, res: any, workerPath: string, method =
 
 function authenticatePlatformKey(requiredScope: string) {
   return (req: any, res: any, next: any) => {
-    const token = String(req.headers.authorization?.replace('Bearer ', '') || req.headers['x-spmt-key'] || '').trim();
-    if (!token) return res.status(401).json({ error: 'Platform API key required' });
+    const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+    const headerKey = String(req.headers['x-spmt-key'] || '').trim();
+    const token = bearer || headerKey;
+    if (!token) return res.status(401).json({ error: 'SPMT bearer or platform API key required' });
+
+    // First-party and user-facing apps authenticate with normal SPMT OAuth
+    // access tokens. Only accept OAuth JWTs that are app-bound and explicitly
+    // carry the requested platform scope.
+    if (bearer) {
+      try {
+        const payload = jwt.verify(bearer, JWT_SECRET) as any;
+        const appId = String(payload?.client_id || '').trim();
+        const userId = String(payload?.id || '').trim();
+        const scopes = Array.isArray(payload?.scopes) ? payload.scopes.map(String) : [];
+        if (appId && userId) {
+          if (!scopes.includes(requiredScope)) {
+            return res.status(403).json({ error: `Missing required scope: ${requiredScope}` });
+          }
+          req.user = payload;
+          req.platformKey = {
+            id: null,
+            userId,
+            appId,
+            name: `OAuth ${appId}`,
+            keyPrefix: null,
+            scopes,
+            oauth: true,
+          };
+          return next();
+        }
+      } catch {
+        // Authorization bearer may still be a legacy developer API key.
+      }
+    }
 
     const row = db.prepare(`
       SELECT id, user_id, app_id, name, key_prefix, scopes
       FROM developer_api_keys
       WHERE key_hash = ? AND revoked_at IS NULL
     `).get(hashSecret(token)) as any;
-    if (!row) return res.status(401).json({ error: 'Invalid platform API key' });
+    if (!row) return res.status(401).json({ error: 'Invalid SPMT bearer or platform API key' });
 
     const scopes = JSON.parse(row.scopes || '[]');
     if (!scopes.includes(requiredScope)) {

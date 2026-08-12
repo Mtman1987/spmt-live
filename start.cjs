@@ -39,4 +39,9 @@ function ensureWorkspaceShellBootstrap() {
 
 ensureWorkspaceShellBootstrap();
 
+// Production installs the authenticated Cloud Xbox routes before the bundled
+// server creates its Express app. The cloud browser stays server-side; Overlay
+// Bay only receives sanitized screenshots/status and forwards user input.
+require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
+
 require('./dist/server.cjs');

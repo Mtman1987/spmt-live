@@ -22,6 +22,7 @@ function ensureWorkspaceShellBootstrap() {
     '/shared/shell-theme.js',
     '/shared/shell-chrome.js',
     '/shared/companion-installer-ui.js',
+    '/shared/overlay-bay-shell-nav.js',
   ];
   if (!publicIndex.includes('</body>')) {
     throw new Error('SPMT shell bootstrap could not find </body>');

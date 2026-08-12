@@ -13,11 +13,20 @@ if (!String(process.env.SPMT_CODEX_SERVICE_SECRET || '').trim() && spmtApiKey) {
 // WorkspaceProfileV1 appearance contract as the reusable shared surfaces.
 const publicIndexPath = fileURLToPath(new URL('../public/index.html', import.meta.url));
 let publicIndex = await readFile(publicIndexPath, 'utf8');
-if (!publicIndex.includes('/shared/shell-theme.js')) {
-  if (!publicIndex.includes('</body>')) throw new Error('SPMT shell theme bootstrap could not find </body>');
-  publicIndex = publicIndex.replace('</body>', '  <script src="/shared/shell-theme.js" defer></script>\n</body>');
-  await writeFile(publicIndexPath, publicIndex, 'utf8');
+const shellScripts = [
+  '/shared/shell-theme.js',
+  '/shared/shell-chrome.js',
+  '/shared/companion-installer-ui.js',
+  '/shared/overlay-bay-shell-nav.js',
+];
+if (!publicIndex.includes('</body>')) throw new Error('SPMT shell bootstrap could not find </body>');
+let shellChanged = false;
+for (const script of shellScripts) {
+  if (publicIndex.includes(script)) continue;
+  publicIndex = publicIndex.replace('</body>', `  <script src="${script}" defer></script>\n</body>`);
+  shellChanged = true;
 }
+if (shellChanged) await writeFile(publicIndexPath, publicIndex, 'utf8');
 
 const commlinkIndexPath = fileURLToPath(new URL('../public/commlink/index.html', import.meta.url));
 let commlinkIndex = await readFile(commlinkIndexPath, 'utf8');

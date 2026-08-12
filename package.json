@@ -14,9 +14,10 @@
     "smoke:suite": "node scripts/operations/suite-smoke.mjs",
     "test:identity-reconciliation": "tsx --test tests/identity-reconciliation.test.ts",
     "test:startup-theme": "node --test tests/startup-theme-bootstrap.test.cjs",
+    "test:overlay-bay": "node --test tests/overlay-bay-v2-contract.test.cjs",
     "test:xp-balance-migration": "tsx --test tests/xp-balance-migration.test.ts",
     "backup:verify-restore": "node scripts/operations/verify-restored-volume.mjs",
-    "test": "npm run typecheck && npm run build && npm run test:startup-theme && npm run sdk:package && npm run smoke",
+    "test": "npm run typecheck && npm run build && npm run test:startup-theme && npm run test:overlay-bay && npm run sdk:package && npm run smoke",
     "test:xp-gamble-settlement": "tsx --test tests/xp-gamble-settlement.test.ts"
   },
   "dependencies": {

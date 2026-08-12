@@ -2,6 +2,13 @@
 
 Overlay Bay remains the canonical SPMT-owned scene workspace. This increment adds browser-side source adapters without moving scene ownership out of SPMT.
 
+## Canonical entry points
+
+- Full editor: `/overlay-bay.html`
+- Shared surface: `/embed/overlays?mode=full&app=spmt`
+- Transparent runtime: `/embed/overlays?mode=overlay&app=xbox-bridge&bridge=1`
+- Worktray: open the **Overlay Bay** shared surface from SPMT Worktray
+
 ## Source types
 
 The editor can add:
@@ -15,6 +22,15 @@ The editor can add:
 - Generic alert source
 
 Camera and screen streams are intentionally session-local. Their saved widgets persist layout/settings, but the user grants capture permission again when a browser session starts.
+
+## SpaceMountain defaults
+
+A brand-new Overlay Bay workspace starts with two replaceable defaults:
+
+- **SpaceMountain Alerts** — a generic alert widget with SpaceMountain styling
+- **LIVE Badge** — a simple text source
+
+Existing workspaces are not forcibly overwritten. The **SpaceMountain defaults** button adds the default alert/LIVE sources non-destructively when needed.
 
 ## Generic alert contract
 
@@ -36,7 +52,7 @@ Any host/app can send the overlay runtime a browser message shaped like:
 
 Default supported `eventType` values are `follow`, `sub`, `resub`, `gift`, `raid`, `cheer`, and `custom`.
 
-The SpaceMountain default alert is replaceable: saved widget data owns its image URL, duration, accepted event types, and text templates. StreamWeaver can later become the event producer without becoming the scene owner.
+The SpaceMountain default alert is replaceable. Saved widget data owns its image URL, accent, duration, accepted event types, and text templates. The widget can also be removed and replaced by a web/embed alert source later. StreamWeaver can become the event producer without becoming the scene owner.
 
 ## Xbox bridge model
 
@@ -46,30 +62,33 @@ The Xbox source is a bridge adapter rather than an iframe. The live browser flow
 Xbox WebRTC remote MediaStreamTrack
   -> clone()
   -> Xbox Bridge video element
-  -> SPMT Overlay Bay runtime iframe
+  -> saved SPMT Overlay Bay layout
+  -> transparent Overlay Bay runtime
   -> browser/broadcaster captures the finished tab/window
 ```
 
 The bridge runtime is stored at `public/shared/xbox-bridge-runtime.js`. It expects Xbox Cloud Gaming to already have a live `video.srcObject` MediaStream.
 
-The Overlay Bay runtime URL used by the bridge is:
+The Windows test launcher first opens SPMT and Xbox in one reusable Edge profile. After the user saves Overlay Bay and starts gameplay, the launcher reads only the saved overlay layout from the authenticated top-level SPMT tab and injects that layout plus the bridge runtime into the Xbox tab. This avoids depending on third-party SPMT cookies inside the Xbox-hosted runtime iframe.
 
-```text
-/embed/overlays?mode=overlay&app=xbox-bridge&bridge=1
-```
-
-In bridge runtime mode the saved Xbox placeholder is transparent so the cloned Xbox video supplied by the parent page remains the base picture.
+The bridge keeps its controls inside the Xbox page so clicking **Overlay**, **Test follow**, **Test raid**, **Hide controls**, or **Exit** does not require switching to the command window. While active it suppresses Xbox element-fullscreen requests so the injected overlay remains visible. Exiting restores the normal `requestFullscreen` implementation.
 
 ## Manual validation
 
-1. Open SPMT Worktray and choose **Open Overlay Bay**.
-2. Add **Xbox**, **Image**, **Text**, and **Alert** sources.
-3. Use **SpaceMountain defaults** to add the default generic alert and LIVE badge if desired.
-4. Use the alert tester buttons to confirm follow/sub/raid/cheer/gift/custom rendering.
+1. Open `https://spmt.live/overlay-bay.html` after the feature is deployed.
+2. Add **Xbox** as the base source.
+3. Add any easy test sources: **Text**, **Image**, **Web**, and **Alert**.
+4. Use the alert tester buttons to confirm follow/sub/resub/raid/cheer/gift/custom rendering.
 5. Add a Camera source and press **Connect camera**.
 6. Add a Screen source and press **Share screen / window**.
-7. Save the overlay workspace.
-8. Start Xbox Cloud Gaming, then run the local Xbox Bridge test helper. The Xbox page should keep focus while the cloned game video and saved SPMT Overlay Bay are layered together.
+7. Drag/resize sources, use **Front**, **Lock**, **Hide**, and save the workspace.
+8. Download `/downloads/RUN_XBOX_OVERLAY_BAY_TEST.bat` from Overlay Bay.
+9. Run it. The reusable Edge profile opens SPMT and Xbox.
+10. Sign into SPMT/Xbox in that test profile if needed, then start Xbox Cloud Gaming.
+11. When gameplay is live, press Enter in the launcher once, then click back into Xbox.
+12. Verify the cloned game is moving underneath the saved SPMT overlays.
+13. Use **Test follow** and **Test raid** inside the Xbox page to prove the generic alerts fire over gameplay.
+14. Use **Overlay** to hide/show the whole saved SPMT layer, then **Exit** to remove the bridge.
 
 ## Ownership rule
 

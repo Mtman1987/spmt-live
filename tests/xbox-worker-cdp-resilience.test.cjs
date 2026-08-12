@@ -98,6 +98,48 @@ test('CDP request timeout is settled by the tracked pending request', async () =
   client.close();
 });
 
+test('post-connect CDP socket errors reject requests instead of becoming unhandled EventEmitter errors', async () => {
+  class FakeWebSocket extends EventEmitter {
+    static OPEN = 1;
+
+    constructor() {
+      super();
+      this.readyState = 0;
+      queueMicrotask(() => {
+        this.readyState = FakeWebSocket.OPEN;
+        this.emit('open');
+      });
+    }
+
+    send(_payload, callback) {
+      if (callback) callback();
+    }
+
+    close() {
+      if (this.readyState === 3) return;
+      this.readyState = 3;
+      this.emit('close');
+    }
+
+    terminate() {
+      this.close();
+    }
+  }
+
+  const CdpClient = loadCdpClient(FakeWebSocket);
+  const client = new CdpClient('ws://fake');
+  await client.connect();
+  const socket = client.ws;
+  assert.ok(socket.listenerCount('error') >= 1, 'connected socket should retain an error listener');
+
+  const callPromise = client.call('Runtime.evaluate', {}, 1000);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.doesNotThrow(() => socket.emit('error', new Error('post-connect CDP failure')));
+  await assert.rejects(callPromise, /post-connect CDP failure/);
+  assert.equal(client.ws, null);
+  assert.equal(client.pending.size, 0);
+});
+
 test('connect timeout terminates its stale socket before rejecting', () => {
   const classSource = source.slice(classStart, classEnd);
   const terminateAt = classSource.indexOf('socket.terminate()');

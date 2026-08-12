@@ -77,10 +77,11 @@ serverBundle = replaceRequired(
 
 await writeFile(serverBundlePath, serverBundle, 'utf8');
 
-// Register the canonical Athena command route before the bundled server's old
-// 501 placeholder. Authentication is the existing SPMT OAuth/session bearer;
-// no cross-app service key is introduced for this runtime command path.
+// Register canonical pre-routes before the bundled server creates Express.
+// Authentication is the existing SPMT OAuth/session bearer; no cross-app
+// service key is introduced for these browser-facing runtime paths.
 require('../athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
+require('../tenant-overlay-bootstrap.cjs').installTenantOverlayBootstrap();
 
 await import('../dist/server.cjs');
 

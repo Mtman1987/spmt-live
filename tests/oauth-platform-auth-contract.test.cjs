@@ -7,7 +7,11 @@ const source = fs.readFileSync('server.ts', 'utf8');
 const start = source.indexOf('function authenticatePlatformKey(requiredScope: string) {');
 const nextFunction = source.indexOf('\nfunction ', start + 10);
 assert.ok(start >= 0 && nextFunction > start, 'authenticatePlatformKey source block should be present');
-const middlewareSource = `${source.slice(start, nextFunction)}\nglobalThis.authenticatePlatformKey = authenticatePlatformKey;`;
+const middlewareBlock = source.slice(start, nextFunction)
+  .replace(/: string/g, '')
+  .replace(/: any/g, '')
+  .replace(/ as any/g, '');
+const middlewareSource = `${middlewareBlock}\nglobalThis.authenticatePlatformKey = authenticatePlatformKey;`;
 
 function loadMiddleware(payload) {
   const context = {

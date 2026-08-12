@@ -56,9 +56,10 @@ async function forwardAthenaCommand(req, res) {
   const command = compactText(req.body?.command || req.body?.message || req.body?.transcript, 5000);
   if (!command) return safeJson(res, 400, { error: 'command is required' });
 
-  // The source comes from the authenticated OAuth client whenever possible.
-  // A normal first-party SPMT session has no client_id and is labeled spmt.
-  const sourceApp = compactText(auth.payload.client_id || req.body?.sourceApp || req.body?.source || 'spmt', 80)
+  // OAuth client identity is authoritative. A first-party SPMT browser session
+  // has no client_id and is therefore always labeled "spmt"; request bodies
+  // cannot spoof another application's source identity.
+  const sourceApp = compactText(auth.payload.client_id || 'spmt', 80)
     .toLowerCase()
     .replace(/[^a-z0-9._-]/g, '-') || 'spmt';
   const roomId = compactText(req.body?.roomId, 160);

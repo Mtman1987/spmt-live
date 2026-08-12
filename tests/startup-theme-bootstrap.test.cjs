@@ -38,6 +38,7 @@ test('production entrypoint installs the canonical workspace shell loaders exact
   assert.match(html, /<script src="\/shared\/shell-theme\.js" defer><\/script>/);
   assert.match(html, /<script src="\/shared\/shell-chrome\.js" defer><\/script>/);
   assert.match(html, /<script src="\/shared\/companion-installer-ui\.js" defer><\/script>/);
+  assert.match(html, /<script src="\/shared\/overlay-bay-shell-nav\.js" defer><\/script>/);
 
   const second = run();
   assert.equal(second.error, undefined, second.error?.message || 'second startup process failed to launch');
@@ -46,6 +47,7 @@ test('production entrypoint installs the canonical workspace shell loaders exact
   assert.equal((html.match(/\/shared\/shell-theme\.js/g) || []).length, 1, 'theme loader must not be duplicated across restarts');
   assert.equal((html.match(/\/shared\/shell-chrome\.js/g) || []).length, 1, 'shell chrome loader must not be duplicated across restarts');
   assert.equal((html.match(/\/shared\/companion-installer-ui\.js/g) || []).length, 1, 'Companion installer UI loader must not be duplicated across restarts');
+  assert.equal((html.match(/\/shared\/overlay-bay-shell-nav\.js/g) || []).length, 1, 'Overlay Bay shell loader must not be duplicated across restarts');
 });
 
 test('canonical shell renderer uses scattered stars and derived glass surfaces', () => {
@@ -66,6 +68,15 @@ test('canonical shell chrome mounts branding, welcome heroes, sidebar collapse, 
   assert.match(source, /spmt-workspace-tray/, 'signed-in shell should mount the Worktray footer');
   assert.match(source, /\/api\/overlay-workspace/, 'signed-in shell should read the canonical overlay workspace');
   assert.match(source, /spmt-overlay-runtime/, 'saved overlays should render on the account shell');
+});
+
+test('Overlay Bay is exposed as a first-class SPMT shell view', () => {
+  const source = fs.readFileSync(path.join(repoRoot, 'public', 'shared', 'overlay-bay-shell-nav.js'), 'utf8');
+  assert.doesNotThrow(() => new vm.Script(source), 'Overlay Bay shell extension must remain valid browser JavaScript');
+  assert.match(source, /dataset\.view/);
+  assert.match(source, /overlay-bay/);
+  assert.match(source, /\/embed\/overlays\?mode=full&app=spmt-shell/);
+  assert.match(source, /Open Overlay Bay/);
 });
 
 test('Companion desktop download is described as an installer, not a ZIP', () => {

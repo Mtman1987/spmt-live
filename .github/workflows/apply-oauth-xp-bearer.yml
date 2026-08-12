@@ -1,0 +1,130 @@
+name: Apply OAuth XP bearer migration
+
+on:
+  push:
+    branches:
+      - fix/oauth-xp-bearer-20260812
+    paths:
+      - ".github/workflows/apply-oauth-xp-bearer.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/oauth-xp-bearer-20260812
+          fetch-depth: 0
+      - name: Patch scoped OAuth support for platform XP
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('server.ts')
+          text = path.read_text()
+
+          old_scopes = "  'chat-tag': ['identity:read', 'game:control'],\n};"
+          new_scopes = "  'chat-tag': ['identity:read', 'game:control'],\n  'spacemountain-live': ['identity:read', 'xp:write'],\n};"
+          if old_scopes not in text:
+              raise SystemExit('OAuth client scope block not found')
+          text = text.replace(old_scopes, new_scopes, 1)
+
+          old_auth = '''function authenticatePlatformKey(requiredScope: string) {
+            return (req: any, res: any, next: any) => {
+              const token = String(req.headers.authorization?.replace('Bearer ', '') || req.headers['x-spmt-key'] || '').trim();
+              if (!token) return res.status(401).json({ error: 'Platform API key required' });
+
+              const row = db.prepare(`
+                SELECT id, user_id, app_id, name, key_prefix, scopes
+                FROM developer_api_keys
+                WHERE key_hash = ? AND revoked_at IS NULL
+              `).get(hashSecret(token)) as any;
+              if (!row) return res.status(401).json({ error: 'Invalid platform API key' });
+
+              const scopes = JSON.parse(row.scopes || '[]');
+              if (!scopes.includes(requiredScope)) {
+                return res.status(403).json({ error: `Missing required scope: ${requiredScope}` });
+              }
+
+              db.prepare('UPDATE developer_api_keys SET last_used_at = ? WHERE id = ?').run(new Date().toISOString(), row.id);
+              req.platformKey = { id: row.id, userId: row.user_id, appId: row.app_id || null, name: row.name, keyPrefix: row.key_prefix, scopes };
+              next();
+            };
+          }'''.replace('          ', '')
+
+          new_auth = '''function authenticatePlatformKey(requiredScope: string) {
+            return (req: any, res: any, next: any) => {
+              const bearer = String(req.headers.authorization || '').replace(/^Bearer\\s+/i, '').trim();
+              const headerKey = String(req.headers['x-spmt-key'] || '').trim();
+              const token = bearer || headerKey;
+              if (!token) return res.status(401).json({ error: 'SPMT bearer or platform API key required' });
+
+              // First-party and user-facing apps authenticate with normal SPMT OAuth
+              // access tokens. Only accept OAuth JWTs that are app-bound and explicitly
+              // carry the requested platform scope.
+              if (bearer) {
+                try {
+                  const payload = jwt.verify(bearer, JWT_SECRET) as any;
+                  const appId = String(payload?.client_id || '').trim();
+                  const userId = String(payload?.id || '').trim();
+                  const scopes = Array.isArray(payload?.scopes) ? payload.scopes.map(String) : [];
+                  if (appId && userId) {
+                    if (!scopes.includes(requiredScope)) {
+                      return res.status(403).json({ error: `Missing required scope: ${requiredScope}` });
+                    }
+                    req.user = payload;
+                    req.platformKey = {
+                      id: null,
+                      userId,
+                      appId,
+                      name: `OAuth ${appId}`,
+                      keyPrefix: null,
+                      scopes,
+                      oauth: true,
+                    };
+                    return next();
+                  }
+                } catch {
+                  // Authorization bearer may still be a legacy developer API key.
+                }
+              }
+
+              const row = db.prepare(`
+                SELECT id, user_id, app_id, name, key_prefix, scopes
+                FROM developer_api_keys
+                WHERE key_hash = ? AND revoked_at IS NULL
+              `).get(hashSecret(token)) as any;
+              if (!row) return res.status(401).json({ error: 'Invalid SPMT bearer or platform API key' });
+
+              const scopes = JSON.parse(row.scopes || '[]');
+              if (!scopes.includes(requiredScope)) {
+                return res.status(403).json({ error: `Missing required scope: ${requiredScope}` });
+              }
+
+              db.prepare('UPDATE developer_api_keys SET last_used_at = ? WHERE id = ?').run(new Date().toISOString(), row.id);
+              req.platformKey = { id: row.id, userId: row.user_id, appId: row.app_id || null, name: row.name, keyPrefix: row.key_prefix, scopes };
+              next();
+            };
+          }'''.replace('          ', '')
+
+          if old_auth not in text:
+              raise SystemExit('authenticatePlatformKey block not found')
+          text = text.replace(old_auth, new_auth, 1)
+          path.write_text(text)
+          PY
+      - name: Verify
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          npm run build
+      - name: Remove one-shot workflow and commit
+        run: |
+          rm .github/workflows/apply-oauth-xp-bearer.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Accept scoped SPMT OAuth bearer for platform XP"
+          git push origin HEAD:fix/oauth-xp-bearer-20260812

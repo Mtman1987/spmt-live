@@ -6,6 +6,8 @@ on:
       - fix/xp-oauth-service-token-20260812
     paths:
       - ".github/workflows/apply-xp-oauth-service-token.yml"
+      - "tests/oauth-platform-auth-contract.test.cjs"
+      - "scripts/patch-xp-oauth-service-token.py"
 
 permissions:
   contents: write

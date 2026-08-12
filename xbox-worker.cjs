@@ -102,6 +102,12 @@ class CdpClient {
     this.pending = new Map();
   }
 
+  rejectPendingForSocket(socket, error) {
+    for (const pending of [...this.pending.values()]) {
+      if (pending.socket === socket) pending.reject(error);
+    }
+  }
+
   async connect() {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
     if (this.connecting) return await this.connecting;
@@ -114,10 +120,9 @@ class CdpClient {
         reject(new Error('CDP websocket timeout'));
       }, 5000);
       const onSocketError = (error) => {
-        if (this.ws !== socket) return;
-        this.ws = null;
         const failure = error instanceof Error ? error : new Error(String(error || 'CDP connection error'));
-        for (const pending of [...this.pending.values()]) pending.reject(failure);
+        if (this.ws === socket) this.ws = null;
+        this.rejectPendingForSocket(socket, failure);
         try { socket.terminate(); } catch {}
       };
       const onOpen = () => {
@@ -148,18 +153,20 @@ class CdpClient {
       try { message = JSON.parse(String(raw)); } catch { return; }
       if (!message.id) return;
       const pending = this.pending.get(message.id);
-      if (!pending) return;
+      if (!pending || pending.socket !== socket) return;
       if (message.error) pending.reject(new Error(message.error.message || 'CDP error'));
       else pending.resolve(message.result || {});
     });
     socket.on('close', () => {
       if (this.ws === socket) this.ws = null;
-      for (const pending of [...this.pending.values()]) pending.reject(new Error('CDP connection closed'));
+      this.rejectPendingForSocket(socket, new Error('CDP connection closed'));
     });
   }
 
   async call(method, params = {}, timeoutMs = 10000) {
     await this.connect();
+    const socket = this.ws;
+    if (!socket || socket.readyState !== WebSocket.OPEN) throw new Error('CDP connection is not open');
     const id = this.nextId++;
     let timer = null;
     let settled = false;
@@ -177,6 +184,7 @@ class CdpClient {
       handler(value);
     };
     const pending = {
+      socket,
       resolve: (value) => finish(resolvePromise, value),
       reject: (error) => finish(rejectPromise, error instanceof Error ? error : new Error(String(error || 'CDP request failed'))),
     };
@@ -184,7 +192,7 @@ class CdpClient {
     timer = setTimeout(() => pending.reject(new Error(`${method} timed out`)), timeoutMs);
 
     try {
-      this.ws.send(JSON.stringify({ id, method, params }), (error) => {
+      socket.send(JSON.stringify({ id, method, params }), (error) => {
         if (error) pending.reject(error);
       });
     } catch (error) {
@@ -196,8 +204,9 @@ class CdpClient {
   close() {
     const socket = this.ws;
     this.ws = null;
-    try { socket?.close(); } catch {}
-    for (const pending of [...this.pending.values()]) pending.reject(new Error('CDP connection closed'));
+    if (!socket) return;
+    try { socket.close(); } catch {}
+    this.rejectPendingForSocket(socket, new Error('CDP connection closed'));
   }
 }
 

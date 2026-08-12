@@ -1306,20 +1306,20 @@ function authenticatePlatformKey(requiredScope: string) {
         const userId = String(payload?.id || '').trim();
         const scopes = Array.isArray(payload?.scopes) ? payload.scopes.map(String) : [];
         if (appId && userId) {
-if (!scopes.includes(requiredScope)) {
-  return res.status(403).json({ error: `Missing required scope: ${requiredScope}` });
-}
-req.user = payload;
-req.platformKey = {
-  id: null,
-  userId,
-  appId,
-  name: `OAuth ${appId}`,
-  keyPrefix: null,
-  scopes,
-  oauth: true,
-};
-return next();
+          if (!scopes.includes(requiredScope)) {
+            return res.status(403).json({ error: `Missing required scope: ${requiredScope}` });
+          }
+          req.user = payload;
+          req.platformKey = {
+            id: null,
+            userId,
+            appId,
+            name: `OAuth ${appId}`,
+            keyPrefix: null,
+            scopes,
+            oauth: true,
+          };
+          return next();
         }
       } catch {
         // Authorization bearer may still be a legacy developer API key.

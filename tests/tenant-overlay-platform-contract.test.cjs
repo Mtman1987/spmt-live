@@ -98,12 +98,14 @@ test('new browser scripts parse before deployment', () => {
   inlineScripts.forEach((script) => assert.doesNotThrow(() => new vm.Script(script)));
 });
 
-test('startup and shared surface load tenant overlay platform without replacing Xbox worker code', () => {
+test('startup, runtime image and shared surface load tenant overlay platform without replacing Xbox worker code', () => {
   const start = read('start.cjs');
   const localStart = read('scripts/start.mjs');
+  const dockerfile = read('Dockerfile');
   const shared = read('public/shared/index.html');
   assert.match(start, /tenant-overlay-bootstrap\.cjs/);
   assert.match(localStart, /tenant-overlay-bootstrap\.cjs/);
+  assert.match(dockerfile, /COPY tenant-overlay-bootstrap\.cjs \.\/tenant-overlay-bootstrap\.cjs/);
   assert.match(shared, /overlay-widget-contract\.js/);
   assert.match(shared, /overlay-platform-v3\.css/);
   assert.match(shared, /overlay-platform-v3\.js/);

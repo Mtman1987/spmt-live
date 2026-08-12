@@ -204,9 +204,9 @@ class CdpClient {
   close() {
     const socket = this.ws;
     this.ws = null;
-    if (!socket) return;
-    try { socket.close(); } catch {}
-    this.rejectPendingForSocket(socket, new Error('CDP connection closed'));
+    try { socket?.close(); } catch {}
+    const failure = new Error('CDP connection closed');
+    for (const pending of [...this.pending.values()]) pending.reject(failure);
   }
 }
 

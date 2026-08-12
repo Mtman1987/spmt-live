@@ -202,6 +202,56 @@ test('a delayed close from a failed socket cannot reject requests on a recovered
   client.close();
 });
 
+test('explicit client close rejects pending requests from every socket generation', async () => {
+  class FakeWebSocket extends EventEmitter {
+    static OPEN = 1;
+
+    constructor() {
+      super();
+      this.readyState = 0;
+      queueMicrotask(() => {
+        this.readyState = FakeWebSocket.OPEN;
+        this.emit('open');
+      });
+    }
+
+    send(_payload, callback) {
+      if (callback) callback();
+    }
+
+    close() {
+      if (this.readyState === 3) return;
+      this.readyState = 3;
+      this.emit('close');
+    }
+
+    terminate() {
+      this.readyState = 3;
+    }
+  }
+
+  const CdpClient = loadCdpClient(FakeWebSocket);
+  const client = new CdpClient('ws://fake');
+  await client.connect();
+  const oldSocket = client.ws;
+  const oldCall = client.call('Runtime.evaluate', {}, 1000);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  // Simulate a socket that has stopped being OPEN but has not emitted close yet.
+  oldSocket.readyState = 3;
+  const newCall = client.call('Runtime.evaluate', {}, 1000);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.notEqual(client.ws, oldSocket);
+  assert.equal(client.pending.size, 2);
+
+  const oldRejected = assert.rejects(oldCall, /CDP connection closed/);
+  const newRejected = assert.rejects(newCall, /CDP connection closed/);
+  client.close();
+  await Promise.all([oldRejected, newRejected]);
+  assert.equal(client.ws, null);
+  assert.equal(client.pending.size, 0);
+});
+
 test('connect timeout terminates its stale socket before rejecting', () => {
   const classSource = source.slice(classStart, classEnd);
   const terminateAt = classSource.indexOf('socket.terminate()');

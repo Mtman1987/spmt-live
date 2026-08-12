@@ -61,8 +61,9 @@ test('Overlay Bay v3 exposes tenant outputs and standardized source controls', (
   for (const marker of [
     'data-select-output="public"',
     'data-select-output="personal"',
-    'data-copy-output="public"',
-    'data-copy-output="personal"',
+    'data-copy-output="${kind}"',
+    "urlRow('public', platformState.urls?.public)",
+    "urlRow('personal', platformState.urls?.personal)",
     'data-inspector-opacity',
     'data-inspector-fit',
     'data-inspector-action="full"',

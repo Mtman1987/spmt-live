@@ -22,6 +22,7 @@ COPY docs ./docs
 COPY scripts/operations ./scripts/operations
 COPY start.cjs ./start.cjs
 COPY cloud-xbox-bootstrap.cjs ./cloud-xbox-bootstrap.cjs
+COPY tenant-overlay-events-bootstrap.cjs ./tenant-overlay-events-bootstrap.cjs
 COPY tenant-overlay-bootstrap.cjs ./tenant-overlay-bootstrap.cjs
 COPY xbox-worker.cjs ./xbox-worker.cjs
 COPY xbox-worker-guard.cjs ./xbox-worker-guard.cjs

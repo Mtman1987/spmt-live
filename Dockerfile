@@ -21,13 +21,13 @@ COPY public ./public
 COPY docs ./docs
 COPY scripts/operations ./scripts/operations
 COPY start.cjs ./start.cjs
-COPY cloud-xbox-process-guard.cjs ./cloud-xbox-process-guard.cjs
 COPY cloud-xbox-bootstrap.cjs ./cloud-xbox-bootstrap.cjs
+COPY xbox-worker.cjs ./xbox-worker.cjs
 COPY athena-command-bootstrap.cjs ./athena-command-bootstrap.cjs
 ENV NODE_ENV=production
 ENV DATABASE_PATH=/data/spmt.db
 ENV BUILD_SHA=$BUILD_SHA
 ENV CHROMIUM_PATH=/usr/bin/chromium
-ENV CLOUD_XBOX_PROFILE_ROOT=/data/cloud-xbox-profiles
-EXPOSE 3000
+ENV CLOUD_XBOX_PROFILE_ROOT=/var/lib/spmt-xbox/profiles
+EXPOSE 3000 3003
 CMD ["node", "start.cjs"]

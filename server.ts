@@ -62,6 +62,7 @@ const EMBED_SCOPES_BY_CLIENT: Record<string, string[]> = {
 
 const OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT: Record<string, string[]> = {
   'spacemountain-live': ['xp:write'],
+  'discord-stream-hub': ['discord:control', 'athena:write'],
 };
 
 const COMPANION_ACTION_CAPABILITIES: Record<string, string> = {
@@ -3160,6 +3161,24 @@ app.post('/api/oauth/token', (req, res) => {
     scopes,
     user: serializeUser(user),
   });
+});
+
+// ─── OAuth2: Service info (for apps to verify client-credentials tokens) ───
+app.get('/api/oauth/serviceinfo', (req: any, res) => {
+  const bearer = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || '';
+  if (!bearer) return res.status(401).json({ error: 'Missing bearer token' });
+  try {
+    const payload = jwt.verify(bearer, JWT_SECRET) as any;
+    const clientId = String(payload?.client_id || '').trim();
+    const tokenUse = String(payload?.token_use || '').trim();
+    const scopes = Array.isArray(payload?.scopes) ? payload.scopes.map(String) : [];
+    if (!clientId || tokenUse !== 'client_credentials') {
+      return res.status(401).json({ error: 'Client-credentials token required' });
+    }
+    return res.json({ client_id: clientId, token_use: tokenUse, scopes });
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired bearer token' });
+  }
 });
 
 // ─── OAuth2: User info (for apps to verify tokens) ───

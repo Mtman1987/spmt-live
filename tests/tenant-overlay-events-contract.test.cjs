@@ -51,6 +51,17 @@ test('canonical renderer polls tenant alert events and Overlay Bay publishes tes
   assert.doesNotThrow(() => new vm.Script(publisher));
 });
 
+test('empty outputs still have a replaceable default alert surface', () => {
+  const renderer = read('public/tenant-output.html');
+  assert.match(renderer, /const DEFAULT_ALERT_WIDGET =/);
+  assert.match(renderer, /hasSavedAlert \? ''/);
+  assert.match(renderer, /alertId === DEFAULT_ALERT_WIDGET\.id/);
+  assert.match(renderer, /SpaceMountain Default Alert/);
+  const inlineScripts = [...renderer.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((match) => match[1]);
+  assert.ok(inlineScripts.length >= 1);
+  inlineScripts.forEach((script) => assert.doesNotThrow(() => new vm.Script(script)));
+});
+
 test('production image and startup include the event bootstrap', () => {
   assert.match(read('Dockerfile'), /COPY tenant-overlay-events-bootstrap\.cjs/);
   const start = read('start.cjs');

@@ -57,6 +57,29 @@
         custom: { headline: '{headline}', body: '{message}' },
       };
 
+      // Every output can display alerts immediately, even when Personal was
+      // intentionally created with no widgets during the tenant transition.
+      // A saved Alert widget takes precedence; this fallback never changes the
+      // scene record and remains invisible until an alert event arrives.
+      const DEFAULT_ALERT_WIDGET = {
+        id: '__spmt-default-alert',
+        title: 'SpaceMountain Default Alert',
+        kind: 'alert',
+        visible: true,
+        locked: true,
+        x: 0,
+        y: 0,
+        width: contract.scene.width,
+        height: contract.scene.height,
+        opacity: 1,
+        zIndex: 100000,
+        accent: '#f97316',
+        durationMs: 6500,
+        imageUrl: '',
+        accepts: Object.keys(ALERT_TEMPLATES),
+        templates: ALERT_TEMPLATES,
+      };
+
       function escapeHtml(value) {
         return String(value ?? '').replace(/[&<>"']/g, (char) => ({
           '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
@@ -129,9 +152,14 @@
           clearXboxFrame();
           return;
         }
-        sceneEl.innerHTML = (layout.widgets || []).filter((widget) => widget.visible !== false).map((widget) =>
+        const visibleWidgets = (layout.widgets || []).filter((widget) => widget.visible !== false);
+        const hasSavedAlert = visibleWidgets.some((widget) => widget.kind === 'alert');
+        const savedMarkup = visibleWidgets.map((widget) =>
           `<section class="tenant-widget kind-${escapeHtml(widget.kind)}" data-tenant-widget="${escapeHtml(widget.id)}" style="${widgetStyle(widget)}">${sourceMarkup(widget)}</section>`
         ).join('');
+        const fallbackAlertMarkup = hasSavedAlert ? '' :
+          `<section class="tenant-widget kind-alert default-alert" data-tenant-widget="${DEFAULT_ALERT_WIDGET.id}" style="${widgetStyle(DEFAULT_ALERT_WIDGET)}">${sourceMarkup(DEFAULT_ALERT_WIDGET)}</section>`;
+        sceneEl.innerHTML = savedMarkup + fallbackAlertMarkup;
         applyXboxVisibility();
       }
 
@@ -255,7 +283,9 @@
       function fireAlert(rawPayload = {}) {
         const payload = normalizeAlert(rawPayload);
         document.querySelectorAll('[data-tenant-alert]').forEach((stage) => {
-          const widget = (state.layout.widgets || []).find((item) => item.id === stage.dataset.tenantAlert);
+          const alertId = stage.dataset.tenantAlert;
+          const widget = (state.layout.widgets || []).find((item) => item.id === alertId)
+            || (alertId === DEFAULT_ALERT_WIDGET.id ? DEFAULT_ALERT_WIDGET : null);
           if (!widget || widget.visible === false) return;
           const accepts = widget.accepts || Object.keys(ALERT_TEMPLATES);
           if (!accepts.includes(payload.eventType) && !accepts.includes('custom')) return;

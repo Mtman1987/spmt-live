@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>SpaceMountain Program Output</title>
+  <style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
+    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    #program{position:fixed;inset:0;overflow:hidden;background:#000}
+    #xbox-layer{position:absolute;display:none;overflow:hidden;background:#000;pointer-events:none}
+    #xbox-frame{display:block;width:100%;height:100%;object-fit:contain;background:#000}
+    #overlay-runtime{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;z-index:2147483000;pointer-events:none}
+    #status{position:fixed;left:12px;bottom:12px;z-index:2147483647;max-width:min(680px,calc(100vw - 24px));padding:8px 10px;border-radius:9px;background:rgba(0,0,0,.78);color:#cbd5e1;font:700 11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;opacity:0;transition:opacity .18s ease;pointer-events:none}
+    #status.show{opacity:1}
+    #status.error{color:#fecaca;background:rgba(69,10,10,.9)}
+  </style>
+</head>
+<body>
+  <div id="program">
+    <div id="xbox-layer"><img id="xbox-frame" alt="Xbox program video"></div>
+    <iframe id="overlay-runtime" title="Saved Overlay Bay program layers" src="/embed/overlays?mode=overlay&app=broadcast-safe"></iframe>
+  </div>
+  <div id="status"></div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const xboxLayer = document.getElementById('xbox-layer');
+      const xboxFrame = document.getElementById('xbox-frame');
+      const overlayRuntime = document.getElementById('overlay-runtime');
+      const status = document.getElementById('status');
+      let layoutSignature = '';
+      let frameBusy = false;
+      let authenticated = true;
+      let statusTimer = null;
+
+      function authHeaders() {
+        const token = localStorage.getItem('spmt_token') || '';
+        return token ? { Authorization: `Bearer ${token}` } : {};
+      }
+
+      function showStatus(message, error = false, holdMs = 3500) {
+        clearTimeout(statusTimer);
+        status.textContent = String(message || '');
+        status.className = `show${error ? ' error' : ''}`;
+        if (holdMs > 0) statusTimer = setTimeout(() => { status.className = ''; }, holdMs);
+      }
+
+      async function getJson(path) {
+        const response = await fetch(path, {
+          credentials: 'include',
+          cache: 'no-store',
+          headers: { Accept: 'application/json', ...authHeaders() },
+        });
+        if (response.status === 401) {
+          authenticated = false;
+          throw new Error('SPMT sign-in is required in this browser before this program URL can load the saved scene.');
+        }
+        authenticated = true;
+        if (!response.ok) {
+          let message = `Request failed (${response.status})`;
+          try { message = (await response.json()).error || message; } catch {}
+          throw new Error(message);
+        }
+        return await response.json();
+      }
+
+      function applyXboxLayout(layout) {
+        const widget = Array.isArray(layout?.widgets)
+          ? layout.widgets.find((item) => item && item.kind === 'xbox' && item.visible !== false)
+          : null;
+        if (!widget || layout?.enabled === false) {
+          xboxLayer.style.display = 'none';
+          return;
+        }
+        xboxLayer.style.display = 'block';
+        xboxLayer.style.left = `${Number.isFinite(Number(widget.x)) ? Number(widget.x) : 0}%`;
+        xboxLayer.style.top = `${Number.isFinite(Number(widget.y)) ? Number(widget.y) : 0}%`;
+        xboxLayer.style.width = `${Math.max(120, Number(widget.width) || 960)}px`;
+        xboxLayer.style.height = `${Math.max(60, Number(widget.height) || 540)}px`;
+        xboxLayer.style.opacity = String(widget.opacity == null ? 1 : widget.opacity);
+        xboxLayer.style.zIndex = String(Number.isFinite(Number(widget.zIndex)) ? Number(widget.zIndex) : 0);
+        xboxFrame.style.objectFit = widget.fit === 'cover' ? 'cover' : 'contain';
+      }
+
+      function hideXboxPlaceholderInsideOverlayRuntime() {
+        try {
+          const doc = overlayRuntime.contentDocument;
+          if (!doc) return;
+          let style = doc.getElementById('broadcast-safe-xbox-hide');
+          if (!style) {
+            style = doc.createElement('style');
+            style.id = 'broadcast-safe-xbox-hide';
+            style.textContent = '.overlay-widget.kind-xbox{opacity:0!important;visibility:hidden!important;pointer-events:none!important}';
+            doc.head.appendChild(style);
+          }
+        } catch {}
+      }
+
+      async function refreshLayout(initial = false) {
+        try {
+          const data = await getJson('/api/overlay-workspace');
+          const layout = data?.layout || { enabled: true, widgets: [] };
+          const signature = JSON.stringify(layout);
+          applyXboxLayout(layout);
+          if (!initial && layoutSignature && signature !== layoutSignature) {
+            overlayRuntime.src = `/embed/overlays?mode=overlay&app=broadcast-safe&rev=${Date.now()}`;
+          }
+          layoutSignature = signature;
+        } catch (error) {
+          showStatus(error.message || 'Saved Overlay Bay scene is unavailable.', true, 0);
+        }
+      }
+
+      async function refreshXboxFrame() {
+        if (frameBusy || !authenticated || xboxLayer.style.display === 'none') return;
+        frameBusy = true;
+        try {
+          const response = await fetch(`/api/cloud-xbox/frame?t=${Date.now()}`, {
+            credentials: 'include',
+            cache: 'no-store',
+            headers: authHeaders(),
+          });
+          if (!response.ok) return;
+          const blob = await response.blob();
+          if (!blob.type.startsWith('image/')) return;
+          const url = URL.createObjectURL(blob);
+          const probe = new Image();
+          probe.onload = () => {
+            const previous = xboxFrame.dataset.objectUrl || '';
+            xboxFrame.src = url;
+            xboxFrame.dataset.objectUrl = url;
+            if (previous) URL.revokeObjectURL(previous);
+          };
+          probe.onerror = () => URL.revokeObjectURL(url);
+          probe.src = url;
+        } catch {
+          // Keep the last valid frame. A transient worker/frame miss must not blank the program output.
+        } finally {
+          frameBusy = false;
+        }
+      }
+
+      function forwardAlert(payload) {
+        try {
+          overlayRuntime.contentWindow?.postMessage({ ...payload, type: 'spmt.overlay.alert' }, location.origin);
+        } catch {}
+      }
+
+      window.spmtOverlayAlert = (payload = {}) => forwardAlert(payload);
+      window.addEventListener('spmt:overlay-alert', (event) => forwardAlert(event.detail || {}));
+      window.addEventListener('message', (event) => {
+        if (event.source === window || event.origin === location.origin) {
+          const data = event.data || {};
+          if (data.type === 'spmt.overlay.alert' || data.type === 'spacemountain.alert') forwardAlert(data);
+        }
+      });
+
+      overlayRuntime.addEventListener('load', () => {
+        hideXboxPlaceholderInsideOverlayRuntime();
+        setTimeout(hideXboxPlaceholderInsideOverlayRuntime, 200);
+        setTimeout(hideXboxPlaceholderInsideOverlayRuntime, 900);
+      });
+
+      refreshLayout(true);
+      setInterval(() => refreshLayout(false), 2000);
+      setInterval(refreshXboxFrame, 500);
+      setInterval(hideXboxPlaceholderInsideOverlayRuntime, 1500);
+    })();
+  </script>
+</body>
+</html>

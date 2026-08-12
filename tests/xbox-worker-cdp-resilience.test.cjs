@@ -1,0 +1,107 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const { EventEmitter } = require('node:events');
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const source = fs.readFileSync('xbox-worker.cjs', 'utf8');
+const classStart = source.indexOf('class CdpClient {');
+const classEnd = source.indexOf('\nasync function pageTargets', classStart);
+assert.ok(classStart >= 0 && classEnd > classStart, 'CdpClient source block should be present');
+const cdpSource = `${source.slice(classStart, classEnd)}\nglobalThis.CdpClient = CdpClient;`;
+
+function loadCdpClient(FakeWebSocket) {
+  const context = {
+    WebSocket: FakeWebSocket,
+    setTimeout,
+    clearTimeout,
+    Error,
+    String,
+  };
+  vm.runInNewContext(cdpSource, context, { filename: 'xbox-worker-cdp-client.vm.js' });
+  return context.CdpClient;
+}
+
+test('synchronous CDP send failure cannot leave an orphan timeout rejection', async () => {
+  class FakeWebSocket extends EventEmitter {
+    static OPEN = 1;
+
+    constructor() {
+      super();
+      this.readyState = 0;
+      queueMicrotask(() => {
+        this.readyState = FakeWebSocket.OPEN;
+        this.emit('open');
+      });
+    }
+
+    send() {
+      throw new Error('socket closed during send');
+    }
+
+    close() {
+      this.readyState = 3;
+      this.emit('close');
+    }
+
+    terminate() {
+      this.close();
+    }
+  }
+
+  const CdpClient = loadCdpClient(FakeWebSocket);
+  const client = new CdpClient('ws://fake');
+  const unhandled = [];
+  const onUnhandled = (reason) => unhandled.push(reason);
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    await assert.rejects(client.call('Runtime.evaluate', {}, 20), /socket closed during send/);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.deepEqual(unhandled, []);
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+    client.close();
+  }
+});
+
+test('CDP request timeout is settled by the tracked pending request', async () => {
+  class FakeWebSocket extends EventEmitter {
+    static OPEN = 1;
+
+    constructor() {
+      super();
+      this.readyState = 0;
+      queueMicrotask(() => {
+        this.readyState = FakeWebSocket.OPEN;
+        this.emit('open');
+      });
+    }
+
+    send(_payload, callback) {
+      if (callback) callback();
+    }
+
+    close() {
+      this.readyState = 3;
+      this.emit('close');
+    }
+
+    terminate() {
+      this.close();
+    }
+  }
+
+  const CdpClient = loadCdpClient(FakeWebSocket);
+  const client = new CdpClient('ws://fake');
+  await assert.rejects(client.call('Runtime.evaluate', {}, 20), /Runtime\.evaluate timed out/);
+  assert.equal(client.pending.size, 0);
+  client.close();
+});
+
+test('connect timeout terminates its stale socket before rejecting', () => {
+  const classSource = source.slice(classStart, classEnd);
+  const terminateAt = classSource.indexOf('socket.terminate()');
+  const timeoutRejectAt = classSource.indexOf("reject(new Error('CDP websocket timeout'))");
+  assert.ok(terminateAt >= 0, 'connect timeout should terminate the socket');
+  assert.ok(timeoutRejectAt > terminateAt, 'socket termination should happen before timeout rejection');
+});

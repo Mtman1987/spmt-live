@@ -34,4 +34,20 @@
     } catch {}
     return originalFetch(input, init);
   };
+
+  const applyLocalOpacity = (value) => {
+    const numeric = Number(value);
+    const opacity = Number.isFinite(numeric) ? Math.max(0, Math.min(1, numeric)) : 1;
+    const scene = document.getElementById('scene');
+    if (scene) {
+      scene.style.opacity = String(opacity);
+      scene.dataset.localPersonalOpacity = String(Math.round(opacity * 100));
+    }
+  };
+
+  window.addEventListener('message', (event) => {
+    if (event.source !== window.parent) return;
+    if (event.data?.type !== 'spmt.personal.local-opacity') return;
+    applyLocalOpacity(event.data.opacity);
+  });
 })();

@@ -1,0 +1,31 @@
+name: Personal renderer ready patch
+on:
+  push:
+    branches: [fix/personal-renderer-ready]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/personal-renderer-ready
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('public/tenant-output.html')
+          s=p.read_text()
+          marker="      resizeScene();\n      refreshScene().then(refreshXboxStatus);"
+          replacement="      resizeScene();\n      try { window.parent.postMessage({ type: 'spmt.personal.renderer-ready', tenant, output }, '*'); } catch {}\n      refreshScene().then(refreshXboxStatus);"
+          if marker not in s:
+              raise SystemExit('renderer startup marker missing')
+          s=s.replace(marker,replacement,1)
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add public/tenant-output.html
+          git commit -m "Signal when tenant renderer is transparent and ready"
+          git push

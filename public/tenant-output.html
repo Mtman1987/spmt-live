@@ -325,6 +325,7 @@
       if (typeof ResizeObserver === 'function') new ResizeObserver(resizeScene).observe(wrapEl);
 
       resizeScene();
+      try { window.parent.postMessage({ type: 'spmt.personal.renderer-ready', tenant, output }, '*'); } catch {}
       refreshScene().then(refreshXboxStatus);
       setInterval(refreshScene, 2000);
       setInterval(refreshXboxStatus, 1000);

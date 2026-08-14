@@ -20,10 +20,11 @@
     "test:xbox-worker-resilience": "node --test tests/xbox-worker-cdp-resilience.test.cjs",
     "test:platform-oauth": "node --test tests/oauth-platform-auth-contract.test.cjs",
     "test:service-oauth": "node --test tests/oauth-serviceinfo-contract.test.cjs",
+    "test:oauth-flow": "node --test tests/oauth-first-party-flow.test.cjs",
     "test:athena-command": "node --test tests/athena-command-auth-contract.test.cjs",
     "test:xp-balance-migration": "tsx --test tests/xp-balance-migration.test.ts",
     "backup:verify-restore": "node scripts/operations/verify-restored-volume.mjs",
-    "test": "npm run typecheck && npm run build && npm run test:startup-theme && npm run test:overlay-bay && npm run test:tenant-overlay && npm run test:cloud-xbox && npm run test:xbox-worker-resilience && npm run test:platform-oauth && npm run test:service-oauth && npm run test:athena-command && npm run sdk:package && npm run smoke",
+    "test": "npm run typecheck && npm run build && npm run test:startup-theme && npm run test:overlay-bay && npm run test:tenant-overlay && npm run test:cloud-xbox && npm run test:xbox-worker-resilience && npm run test:platform-oauth && npm run test:service-oauth && npm run test:oauth-flow && npm run test:athena-command && npm run sdk:package && npm run smoke",
     "test:xp-gamble-settlement": "tsx --test tests/xp-gamble-settlement.test.ts"
   },
   "dependencies": {

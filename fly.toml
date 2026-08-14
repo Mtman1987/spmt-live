@@ -33,7 +33,10 @@ primary_region = "lax"
 [[mounts]]
   source = "spmt_data"
   destination = "/data"
-  initial_size = "1GB"
+  initial_size = "5GB"
+  auto_extend_size_threshold = 80
+  auto_extend_size_increment = "1GB"
+  auto_extend_size_limit = "20GB"
   processes = ["app"]
 
 [[vm]]

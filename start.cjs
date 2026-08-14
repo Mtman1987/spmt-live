@@ -59,6 +59,7 @@ ensureWorkspaceShellBootstrap();
 // Install authenticated pre-routes before the bundled server creates Express.
 // Xbox Chromium now lives in the dedicated Fly xbox process group; this web
 // process only authenticates the user and proxies Overlay Bay control requests.
+require('./oauth-authorize-recovery-bootstrap.cjs').installOauthAuthorizeRecoveryBootstrap();
 require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
 require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
 // Event/grant routes must be installed before the older tenant routes because

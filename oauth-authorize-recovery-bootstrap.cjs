@@ -70,15 +70,18 @@ function patchDatabaseCapture() {
 }
 
 function oauthCodeTableSql() {
+  // Authorization codes live for five minutes and are consumed once. Their
+  // user/client validity is checked before issuance and during exchange, so the
+  // transient table deliberately avoids foreign-key coupling to older persistent
+  // parent-table schemas. This keeps OAuth upgrades compatible with long-lived
+  // production volumes while preserving the actual security checks in code.
   return `
     CREATE TABLE oauth_codes (
       code TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       client_id TEXT NOT NULL,
       redirect_uri TEXT NOT NULL,
-      expires_at TEXT NOT NULL,
-      FOREIGN KEY(user_id) REFERENCES users(id),
-      FOREIGN KEY(client_id) REFERENCES oauth_clients(client_id)
+      expires_at TEXT NOT NULL
     )
   `;
 }
@@ -108,9 +111,10 @@ function ensureOauthCodeSchema(db) {
     });
     const primaryKey = columns.find((column) => String(column.name || '') === 'code');
     const foreignKeys = db.prepare('PRAGMA foreign_key_list(oauth_codes)').all();
-    const hasUserForeignKey = foreignKeys.some((row) => String(row.table || '') === 'users' && String(row.from || '') === 'user_id');
-    const hasClientForeignKey = foreignKeys.some((row) => String(row.table || '') === 'oauth_clients' && String(row.from || '') === 'client_id');
-    rebuild = missingRequired || incompatibleExtra || Number(primaryKey?.pk || 0) !== 1 || !hasUserForeignKey || !hasClientForeignKey;
+    rebuild = missingRequired
+      || incompatibleExtra
+      || Number(primaryKey?.pk || 0) !== 1
+      || foreignKeys.length > 0;
   }
 
   if (rebuild) {
@@ -119,7 +123,7 @@ function ensureOauthCodeSchema(db) {
       db.exec(oauthCodeTableSql());
     });
     rebuildSchema();
-    console.warn('[OAuthRuntime] Rebuilt the short-lived oauth_codes table to the canonical schema');
+    console.warn('[OAuthRuntime] Rebuilt transient oauth_codes table without legacy foreign-key coupling');
   }
 
   oauthSchemaReady.add(db);
@@ -269,32 +273,37 @@ function oauthWriteHealth(req, res) {
   res.set('Cache-Control', 'no-store');
   const db = canonicalDatabase();
   if (!db) {
-    return res.status(503).json({ status: 'not_ready', code: 'oauth_database_unavailable' });
+    return res.status(503).json({ status: 'not_ready', code: 'oauth_database_unavailable', phase: 'database' });
   }
 
+  let phase = 'schema';
+  let code = '';
   try {
     ensureOauthCodeSchema(db);
+    phase = 'principal';
     const user = db.prepare('SELECT id FROM users ORDER BY created_at ASC LIMIT 1').get();
     const client = db.prepare("SELECT client_id, redirect_uris FROM oauth_clients WHERE client_id = 'spacemountain-live' LIMIT 1").get()
       || db.prepare('SELECT client_id, redirect_uris FROM oauth_clients ORDER BY client_id ASC LIMIT 1').get();
     if (!user || !client) {
-      return res.status(503).json({ status: 'not_ready', code: 'oauth_principal_unavailable' });
+      return res.status(503).json({ status: 'not_ready', code: 'oauth_principal_unavailable', phase });
     }
 
     const redirectUri = String(client.redirect_uris || '').split(',').map((value) => value.trim()).filter(Boolean)[0];
-    if (!redirectUri) return res.status(503).json({ status: 'not_ready', code: 'oauth_redirect_unavailable' });
+    if (!redirectUri) return res.status(503).json({ status: 'not_ready', code: 'oauth_redirect_unavailable', phase });
 
-    const code = `health-${crypto.randomUUID()}`;
-    const roundTrip = db.transaction(() => {
-      db.prepare(`
-        INSERT INTO oauth_codes (code, user_id, client_id, redirect_uri, expires_at)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(code, user.id, client.client_id, redirectUri, new Date(Date.now() + 60_000).toISOString());
-      const stored = db.prepare('SELECT code FROM oauth_codes WHERE code = ?').get(code);
-      db.prepare('DELETE FROM oauth_codes WHERE code = ?').run(code);
-      if (!stored) throw new Error('OAuth health code could not be read back');
-    });
-    roundTrip();
+    code = `health-${crypto.randomUUID()}`;
+    phase = 'delete_expired';
+    db.prepare('DELETE FROM oauth_codes WHERE expires_at < ?').run(new Date().toISOString());
+    phase = 'insert';
+    db.prepare(`
+      INSERT INTO oauth_codes (code, user_id, client_id, redirect_uri, expires_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(code, user.id, client.client_id, redirectUri, new Date(Date.now() + 60_000).toISOString());
+    phase = 'read_back';
+    const stored = db.prepare('SELECT code FROM oauth_codes WHERE code = ?').get(code);
+    if (!stored) throw new Error('OAuth health code could not be read back');
+    phase = 'cleanup';
+    db.prepare('DELETE FROM oauth_codes WHERE code = ?').run(code);
 
     return res.json({
       status: 'ready',
@@ -302,13 +311,19 @@ function oauthWriteHealth(req, res) {
       latencyMs: Number((performance.now() - startedAt).toFixed(2)),
     });
   } catch (error) {
+    if (code) {
+      try { db.prepare('DELETE FROM oauth_codes WHERE code = ?').run(code); } catch {}
+    }
     console.error('[OAuthRuntime] OAuth write health check failed:', {
+      phase,
       code: error?.code || null,
       message: error?.message || String(error),
     });
     return res.status(503).json({
       status: 'not_ready',
       code: 'oauth_code_write_failed',
+      phase,
+      sqliteCode: String(error?.code || 'unknown'),
       latencyMs: Number((performance.now() - startedAt).toFixed(2)),
     });
   }

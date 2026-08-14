@@ -70,11 +70,6 @@ function patchDatabaseCapture() {
 }
 
 function oauthCodeTableSql() {
-  // Authorization codes live for five minutes and are consumed once. Their
-  // user/client validity is checked before issuance and during exchange, so the
-  // transient table deliberately avoids foreign-key coupling to older persistent
-  // parent-table schemas. This keeps OAuth upgrades compatible with long-lived
-  // production volumes while preserving the actual security checks in code.
   return `
     CREATE TABLE oauth_codes (
       code TEXT PRIMARY KEY,
@@ -166,6 +161,57 @@ function canonicalDatabase() {
   return canonicalDb;
 }
 
+function sqliteErrorClass(error) {
+  const code = String(error?.code || 'unknown').toUpperCase();
+  if (code.includes('BUSY')) return 'BUSY';
+  if (code.includes('LOCKED')) return 'LOCKED';
+  if (code.includes('FULL')) return 'FULL';
+  if (code.includes('IOERR')) return 'IOERR';
+  if (code.includes('READONLY')) return 'READONLY';
+  if (code.includes('CONSTRAINT')) return 'CONSTRAINT';
+  return code || 'UNKNOWN';
+}
+
+function isRetryableSqliteError(error) {
+  const errorClass = sqliteErrorClass(error);
+  return errorClass === 'BUSY' || errorClass === 'LOCKED';
+}
+
+function sleepSync(ms) {
+  const sleeper = new Int32Array(new SharedArrayBuffer(4));
+  Atomics.wait(sleeper, 0, 0, ms);
+}
+
+function insertAuthorizationCode(db, values) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      db.prepare(`
+        INSERT INTO oauth_codes (code, user_id, client_id, redirect_uri, expires_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(values.code, values.userId, values.clientId, values.redirectUri, values.expiresAt);
+      return attempt;
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableSqliteError(error) || attempt === 4) throw error;
+      sleepSync(50 * attempt);
+    }
+  }
+  throw lastError || new Error('OAuth authorization code insert failed');
+}
+
+function cleanupExpiredOauthCodes(db) {
+  try {
+    db.prepare('DELETE FROM oauth_codes WHERE expires_at < ?').run(new Date().toISOString());
+  } catch (error) {
+    console.warn('[OAuthRuntime] Deferred expired authorization-code cleanup failed:', {
+      code: error?.code || null,
+      sqliteClass: sqliteErrorClass(error),
+      message: error?.message || String(error),
+    });
+  }
+}
+
 function authorizeOauthClient(req, res) {
   const clientId = firstQueryValue(req.query?.client_id);
   const redirectUri = firstQueryValue(req.query?.redirect_uri);
@@ -233,23 +279,34 @@ function authorizeOauthClient(req, res) {
   }
 
   const code = crypto.randomUUID();
+  let writeAttempts = 0;
   try {
-    const writeAuthorizationCode = db.transaction(() => {
-      db.prepare('DELETE FROM oauth_codes WHERE expires_at < ?').run(new Date().toISOString());
-      db.prepare(`
-        INSERT INTO oauth_codes (code, user_id, client_id, redirect_uri, expires_at)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(code, user.id, clientId, redirectUri, new Date(Date.now() + 5 * 60 * 1000).toISOString());
+    writeAttempts = insertAuthorizationCode(db, {
+      code,
+      userId: user.id,
+      clientId,
+      redirectUri,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
     });
-    writeAuthorizationCode();
   } catch (error) {
+    const errorClass = sqliteErrorClass(error);
     console.error('[OAuthRuntime] Failed to create authorization code:', {
       code: error?.code || null,
+      sqliteClass: errorClass,
       message: error?.message || String(error),
       clientId,
     });
-    return res.status(503).json({ error: 'OAuth authorization temporarily unavailable', code: 'oauth_code_write_failed' });
+    return res.status(503).json({
+      error: 'OAuth authorization temporarily unavailable',
+      code: 'oauth_code_write_failed',
+      sqliteClass: errorClass,
+    });
   }
+
+  if (writeAttempts > 1) {
+    console.warn('[OAuthRuntime] Authorization code write recovered after retry', { clientId, writeAttempts });
+  }
+  cleanupExpiredOauthCodes(db);
 
   callback.searchParams.set('code', code);
   if (state) callback.searchParams.set('state', state);
@@ -292,13 +349,14 @@ function oauthWriteHealth(req, res) {
     if (!redirectUri) return res.status(503).json({ status: 'not_ready', code: 'oauth_redirect_unavailable', phase });
 
     code = `health-${crypto.randomUUID()}`;
-    phase = 'delete_expired';
-    db.prepare('DELETE FROM oauth_codes WHERE expires_at < ?').run(new Date().toISOString());
     phase = 'insert';
-    db.prepare(`
-      INSERT INTO oauth_codes (code, user_id, client_id, redirect_uri, expires_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(code, user.id, client.client_id, redirectUri, new Date(Date.now() + 60_000).toISOString());
+    insertAuthorizationCode(db, {
+      code,
+      userId: user.id,
+      clientId: client.client_id,
+      redirectUri,
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
     phase = 'read_back';
     const stored = db.prepare('SELECT code FROM oauth_codes WHERE code = ?').get(code);
     if (!stored) throw new Error('OAuth health code could not be read back');
@@ -317,6 +375,7 @@ function oauthWriteHealth(req, res) {
     console.error('[OAuthRuntime] OAuth write health check failed:', {
       phase,
       code: error?.code || null,
+      sqliteClass: sqliteErrorClass(error),
       message: error?.message || String(error),
     });
     return res.status(503).json({
@@ -324,6 +383,7 @@ function oauthWriteHealth(req, res) {
       code: 'oauth_code_write_failed',
       phase,
       sqliteCode: String(error?.code || 'unknown'),
+      sqliteClass: sqliteErrorClass(error),
       latencyMs: Number((performance.now() - startedAt).toFixed(2)),
     });
   }
@@ -364,4 +424,6 @@ module.exports = {
   oauthWriteHealth,
   parseCookies,
   firstQueryValue,
+  insertAuthorizationCode,
+  sqliteErrorClass,
 };

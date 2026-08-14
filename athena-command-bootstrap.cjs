@@ -68,6 +68,7 @@ async function forwardBotCommand(req, res) {
     .replace(/[^a-z0-9._-]/g, '-') || 'spmt';
   const roomId = compactText(req.body?.roomId, 160);
   const voice = compactText(req.body?.voice, 128);
+  const targetTenantId = compactText(req.body?.targetTenantId, 128);
 
   try {
     const upstream = await fetch(streamweaverBotUrl(), {
@@ -81,6 +82,7 @@ async function forwardBotCommand(req, res) {
         command,
         source: sourceApp,
         roomId: roomId || undefined,
+        targetTenantId: targetTenantId || undefined,
         speak: req.body?.speak !== false,
         voice: voice || undefined,
       }),

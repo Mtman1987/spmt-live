@@ -41,6 +41,16 @@ function ensureWorkspaceShellBootstrap() {
   ensureScripts(sharedIndexPath, [
     '/shared/tenant-overlay-alert-publisher.js',
     '/shared/personal-overlay-launch-client.js',
+    '/shared/overlay-app-catalog.js',
+    '/shared/overlay-text-controls.js',
+  ]);
+
+  // Public and Personal use the same canonical tenant renderer. Rich text is a
+  // renderer enhancement layered onto the existing scene contract so old URLs
+  // and old saved layouts remain valid.
+  const tenantOutputPath = path.join(__dirname, 'public', 'tenant-output.html');
+  ensureScripts(tenantOutputPath, [
+    '/shared/tenant-text-runtime.js',
   ]);
 }
 

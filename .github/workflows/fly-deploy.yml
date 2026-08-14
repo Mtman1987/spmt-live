@@ -92,6 +92,6 @@ jobs:
           process.exit(1);
           NODE
       - name: Verify live authenticated OAuth routes
-        run: flyctl ssh console --app spmt-live --select --process app --command "node /app/scripts/operations/oauth-live-selftest.cjs"
+        run: flyctl ssh console --app spmt-live --process-group app --command "node /app/scripts/operations/oauth-live-selftest.cjs"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

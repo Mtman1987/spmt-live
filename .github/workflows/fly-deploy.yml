@@ -28,3 +28,37 @@ jobs:
         run: flyctl deploy . --remote-only --config fly.toml --build-arg BUILD_SHA=${GITHUB_SHA} --build-arg GITHUB_SHA=${GITHUB_SHA} --build-arg GH_SHA=${GITHUB_SHA} --yes
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Verify live OAuth database writes
+        run: |
+          node <<'NODE'
+          const endpoint = 'https://spmt.live/api/health/oauth';
+          const attempts = 12;
+          const delayMs = 5000;
+
+          async function sleep(ms) {
+            await new Promise((resolve) => setTimeout(resolve, ms));
+          }
+
+          for (let attempt = 1; attempt <= attempts; attempt += 1) {
+            try {
+              const response = await fetch(endpoint, {
+                headers: { Accept: 'application/json' },
+                signal: AbortSignal.timeout(8000),
+              });
+              const text = await response.text();
+              let body = null;
+              try { body = text ? JSON.parse(text) : null; } catch {}
+              console.log(`OAuth live probe ${attempt}/${attempts}: HTTP ${response.status}`, body || text);
+              if (response.ok && body?.status === 'ready' && body?.authorizationCodeWrite === 'ok') {
+                console.log('Live SPMT OAuth database write probe passed.');
+                process.exit(0);
+              }
+            } catch (error) {
+              console.warn(`OAuth live probe ${attempt}/${attempts} failed:`, error?.message || error);
+            }
+            if (attempt < attempts) await sleep(delayMs);
+          }
+
+          console.error('Live SPMT OAuth database write probe did not become healthy after deploy.');
+          process.exit(1);
+          NODE

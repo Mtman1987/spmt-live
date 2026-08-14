@@ -21,9 +21,38 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Ensure persistent volume has headroom
+        run: |
+          set -euo pipefail
+          flyctl volumes list --app spmt-live --json > /tmp/spmt-volumes.json
+          node <<'NODE' > /tmp/spmt-data-volumes.txt
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/spmt-volumes.json', 'utf8'));
+          const volumes = Array.isArray(payload) ? payload : Array.isArray(payload?.volumes) ? payload.volumes : [];
+          const matches = volumes.filter((volume) => String(volume?.name || '') === 'spmt_data');
+          if (!matches.length) {
+            console.error('No spmt_data Fly volume found');
+            process.exit(2);
+          }
+          for (const volume of matches) {
+            const id = String(volume?.id || '').trim();
+            const size = Number(volume?.size_gb ?? volume?.sizeGb ?? volume?.size ?? 0);
+            if (!id) continue;
+            process.stdout.write(`${id} ${Number.isFinite(size) ? size : 0}\n`);
+          }
+          NODE
+          while read -r volume_id current_size; do
+            echo "SPMT volume ${volume_id} currently ${current_size} GB"
+            if awk "BEGIN { exit !(${current_size} < 5) }"; then
+              echo "Extending ${volume_id} to 5 GB before deployment"
+              flyctl volumes extend "${volume_id}" --app spmt-live --size 5 --yes
+            fi
+          done < /tmp/spmt-data-volumes.txt
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       - name: Validate production contracts
         run: npm ci && npm test
-      - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Deploy to Fly.io
         run: flyctl deploy . --remote-only --config fly.toml --build-arg BUILD_SHA=${GITHUB_SHA} --build-arg GITHUB_SHA=${GITHUB_SHA} --build-arg GH_SHA=${GITHUB_SHA} --yes
         env:

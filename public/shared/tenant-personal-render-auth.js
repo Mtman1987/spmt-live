@@ -5,6 +5,29 @@
   const output = parts[2] === 'personal' ? 'personal' : 'public';
   if (!tenant || output !== 'personal') return;
 
+  const TRANSPARENCY_STYLE_ID = 'spmt-personal-renderer-transparency';
+  const installTransparencyContract = () => {
+    if (document.head && !document.getElementById(TRANSPARENCY_STYLE_ID)) {
+      const style = document.createElement('style');
+      style.id = TRANSPARENCY_STYLE_ID;
+      style.textContent = 'html,body,#stage-wrap{background:transparent!important;background-color:transparent!important;background-image:none!important;}';
+      document.head.appendChild(style);
+    }
+
+    for (const element of [document.documentElement, document.body, document.getElementById('stage-wrap')]) {
+      if (!element) continue;
+      element.style.setProperty('background', 'transparent', 'important');
+      element.style.setProperty('background-color', 'transparent', 'important');
+      element.style.setProperty('background-image', 'none', 'important');
+    }
+  };
+
+  installTransparencyContract();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installTransparencyContract, { once: true });
+  }
+  window.addEventListener('load', installTransparencyContract, { once: true });
+
   const storageKey = `spmt.personal-render-key:${tenant}`;
   const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
   const fragmentKey = String(hash.get('render') || '').trim();
@@ -43,6 +66,7 @@
       scene.style.opacity = String(opacity);
       scene.dataset.localPersonalOpacity = String(Math.round(opacity * 100));
     }
+    installTransparencyContract();
   };
 
   window.addEventListener('message', (event) => {

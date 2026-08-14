@@ -21,6 +21,7 @@ COPY public ./public
 COPY docs ./docs
 COPY scripts/operations ./scripts/operations
 COPY start.cjs ./start.cjs
+COPY oauth-authorize-recovery-bootstrap.cjs ./oauth-authorize-recovery-bootstrap.cjs
 COPY cloud-xbox-bootstrap.cjs ./cloud-xbox-bootstrap.cjs
 COPY tenant-overlay-events-bootstrap.cjs ./tenant-overlay-events-bootstrap.cjs
 COPY tenant-overlay-bootstrap.cjs ./tenant-overlay-bootstrap.cjs

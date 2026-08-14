@@ -122,7 +122,7 @@ test('all first-party apps complete SPMT authorization code flow on the canonica
     body: JSON.stringify({ username, password, displayName: 'OAuth Flow Test' }),
   });
   const registerPayload = await json(registerResponse);
-  assert.equal(registerResponse.status, 200, `register failed: ${JSON.stringify(registerPayload)}\n${output()}`);
+  assert.equal(registerResponse.status, 201, `register failed: ${JSON.stringify(registerPayload)}\n${output()}`);
 
   const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',

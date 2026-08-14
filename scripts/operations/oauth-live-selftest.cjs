@@ -14,7 +14,9 @@ const CLIENT_IDS = [
 ];
 
 const databasePath = process.env.DATABASE_PATH || '/data/spmt.db';
-const baseUrl = `http://127.0.0.1:${Number(process.env.PORT || 3000)}`;
+const baseUrl = String(
+  process.env.SPMT_OAUTH_SELFTEST_BASE_URL || `http://127.0.0.1:${Number(process.env.PORT || 3000)}`
+).replace(/\/$/, '');
 const jwtSecret = String(process.env.JWT_SECRET || '').trim();
 
 if (!jwtSecret) {
@@ -81,6 +83,7 @@ async function main() {
     const body = await response.text();
     if (response.status !== 302) {
       fail(`OAuth live self-test authorize failed for ${clientId}`, {
+        baseUrl,
         status: response.status,
         body: body.slice(0, 1000),
       });
@@ -124,6 +127,7 @@ async function main() {
   db.close();
   console.log(JSON.stringify({
     status: 'passed',
+    baseUrl,
     route: '/api/oauth/authorize',
     authenticated: true,
     clients: results,

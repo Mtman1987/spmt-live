@@ -7,9 +7,11 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
+const { pathToFileURL } = require('node:url');
 
 const repoRoot = path.resolve(__dirname, '..');
 const entrypoint = path.join(repoRoot, 'start.cjs');
+const docsBundleModuleUrl = pathToFileURL(path.join(repoRoot, 'scripts', 'docs-bundle.mjs')).href;
 
 test('production entrypoint installs the canonical workspace shell loaders exactly once', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'spmt-theme-bootstrap-'));
@@ -84,4 +86,43 @@ test('Companion desktop download is described as an installer, not a ZIP', () =>
   assert.doesNotThrow(() => new vm.Script(source), 'Companion installer UI patch must remain valid browser JavaScript');
   assert.match(source, /Download installer/, 'Companion download action should say installer');
   assert.match(source, /Unsigned installer/, 'Companion status should truthfully say unsigned installer');
+});
+
+test('public docs manifest only references safe existing Markdown sources', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'docs', 'docs-nav.json'), 'utf8'));
+  const paths = manifest.sections.flatMap((section) => section.items || []).map((item) => item.path);
+  assert.ok(paths.length > 0, 'docs manifest must contain public documents');
+  assert.equal(new Set(paths).size, paths.length, 'docs manifest should not contain duplicate document paths');
+  for (const docPath of paths) {
+    assert.match(docPath, /^(docs|spec)\/[A-Za-z0-9_./-]+\.md$/, `unsafe public docs path: ${docPath}`);
+    assert.equal(docPath.includes('..'), false, `path traversal is not allowed: ${docPath}`);
+    assert.equal(docPath.startsWith('docs/archive/'), false, `archive files must not be public bundle inputs: ${docPath}`);
+    assert.equal(fs.existsSync(path.join(repoRoot, docPath)), true, `missing public docs source: ${docPath}`);
+  }
+});
+
+test('generated docs bundle contains every public manifest document exactly once and in order', async () => {
+  const { buildDocsBundle } = await import(docsBundleModuleUrl);
+  const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'docs', 'docs-nav.json'), 'utf8'));
+  const paths = manifest.sections.flatMap((section) => section.items || []).map((item) => item.path);
+  const result = await buildDocsBundle({ repoRoot });
+  assert.equal(result.documentCount, paths.length);
+  assert.deepEqual(result.paths, paths);
+  assert.match(result.markdown, /^# SPMT Documentation\n/);
+  assert.equal(result.markdown.includes('docs/archive/'), false);
+  let previousIndex = -1;
+  for (const docPath of paths) {
+    const marker = `<!-- Source: ${docPath} -->`;
+    const first = result.markdown.indexOf(marker);
+    assert.ok(first > previousIndex, `${docPath} should follow manifest order`);
+    assert.equal(result.markdown.indexOf(marker, first + marker.length), -1, `${docPath} should appear once`);
+    previousIndex = first;
+  }
+});
+
+test('production image generates the docs bundle and exposes specification Markdown', () => {
+  const dockerfile = fs.readFileSync(path.join(repoRoot, 'Dockerfile'), 'utf8');
+  assert.match(dockerfile, /RUN node scripts\/docs-bundle\.mjs/, 'image build must generate public docs bundle');
+  assert.match(dockerfile, /COPY --from=build \/app\/public \.\/public/, 'runtime image must copy generated public tree');
+  assert.match(dockerfile, /COPY --from=build \/app\/spec \.\/public\/spec/, 'runtime image must expose spec Markdown used by docs navigation');
 });

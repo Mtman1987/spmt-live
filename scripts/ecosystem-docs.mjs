@@ -14,7 +14,7 @@ export function validateEcosystemSnapshot(snapshot) {
 export async function fetchEcosystemSnapshot({ url = process.env.SPMT_ECOSYSTEM_SNAPSHOT_URL || DEFAULT_ECOSYSTEM_SNAPSHOT_URL, fetchImpl = fetch } = {}) {
   const response = await fetchImpl(url, {
     headers: { accept: 'application/json' },
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(30_000),
   });
   if (!response.ok) throw new Error(`Ecosystem snapshot request failed: HTTP ${response.status}`);
   return validateEcosystemSnapshot(await response.json());

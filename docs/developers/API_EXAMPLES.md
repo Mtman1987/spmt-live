@@ -2,10 +2,13 @@
 
 These examples show current SPMT integration patterns. Prefer `@spmt/sdk` in application code and use raw HTTP mainly for debugging or integrations that cannot use the SDK.
 
+Current SPMT public base: `{{apps.spmt.urls.public}}`  
+Current snapshot: `{{generatedAt}}`
+
 ## Get Current User
 
 ```bash
-curl https://spmt.live/api/me \
+curl {{apps.spmt.urls.public}}/api/me \
   -H "Authorization: Bearer $SPMT_TOKEN"
 ```
 
@@ -14,21 +17,21 @@ curl https://spmt.live/api/me \
 After an app exchanges its authorization code for an access token:
 
 ```bash
-curl https://spmt.live/api/oauth/userinfo \
+curl {{apps.spmt.urls.public}}/api/oauth/userinfo \
   -H "Authorization: Bearer $SPMT_OAUTH_ACCESS_TOKEN"
 ```
 
 ## List Apps
 
 ```bash
-curl https://spmt.live/api/apps \
+curl {{apps.spmt.urls.public}}/api/apps \
   -H "Authorization: Bearer $SPMT_TOKEN"
 ```
 
 ## Install App
 
 ```bash
-curl -X POST https://spmt.live/api/apps/chat-tag/install \
+curl -X POST {{apps.spmt.urls.public}}/api/apps/chat-tag/install \
   -H "Authorization: Bearer $SPMT_TOKEN"
 ```
 
@@ -60,7 +63,7 @@ await spmt.events.publish({
 import { mappedXpAwardV1, SpaceMountainClient } from '@spmt/sdk';
 
 const serverSpmt = new SpaceMountainClient({
-  baseUrl: 'https://spmt.live',
+  baseUrl: '{{apps.spmt.urls.public}}',
   appId: 'discord-stream-hub',
   apiKey: process.env.SPMT_API_KEY,
 });

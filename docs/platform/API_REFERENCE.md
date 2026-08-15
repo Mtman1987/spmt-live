@@ -2,6 +2,16 @@
 
 This page summarizes the supported SPMT integration surfaces. The SDK should be preferred for application code because it applies the expected authentication mode and shared contracts.
 
+## Current Ecosystem Snapshot
+
+- Public SPMT URL: `{{apps.spmt.urls.public}}`
+- API base URL: `{{apps.spmt.urls.api}}`
+- Repository: `{{apps.spmt.repository.name}}`
+- Current Fly service state: `{{apps.spmt.services.spmt-live.runtime.status}}`
+- Snapshot observed: `{{generatedAt}}`
+
+These values come from the public `spmt.ecosystem-state/v1` snapshot produced by MTMan Machine Rotator. Lifecycle/capability declarations remain separate from observed runtime health.
+
 ## Authentication Modes
 
 ### User session / bearer token

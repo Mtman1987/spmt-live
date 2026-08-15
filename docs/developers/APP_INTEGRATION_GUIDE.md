@@ -2,6 +2,16 @@
 
 Use this sequence when connecting an app to SPMT. The goal is to reuse shared platform contracts instead of rebuilding identity, permissions, events, workspace state, or communication independently in every app.
 
+## Current Integration Target
+
+- SPMT public URL: `{{apps.spmt.urls.public}}`
+- SPMT API base: `{{apps.spmt.urls.api}}`
+- SPMT repository: `{{apps.spmt.repository.name}}`
+- Current observed SPMT service state: `{{apps.spmt.services.spmt-live.runtime.status}}`
+- Snapshot observed: `{{generatedAt}}`
+
+These values are resolved from `spmt.ecosystem-state/v1`; authored integration guidance below remains the durable contract.
+
 ## 1. Decide Ownership First
 
 - If every app benefits, build the shared contract in SPMT.

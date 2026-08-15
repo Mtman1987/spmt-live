@@ -53,8 +53,15 @@ function patchDatabaseCapture() {
   function WrappedDatabase(...args) {
     const instance = new CurrentDatabase(...args);
     const openedPath = normalizeDatabasePath(args[0]);
-    if (openedPath === expectedPath) {
-      canonicalDb = instance;
+    const options = args[1] && typeof args[1] === 'object' ? args[1] : {};
+    const openedReadOnly = options.readonly === true || instance.readonly === true;
+
+    // OAuth must always use the canonical writable server connection. Overlay
+    // and backup helpers intentionally open the same DB read-only; never let
+    // those later handles replace the writable connection captured from db.ts.
+    if (openedPath === expectedPath && !openedReadOnly) {
+      const currentIsUsable = canonicalDb && canonicalDb.open !== false && canonicalDb.readonly !== true;
+      if (!currentIsUsable) canonicalDb = instance;
       try { instance.pragma('busy_timeout = 5000'); } catch {}
     }
     return instance;

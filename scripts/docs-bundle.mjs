@@ -53,8 +53,8 @@ export async function buildDocsBundle({ repoRoot = process.cwd(), ecosystemSnaps
       const allowedRoot = path.resolve(repoRoot) + path.sep;
       if (!absolutePath.startsWith(allowedRoot)) throw new Error(`Documentation path escapes repository root: ${docPath}`);
       const source = (await readFile(absolutePath, 'utf8')).trim();
-      const body = source.includes('{{')
-        ? resolveEcosystemTemplates(source, ecosystemSnapshot || (() => { throw new Error(`Document ${docPath} requires an ecosystem snapshot`); })())
+      const body = ecosystemSnapshot && source.includes('{{')
+        ? resolveEcosystemTemplates(source, ecosystemSnapshot)
         : source;
       sectionDocs.push([
         `<!-- Source: ${docPath} -->`,

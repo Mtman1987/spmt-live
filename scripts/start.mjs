@@ -4,13 +4,8 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { writeDocsBundle } from './docs-bundle.mjs';
 
 const require = createRequire(import.meta.url);
-const repoRoot = fileURLToPath(new URL('..', import.meta.url));
-const docsBundle = await writeDocsBundle({ repoRoot });
-console.log(`[SPMT] Generated public docs bundle with ${docsBundle.documentCount} documents.`);
-
 const spmtApiKey = String(process.env.SPMT_API_KEY || '').trim();
 if (!String(process.env.SPMT_CODEX_SERVICE_SECRET || '').trim() && spmtApiKey) {
   process.env.SPMT_CODEX_SERVICE_SECRET = spmtApiKey;

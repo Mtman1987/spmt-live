@@ -119,3 +119,10 @@ test('generated docs bundle contains every public manifest document exactly once
     previousIndex = first;
   }
 });
+
+test('production image generates the docs bundle and exposes specification Markdown', () => {
+  const dockerfile = fs.readFileSync(path.join(repoRoot, 'Dockerfile'), 'utf8');
+  assert.match(dockerfile, /RUN node scripts\/docs-bundle\.mjs/, 'image build must generate public docs bundle');
+  assert.match(dockerfile, /COPY --from=build \/app\/public \.\/public/, 'runtime image must copy generated public tree');
+  assert.match(dockerfile, /COPY --from=build \/app\/spec \.\/public\/spec/, 'runtime image must expose spec Markdown used by docs navigation');
+});

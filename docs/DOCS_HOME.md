@@ -20,7 +20,7 @@ The docs site reads the Markdown sources listed in `docs/docs-nav.json` directly
 
 - Open `/docs/all.md` to view the complete public documentation as one Markdown document.
 - Use **Download All (.md)** on the docs page to save the same bundle as `SPMT-DOCS.md`.
-- The bundle is generated automatically at application startup from the navigation manifest, so it should never be edited as a separate source of truth.
+- The bundle is generated automatically during the application image build from the navigation manifest, so it should never be edited as a separate source of truth.
 - Archived and internal-only documents are not included unless they are deliberately added to the public navigation manifest.
 
 ## Core Concepts

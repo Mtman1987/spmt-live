@@ -5,6 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
+RUN node scripts/docs-bundle.mjs
 
 FROM node:20-slim
 RUN apt-get update && apt-get install -y python3 make g++ chromium fonts-liberation && rm -rf /var/lib/apt/lists/*
@@ -17,8 +18,9 @@ LABEL GH_SHA=$GH_SHA
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
-COPY public ./public
-COPY docs ./docs
+COPY --from=build /app/public ./public
+COPY --from=build /app/docs ./docs
+COPY --from=build /app/spec ./public/spec
 COPY scripts/operations ./scripts/operations
 COPY start.cjs ./start.cjs
 COPY oauth-authorize-recovery-bootstrap.cjs ./oauth-authorize-recovery-bootstrap.cjs

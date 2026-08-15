@@ -10,7 +10,7 @@ SpaceMountain is evolving quickly. Public documentation should distinguish imple
 - The SDK is a real repository implementation with generated package output and versioned contracts; consumers should still verify the specific exported helper/contract they depend on rather than assuming every platform idea has an SDK method.
 - The docs UI is intentionally lightweight. It renders common Markdown constructs itself rather than using a full documentation framework.
 - Mermaid source is preserved in documentation/code blocks, but the lightweight docs page does not yet provide a full Mermaid diagram renderer.
-- The complete `SPMT-DOCS.md` download is generated from the public navigation manifest at app startup. It contains the public documentation set, not internal production/archive material.
+- The complete `SPMT-DOCS.md` download is generated from the public navigation manifest during the production image build. It contains the public documentation set, not internal production/archive material.
 - Some production gates remain open even when a route, UI, build, or test exists. Production readiness requires the live evidence and failure/recovery behavior defined by the authoritative production roadmap.
 
 ## Rule

@@ -53,6 +53,8 @@
     </main>
   </div>
   <script>
+    const ECOSYSTEM_SCHEMA_VERSION = "spmt.ecosystem-state/v1";
+    const ECOSYSTEM_SNAPSHOT_URL = "https://mtman-machine-rotator.fly.dev/ecosystem/v1/public.json";
     const fallbackNav = {
       sections: [
         { title: "Start Here", items: [
@@ -73,6 +75,7 @@
 
     let navData = fallbackNav;
     let activePath = "docs/DOCS_HOME.md";
+    let ecosystemSnapshotPromise = null;
 
     function escapeHtml(value) {
       return value.replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
@@ -98,11 +101,51 @@
       return html;
     }
 
+    async function loadEcosystemSnapshot() {
+      if (!ecosystemSnapshotPromise) {
+        ecosystemSnapshotPromise = fetch(ECOSYSTEM_SNAPSHOT_URL, { headers: { Accept: "application/json" } })
+          .then(async response => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const snapshot = await response.json();
+            if (snapshot?.schemaVersion !== ECOSYSTEM_SCHEMA_VERSION || !snapshot?.apps) {
+              throw new Error("Unsupported ecosystem snapshot contract");
+            }
+            return snapshot;
+          });
+      }
+      return ecosystemSnapshotPromise;
+    }
+
+    function resolveSnapshotPath(snapshot, path) {
+      if (!path || !/^[A-Za-z0-9_.-]+$/.test(path)) throw new Error(`Invalid ecosystem template path: ${path || '<empty>'}`);
+      let value = snapshot;
+      for (const segment of path.split('.')) {
+        if (!value || typeof value !== 'object' || !(segment in value)) throw new Error(`Missing ecosystem template value: ${path}`);
+        value = value[segment];
+      }
+      if (value === null || value === undefined || !['string','number','boolean'].includes(typeof value)) {
+        throw new Error(`Ecosystem template value must be a scalar: ${path}`);
+      }
+      return String(value);
+    }
+
+    async function resolveEcosystemTemplates(markdown) {
+      if (!markdown.includes('{{')) return markdown;
+      const snapshot = await loadEcosystemSnapshot();
+      return markdown.replace(/\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}/g, (_match, path) => resolveSnapshotPath(snapshot, path));
+    }
+
     async function loadDoc(path) {
       activePath = path;
       document.querySelectorAll("button.nav").forEach(btn => btn.classList.toggle("active", btn.dataset.path === path));
       const res = await fetch("/" + path);
-      const text = res.ok ? await res.text() : "# Missing Document\n\nCould not load `" + path + "`.";
+      const source = res.ok ? await res.text() : "# Missing Document\n\nCould not load `" + path + "`.";
+      let text = source;
+      try {
+        text = await resolveEcosystemTemplates(source);
+      } catch (error) {
+        text = `# Documentation Data Error\n\nCould not resolve the current ecosystem snapshot for \`${path}\`.\n\n\`${error instanceof Error ? error.message : String(error)}\``;
+      }
       document.getElementById("content").innerHTML = mdToHtml(text);
       location.hash = encodeURIComponent(path);
     }

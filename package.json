@@ -13,7 +13,7 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:suite": "node scripts/operations/suite-smoke.mjs",
     "test:identity-reconciliation": "tsx --test tests/identity-reconciliation.test.ts",
-    "test:startup-theme": "node --test tests/startup-theme-bootstrap.test.cjs",
+    "test:startup-theme": "node --test tests/startup-theme-bootstrap.test.cjs tests/ecosystem-docs.test.cjs",
     "test:overlay-bay": "node --test tests/overlay-bay-v2-contract.test.cjs",
     "test:tenant-overlay": "node --test tests/tenant-overlay-platform-contract.test.cjs tests/tenant-overlay-events-contract.test.cjs",
     "test:cloud-xbox": "node --test tests/cloud-xbox-source-contract.test.cjs",

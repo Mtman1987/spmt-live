@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fetchEcosystemSnapshot, resolveEcosystemTemplates } from './ecosystem-docs.mjs';
 
 const PUBLIC_DOC_RE = /^(docs|spec)\/[A-Za-z0-9_./-]+\.md$/;
 
@@ -22,13 +23,18 @@ export async function loadDocsManifest(repoRoot = process.cwd()) {
   return manifest;
 }
 
-export async function buildDocsBundle({ repoRoot = process.cwd() } = {}) {
+export async function buildDocsBundle({ repoRoot = process.cwd(), ecosystemSnapshot = null } = {}) {
   const manifest = await loadDocsManifest(repoRoot);
   const seen = new Set();
   const chunks = [
     '# SPMT Documentation',
     '',
     'Complete public documentation bundle for spmt.live.',
+    ...(ecosystemSnapshot ? [
+      '',
+      `Ecosystem snapshot: ${ecosystemSnapshot.generatedAt}`,
+      `Ecosystem schema: ${ecosystemSnapshot.schemaVersion}`,
+    ] : []),
     '',
     'This file is generated from `docs/docs-nav.json` during the application image build. Edit the source Markdown files, not this generated bundle.',
   ];
@@ -46,7 +52,10 @@ export async function buildDocsBundle({ repoRoot = process.cwd() } = {}) {
       const absolutePath = path.resolve(repoRoot, docPath);
       const allowedRoot = path.resolve(repoRoot) + path.sep;
       if (!absolutePath.startsWith(allowedRoot)) throw new Error(`Documentation path escapes repository root: ${docPath}`);
-      const body = (await readFile(absolutePath, 'utf8')).trim();
+      const source = (await readFile(absolutePath, 'utf8')).trim();
+      const body = ecosystemSnapshot && source.includes('{{')
+        ? resolveEcosystemTemplates(source, ecosystemSnapshot)
+        : source;
       sectionDocs.push([
         `<!-- Source: ${docPath} -->`,
         '',
@@ -64,16 +73,17 @@ export async function buildDocsBundle({ repoRoot = process.cwd() } = {}) {
   return { markdown: `${chunks.join('\n').trim()}\n`, documentCount, paths: [...seen] };
 }
 
-export async function writeDocsBundle({ repoRoot = process.cwd(), outputPath } = {}) {
+export async function writeDocsBundle({ repoRoot = process.cwd(), outputPath, ecosystemSnapshot = null } = {}) {
   const target = outputPath || path.join(repoRoot, 'public', 'docs', 'all.md');
-  const result = await buildDocsBundle({ repoRoot });
+  const snapshot = ecosystemSnapshot || await fetchEcosystemSnapshot();
+  const result = await buildDocsBundle({ repoRoot, ecosystemSnapshot: snapshot });
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, result.markdown, 'utf8');
-  return { ...result, outputPath: target };
+  return { ...result, outputPath: target, ecosystemSnapshot: snapshot };
 }
 
 const isCli = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isCli) {
   const result = await writeDocsBundle({ repoRoot: process.cwd() });
-  console.log(`[SPMT] Generated public docs bundle with ${result.documentCount} documents at ${result.outputPath}.`);
+  console.log(`[SPMT] Generated public docs bundle with ${result.documentCount} documents using ecosystem snapshot ${result.ecosystemSnapshot.generatedAt} at ${result.outputPath}.`);
 }

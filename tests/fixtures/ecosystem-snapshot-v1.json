@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "spmt.ecosystem-state/v1",
+  "generatedAt": "2026-08-15T16:45:00.000Z",
+  "producer": { "app": "mtman-machine-rotator", "commit": "fixture" },
+  "apps": {
+    "spmt": {
+      "id": "spmt",
+      "name": "SPMT",
+      "lifecycle": "available",
+      "repository": { "name": "Mtman1987/spmt-live" },
+      "urls": { "public": "https://spmt.live", "api": "https://spmt.live/api", "health": "https://spmt.live/api/health/oauth" },
+      "interfaces": { "oauth": true },
+      "services": { "spmt-live": { "flyApp": "spmt-live", "role": "web", "runtime": { "status": "running", "machineCount": 1, "states": { "started": 1 }, "failingCheckCount": 0, "observedAt": "2026-08-15T16:45:00.000Z" } } },
+      "provenance": { "declaredBy": "rotator-contract", "observedBy": "fly-machines-api" }
+    },
+    "streamweaver": {
+      "id": "streamweaver",
+      "name": "StreamWeaver",
+      "lifecycle": "available",
+      "repository": { "name": "Mtman1987/streamweaver" },
+      "urls": { "public": "https://streamweaver-new.fly.dev" },
+      "interfaces": { "oauth": true },
+      "services": { "streamweaver-new": { "flyApp": "streamweaver-new", "role": "service", "runtime": { "status": "running", "machineCount": 1, "states": { "started": 1 }, "failingCheckCount": 0, "observedAt": "2026-08-15T16:45:00.000Z" } } },
+      "provenance": { "declaredBy": "rotator-contract", "observedBy": "fly-machines-api" }
+    }
+  }
+}

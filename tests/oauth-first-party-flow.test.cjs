@@ -79,7 +79,7 @@ async function json(response) {
   try { return text ? JSON.parse(text) : null; } catch { return { raw: text }; }
 }
 
-test('all first-party apps complete SPMT authorization code flow on the canonical database', { timeout: 45_000 }, async (t) => {
+test('all first-party apps complete SPMT authorization code flow on the canonical database even after read-only helpers open it', { timeout: 45_000 }, async (t) => {
   const port = await freePort();
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spmt-oauth-flow-'));
   const databasePath = path.join(tempDir, 'spmt.db');
@@ -89,6 +89,7 @@ test('all first-party apps complete SPMT authorization code flow on the canonica
     NODE_ENV: 'development',
     PORT: String(port),
     DATABASE_PATH: databasePath,
+    SPMT_TENANT_SCENE_ROOT: path.join(tempDir, 'tenant-scenes'),
     JWT_SECRET: 'oauth-integration-test-jwt-secret-which-is-long-enough',
   };
   for (const client of CLIENTS) env[client.secretEnv] = client.secret;
@@ -97,7 +98,12 @@ test('all first-party apps complete SPMT authorization code flow on the canonica
   let stderr = '';
   const child = spawn(process.execPath, [
     '-e',
-    "require('./oauth-authorize-recovery-bootstrap.cjs').installOauthAuthorizeRecoveryBootstrap(); require('./dist/server.cjs');",
+    [
+      "require('./oauth-authorize-recovery-bootstrap.cjs').installOauthAuthorizeRecoveryBootstrap()",
+      "require('./tenant-overlay-events-bootstrap.cjs').installTenantOverlayEventsBootstrap()",
+      "require('./tenant-overlay-bootstrap.cjs').installTenantOverlayBootstrap()",
+      "require('./dist/server.cjs')",
+    ].join(';'),
   ], {
     cwd: process.cwd(),
     env,
@@ -134,9 +140,18 @@ test('all first-party apps complete SPMT authorization code flow on the canonica
   assert.ok(loginPayload?.token, 'login must return the SPMT session token');
   const sessionCookie = `spmt_token=${encodeURIComponent(loginPayload.token)}`;
 
+  // Force both tenant bootstraps to open their intentional read-only SQLite
+  // handles after the main writable connection exists. OAuth must stay bound to
+  // the writable db.ts connection instead of being replaced by these readers.
+  const overlayHeaders = { cookie: sessionCookie, authorization: `Bearer ${loginPayload.token}`, accept: 'application/json' };
+  const overlayResponse = await fetch(`${baseUrl}/api/overlay-workspace`, { headers: overlayHeaders });
+  assert.equal(overlayResponse.status, 200, `overlay reader failed to initialize: ${await overlayResponse.text()}\n${output()}`);
+  const personalLaunchResponse = await fetch(`${baseUrl}/api/personal-overlay-launch`, { headers: overlayHeaders });
+  assert.equal(personalLaunchResponse.status, 200, `personal overlay reader failed to initialize: ${await personalLaunchResponse.text()}\n${output()}`);
+
   const writeHealthResponse = await fetch(`${baseUrl}/api/health/oauth`, { headers: { accept: 'application/json' } });
   const writeHealth = await json(writeHealthResponse);
-  assert.equal(writeHealthResponse.status, 200, `OAuth DB write health failed: ${JSON.stringify(writeHealth)}\n${output()}`);
+  assert.equal(writeHealthResponse.status, 200, `OAuth DB write health failed after read-only opens: ${JSON.stringify(writeHealth)}\n${output()}`);
   assert.equal(writeHealth?.authorizationCodeWrite, 'ok');
 
   for (const [index, client] of CLIENTS.entries()) {

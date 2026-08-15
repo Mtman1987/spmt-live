@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PUBLIC_DOC_RE = /^(docs|spec)\/[A-Za-z0-9_./-]+\.md$/;
 
@@ -29,7 +30,7 @@ export async function buildDocsBundle({ repoRoot = process.cwd() } = {}) {
     '',
     'Complete public documentation bundle for spmt.live.',
     '',
-    'This file is generated from `docs/docs-nav.json` at application startup. Edit the source Markdown files, not this generated bundle.',
+    'This file is generated from `docs/docs-nav.json` during the application image build. Edit the source Markdown files, not this generated bundle.',
   ];
 
   let documentCount = 0;
@@ -69,4 +70,10 @@ export async function writeDocsBundle({ repoRoot = process.cwd(), outputPath } =
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, result.markdown, 'utf8');
   return { ...result, outputPath: target };
+}
+
+const isCli = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isCli) {
+  const result = await writeDocsBundle({ repoRoot: process.cwd() });
+  console.log(`[SPMT] Generated public docs bundle with ${result.documentCount} documents at ${result.outputPath}.`);
 }

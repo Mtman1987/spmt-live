@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 
 const runtime = fs.readFileSync('account-recovery-bootstrap.cjs', 'utf8');
 const start = fs.readFileSync('start.cjs', 'utf8');
+const dockerfile = fs.readFileSync('Dockerfile', 'utf8');
 const ui = fs.readFileSync('public/shared/account-recovery-ui.js', 'utf8');
 
 function blockBetween(source, from, to) {
@@ -13,9 +14,10 @@ function blockBetween(source, from, to) {
   return source.slice(startIndex, endIndex);
 }
 
-test('recovery runtime is installed before the bundled server', () => {
+test('recovery runtime is installed before the bundled server and shipped in the production image', () => {
   assert.match(start, /installOauthAuthorizeRecoveryBootstrap\(\);[\s\S]*installAccountRecoveryBootstrap\(\);[\s\S]*require\('\.\/dist\/server\.cjs'\)/);
   assert.match(start, /\/shared\/account-recovery-ui\.js/);
+  assert.match(dockerfile, /COPY account-recovery-bootstrap\.cjs \.\/account-recovery-bootstrap\.cjs/);
 });
 
 test('Discord recovery trusts immutable Discord ID and tolerates username changes', () => {

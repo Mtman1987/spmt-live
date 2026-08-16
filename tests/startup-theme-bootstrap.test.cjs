@@ -16,8 +16,12 @@ const docsBundleModuleUrl = pathToFileURL(path.join(repoRoot, 'scripts', 'docs-b
 test('production entrypoint installs the canonical workspace shell loaders exactly once', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'spmt-theme-bootstrap-'));
   const publicIndexPath = path.join(tempRoot, 'index.html');
+  const sharedIndexPath = path.join(tempRoot, 'shared.html');
+  const tenantOutputPath = path.join(tempRoot, 'tenant-output.html');
   const invalidDatabaseParent = path.join(tempRoot, 'not-a-directory');
   fs.writeFileSync(publicIndexPath, '<!doctype html><html><body><main>SPMT</main></body></html>');
+  fs.writeFileSync(sharedIndexPath, '<!doctype html><html><body><main>Shared</main></body></html>');
+  fs.writeFileSync(tenantOutputPath, '<!doctype html><html><body><main>Tenant</main></body></html>');
   fs.writeFileSync(invalidDatabaseParent, 'force server startup to fail after bootstrap');
 
   const run = () => spawnSync(process.execPath, [entrypoint], {
@@ -30,6 +34,8 @@ test('production entrypoint installs the canonical workspace shell loaders exact
       JWT_SECRET: 'startup-theme-test-secret',
       DATABASE_PATH: path.join(invalidDatabaseParent, 'spmt.db'),
       SPMT_PUBLIC_INDEX_PATH: publicIndexPath,
+      SPMT_SHARED_INDEX_PATH: sharedIndexPath,
+      SPMT_TENANT_OUTPUT_PATH: tenantOutputPath,
     },
   });
 
@@ -37,6 +43,7 @@ test('production entrypoint installs the canonical workspace shell loaders exact
   assert.equal(first.error, undefined, first.error?.message || 'startup process failed to launch');
   assert.equal(first.status, 1, 'server should fail closed on the intentionally invalid database path');
   let html = fs.readFileSync(publicIndexPath, 'utf8');
+  assert.match(html, /<script src="\/shared\/session-cache\.js" defer><\/script>/);
   assert.match(html, /<script src="\/shared\/shell-theme\.js" defer><\/script>/);
   assert.match(html, /<script src="\/shared\/shell-chrome\.js" defer><\/script>/);
   assert.match(html, /<script src="\/shared\/companion-installer-ui\.js" defer><\/script>/);
@@ -46,6 +53,7 @@ test('production entrypoint installs the canonical workspace shell loaders exact
   assert.equal(second.error, undefined, second.error?.message || 'second startup process failed to launch');
   assert.equal(second.status, 1, 'second server should also fail closed on the intentionally invalid database path');
   html = fs.readFileSync(publicIndexPath, 'utf8');
+  assert.equal((html.match(/\/shared\/session-cache\.js/g) || []).length, 1, 'session cache loader must not be duplicated across restarts');
   assert.equal((html.match(/\/shared\/shell-theme\.js/g) || []).length, 1, 'theme loader must not be duplicated across restarts');
   assert.equal((html.match(/\/shared\/shell-chrome\.js/g) || []).length, 1, 'shell chrome loader must not be duplicated across restarts');
   assert.equal((html.match(/\/shared\/companion-installer-ui\.js/g) || []).length, 1, 'Companion installer UI loader must not be duplicated across restarts');

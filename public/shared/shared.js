@@ -5,6 +5,7 @@ const supportedModes = ['full', 'panel', 'dock', 'compact', 'overlay'];
 const mode = supportedModes.includes(params.get('mode')) ? params.get('mode') : 'panel';
 const hostApp = String(params.get('app') || 'spmt').replace(/[^a-z0-9-]/gi, '').slice(0, 50) || 'spmt';
 const state = { registry: null, profile: null, profileEtag: null, overlay: null, overlayDirty: false };
+const sessionCache = window.SpmtSessionCache;
 
 const THEMES = {
   'solar-flare': { name: 'Solar Flare', accent: '#F97316', secondary: '#FBBF24', glow: '249,115,22' },
@@ -64,6 +65,7 @@ async function loadRegistry() {
   const response = await fetch('/api/platform/surfaces');
   if (!response.ok) throw new Error('Shared surface registry is unavailable.');
   state.registry = await response.json();
+  sessionCache.write('registry', state.registry);
   const surface = state.registry.surfaces.find((item) => item.id === surfaceId);
   document.getElementById('surface-title').textContent = surface?.name || 'Shared surface';
   document.getElementById('surface-description').textContent = surface?.description || 'A canonical SPMT account surface.';
@@ -73,11 +75,12 @@ async function loadRegistry() {
 
 async function loadProfile() {
   const response = await api('/api/workspace-profile');
-  if (response.status === 401) return null;
+  if (response.status === 401 || response.status === 403) return null;
   if (!response.ok) throw new Error('Workspace profile could not be loaded.');
   const data = await response.json();
   state.profile = data.profile;
   state.profileEtag = response.headers.get('etag');
+  sessionCache.write('workspace', { profile: state.profile, etag: state.profileEtag });
   applyAppearance(data.profile.appearance);
   return data.profile;
 }
@@ -231,6 +234,7 @@ async function saveSettings() {
   if (response.status === 409) { state.profile = data.profile; setStatus('A newer workspace revision exists. Refresh before saving again.', 'error'); return; }
   if (!response.ok) { setStatus(data.error || Object.values(data.fields || {})[0] || 'Settings could not be saved.', 'error'); return; }
   state.profile = data.profile; state.profileEtag = response.headers.get('etag'); applyAppearance(data.profile.appearance); setStatus(`Saved revision ${data.profile.revision}. Every consumer now reads this SPMT workspace.`, 'ok'); notifyHost('settings', { revision: data.profile.revision });
+  sessionCache.write('workspace', { profile: state.profile, etag: state.profileEtag });
 }
 
 function dockFrameUrl(slot) { try { const url = new URL(slot.url); url.searchParams.set('embed', '1'); return url.toString(); } catch { return slot.url; } }
@@ -265,14 +269,15 @@ async function saveDockSlot(id) {
   const response = await api('/api/workspace-profile', { method: 'PATCH', headers: { 'If-Match': state.profileEtag }, body: JSON.stringify({ profile: { dockSlots: nextSlots } }) });
   const data = await response.json().catch(() => ({})); if (!response.ok) { setStatus(data.error || Object.values(data.fields || {})[0] || 'Dock slot could not be saved.', 'error'); return; }
   state.profile = data.profile; state.profileEtag = response.headers.get('etag'); renderWorktray(); openDockSlot(id); setStatus(`Slot ${id} saved to SPMT revision ${data.profile.revision}.`, 'ok'); notifyHost('worktray', { revision: data.profile.revision, changed: ['dockSlots'] });
+  sessionCache.write('workspace', { profile: state.profile, etag: state.profileEtag });
 }
 
 function overlayDefaults() { return { enabled: true, widgets: [], workflows: [] }; }
 async function loadOverlayWorkspace() {
   const response = await api('/api/overlay-workspace');
-  if (response.status === 401) return null;
+  if (response.status === 401 || response.status === 403) return null;
   if (!response.ok) throw new Error('Overlay workspace could not be loaded.');
-  const data = await response.json(); state.overlay = data.layout || overlayDefaults(); return state.overlay;
+  const data = await response.json(); state.overlay = data.layout || overlayDefaults(); sessionCache.write('overlay', state.overlay); return state.overlay;
 }
 function renderOverlays() {
   const layout = state.overlay || overlayDefaults();
@@ -318,7 +323,7 @@ function wireOverlayPointer(element) {
 async function saveOverlayWorkspace() {
   const response = await api('/api/overlay-workspace', { method: 'PUT', body: JSON.stringify({ layout: state.overlay }) });
   const data = await response.json().catch(() => ({})); if (!response.ok) { setStatus(data.error || 'Overlay workspace could not be saved.', 'error'); return; }
-  state.overlayDirty = false; setStatus('Overlay workspace saved to SPMT.', 'ok'); notifyHost('overlays', { updatedAt: data.updatedAt });
+  state.overlayDirty = false; sessionCache.write('overlay', state.overlay); setStatus('Overlay workspace saved to SPMT.', 'ok'); notifyHost('overlays', { updatedAt: data.updatedAt });
 }
 
 async function loadNotifications() {
@@ -336,18 +341,51 @@ async function loadIdentityProfile() {
 }
 function signedOut() { document.getElementById('surface-content').innerHTML = '<div class="empty"><strong>Sign in to SPMT</strong><p>This shared surface uses the canonical SPMT account session.</p><a class="button primary launch-link" href="/">Open sign in</a></div>'; setStatus('No active SPMT session.', 'error'); }
 
+async function renderCurrentSurface(profile, cached = false) {
+  if (surfaceId === 'settings') renderSettings(profile);
+  else if (surfaceId === 'worktray') renderWorktray();
+  else if (surfaceId === 'overlays') {
+    if (!cached) await loadOverlayWorkspace();
+    renderOverlays();
+  } else renderWorktray();
+  if (surfaceId === 'settings') document.getElementById('save-button').disabled = cached;
+  setStatus(cached
+    ? `Showing saved workspace revision ${profile.revision} while SPMT refreshes in the background.`
+    : `Synced workspace revision ${profile.revision}.`, cached ? '' : 'ok');
+}
+
 async function load() {
+  document.getElementById('save-button').classList.add('hidden');
+  if (surfaceId === 'notifications') return loadNotifications();
+  if (surfaceId === 'profile') return loadIdentityProfile();
+
+  const cachedRegistry = sessionCache.read('registry')?.value;
+  const cachedWorkspace = sessionCache.read('workspace')?.value;
+  const cachedOverlay = sessionCache.read('overlay')?.value;
+  let restored = false;
+  if (cachedWorkspace?.profile && (surfaceId === 'settings' || cachedRegistry)) {
+    state.registry = cachedRegistry || state.registry;
+    state.profile = cachedWorkspace.profile;
+    state.profileEtag = cachedWorkspace.etag || null;
+    state.overlay = cachedOverlay || overlayDefaults();
+    applyAppearance(state.profile.appearance);
+    await renderCurrentSurface(state.profile, true);
+    restored = true;
+  }
+
   try {
     await loadRegistry();
-    document.getElementById('save-button').classList.add('hidden');
-    if (surfaceId === 'notifications') return loadNotifications();
-    if (surfaceId === 'profile') return loadIdentityProfile();
-    const profile = await loadProfile(); if (!profile) return signedOut();
-    if (surfaceId === 'settings') { renderSettings(profile); setStatus(`Synced revision ${profile.revision}. SPMT owns these settings.`, 'ok'); }
-    else if (surfaceId === 'worktray') { renderWorktray(); setStatus(`Workspace revision ${profile.revision} · three canonical dock slots.`, 'ok'); }
-    else if (surfaceId === 'overlays') { await loadOverlayWorkspace(); renderOverlays(); setStatus('Overlay Bay is backed by the canonical SPMT overlay workspace.', 'ok'); }
-    else renderWorktray();
-  } catch (error) { setStatus(error.message || 'This surface is unavailable.', 'error'); document.getElementById('surface-content').innerHTML = '<div class="empty">The shared surface could not be loaded.</div>'; }
+    const profile = await loadProfile();
+    if (!profile) {
+      if (restored) return setStatus('The saved workspace is visible, but this SPMT session needs sign-in before it can sync.', 'error');
+      return signedOut();
+    }
+    await renderCurrentSurface(profile, false);
+  } catch (error) {
+    if (restored) return setStatus('Using the saved workspace while SPMT reconnects.', 'error');
+    setStatus(error.message || 'This surface is unavailable.', 'error');
+    document.getElementById('surface-content').innerHTML = '<div class="empty">The shared surface could not be loaded.</div>';
+  }
 }
 
 document.getElementById('refresh-button').addEventListener('click', load);

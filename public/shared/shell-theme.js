@@ -220,13 +220,24 @@
     document.head.append(style);
   }
 
-  async function refresh() {
+  let refreshInFlight = false;
+  let lastRefreshAt = 0;
+
+  async function refresh(force = false) {
+    const cached = window.SpmtSessionCache?.read('workspace')?.value;
+    if (cached?.profile?.appearance) apply(cached.profile.appearance);
+    if (refreshInFlight || (!force && Date.now() - lastRefreshAt < 30_000)) return;
+    refreshInFlight = true;
+    lastRefreshAt = Date.now();
     try {
       const response = await fetch('/api/workspace-profile', { credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store' });
       if (!response.ok) return;
       const data = await response.json();
+      window.SpmtSessionCache?.write('workspace', { profile: data.profile, etag: response.headers.get('etag') });
       apply(data.profile?.appearance);
-    } catch {}
+    } catch {} finally {
+      refreshInFlight = false;
+    }
   }
 
   function installParallax() {
@@ -254,7 +265,7 @@
   refresh();
   window.addEventListener('focus', refresh);
   window.addEventListener('message', (event) => {
-    if (event.data?.type === 'spmt.surface.updated' && event.data?.surface === 'settings') refresh();
+    if (event.data?.type === 'spmt.surface.updated' && event.data?.surface === 'settings') refresh(true);
   });
-  window.addEventListener('spmt:workspace-refresh', refresh);
+  window.addEventListener('spmt:workspace-refresh', () => refresh(true));
 })();

@@ -28,6 +28,7 @@ function ensureWorkspaceShellBootstrap() {
     ? path.resolve(process.env.SPMT_PUBLIC_INDEX_PATH)
     : path.join(__dirname, 'public', 'index.html');
   ensureScripts(publicIndexPath, [
+    '/shared/session-cache.js',
     '/shared/shell-theme.js',
     '/shared/shell-chrome.js',
     '/shared/companion-installer-ui.js',
@@ -37,7 +38,9 @@ function ensureWorkspaceShellBootstrap() {
   // Shared surfaces need the same tenant event publisher and the copyable,
   // read-only Personal renderer URL. These scripts enhance the existing v2/v3
   // Overlay Bay instead of introducing another editor/runtime.
-  const sharedIndexPath = path.join(__dirname, 'public', 'shared', 'index.html');
+  const sharedIndexPath = process.env.SPMT_SHARED_INDEX_PATH
+    ? path.resolve(process.env.SPMT_SHARED_INDEX_PATH)
+    : path.join(__dirname, 'public', 'shared', 'index.html');
   ensureScripts(sharedIndexPath, [
     '/shared/tenant-overlay-alert-publisher.js',
     '/shared/personal-overlay-launch-client.js',
@@ -48,7 +51,9 @@ function ensureWorkspaceShellBootstrap() {
   // Public and Personal use the same canonical tenant renderer. Rich text is a
   // renderer enhancement layered onto the existing scene contract so old URLs
   // and old saved layouts remain valid.
-  const tenantOutputPath = path.join(__dirname, 'public', 'tenant-output.html');
+  const tenantOutputPath = process.env.SPMT_TENANT_OUTPUT_PATH
+    ? path.resolve(process.env.SPMT_TENANT_OUTPUT_PATH)
+    : path.join(__dirname, 'public', 'tenant-output.html');
   ensureScripts(tenantOutputPath, [
     '/shared/tenant-text-runtime.js',
   ]);

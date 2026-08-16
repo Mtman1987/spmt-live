@@ -25,8 +25,10 @@
     trayOpen: false,
     trayTarget: { kind: 'workspace', slotId: null },
     loadingRuntime: false,
+    lastRuntimeRefreshAt: 0,
   };
   let runtimeSignedIn = false;
+  const sessionCache = window.SpmtSessionCache;
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (character) => ({
@@ -334,9 +336,22 @@
     document.body.append(root);
   }
 
-  async function loadRuntimeState() {
+  async function loadRuntimeState(force = false) {
     if (!signedIn() || state.loadingRuntime) return;
+    const cachedWorkspace = sessionCache?.read('workspace')?.value;
+    const cachedOverlay = sessionCache?.read('overlay')?.value;
+    if (!state.profile && cachedWorkspace?.profile) {
+      state.profile = cachedWorkspace.profile;
+      state.profileEtag = cachedWorkspace.etag || null;
+      state.overlay = cachedOverlay || { enabled: true, widgets: [], workflows: [] };
+      setSidebarCollapsed(Boolean(state.profile?.appearance?.sidebarCollapsed));
+      installHeroes();
+      renderWorktray();
+      renderOverlay();
+    }
+    if (!force && Date.now() - state.lastRuntimeRefreshAt < 30_000) return;
     state.loadingRuntime = true;
+    state.lastRuntimeRefreshAt = Date.now();
     try {
       const [profileResponse, overlayResponse] = await Promise.all([
         fetch('/api/workspace-profile', { credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store' }),
@@ -346,9 +361,11 @@
       const profileData = await profileResponse.json();
       state.profile = profileData.profile;
       state.profileEtag = profileResponse.headers.get('etag');
+      sessionCache?.write('workspace', { profile: state.profile, etag: state.profileEtag });
       if (overlayResponse.ok) {
         const overlayData = await overlayResponse.json();
         state.overlay = overlayData.layout || { enabled: true, widgets: [], workflows: [] };
+        sessionCache?.write('overlay', state.overlay);
       } else state.overlay = { enabled: true, widgets: [], workflows: [] };
       setSidebarCollapsed(Boolean(state.profile?.appearance?.sidebarCollapsed));
       installHeroes();
@@ -388,9 +405,9 @@
 
   window.addEventListener('focus', () => { if (signedIn()) void loadRuntimeState(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && signedIn()) void loadRuntimeState(); });
-  window.addEventListener('spmt:workspace-refresh', () => { if (signedIn()) void loadRuntimeState(); });
+  window.addEventListener('spmt:workspace-refresh', () => { if (signedIn()) void loadRuntimeState(true); });
   window.addEventListener('message', (event) => {
     if (event.data?.type !== 'spmt.surface.updated') return;
-    if (['settings', 'worktray', 'overlays'].includes(event.data.surface)) void loadRuntimeState();
+    if (['settings', 'worktray', 'overlays'].includes(event.data.surface)) void loadRuntimeState(true);
   });
 })();

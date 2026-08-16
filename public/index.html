@@ -539,6 +539,7 @@
     </div>
   </div>
 
+  <script src="/shared/session-cache.js"></script>
   <script>
     let authToken = localStorage.getItem('spmt_token') || null;
     let currentUser = null;
@@ -550,6 +551,7 @@
     const bootParams = new URLSearchParams(window.location.search);
     const initialView = bootParams.get('legacyMessages') === '1' ? 'messages' : bootParams.get('view');
     const recoveryError = bootParams.get('recoverError');
+    const sessionCache = window.SpmtSessionCache;
 
     function api(path, options = {}) {
       const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
@@ -588,6 +590,7 @@
     }
 
     function finishAuth(data) {
+      sessionCache.clearPrivate();
       authToken = data.token;
       localStorage.setItem('spmt_token', authToken);
       const commlinkFrame = document.getElementById('commlink-frame');
@@ -683,6 +686,7 @@
     async function logout() {
       await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
       localStorage.removeItem('spmt_token');
+      sessionCache.clearPrivate();
       authToken = null;
       currentUser = null;
       const commlinkFrame = document.getElementById('commlink-frame');
@@ -786,10 +790,8 @@
       if (res.ok) await loadProviderGrants();
     }
 
-    async function loadBridge() {
-      const res = await api('/api/session/bridge');
-      if (!res.ok) throw new Error('bridge failed');
-      const bridge = await res.json();
+    function applyBridge(bridge, persist = true) {
+      if (!bridge?.user) throw new Error('bridge payload is invalid');
       currentUser = bridge.user;
       apps = bridge.apps || [];
       providerGrants = bridge.providerGrants || [];
@@ -801,6 +803,19 @@
       document.getElementById('link-twitch').value = bridge.user.twitch_username || '';
       renderAppCards();
       renderProviderGrants();
+      if (persist) sessionCache.write('bridge', bridge);
+    }
+
+    async function loadBridge() {
+      const res = await api('/api/session/bridge');
+      if (!res.ok) {
+        const error = new Error('bridge failed');
+        error.status = res.status;
+        throw error;
+      }
+      const bridge = await res.json();
+      applyBridge(bridge);
+      return bridge;
     }
 
     function escapeHtml(value) {
@@ -1154,23 +1169,47 @@
       await Promise.all([loadInbox(), loadForums(), loadProviderGrants(), loadDeveloperPortal()]);
     }
 
+    function revealSignedInShell() {
+      document.getElementById('auth').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      if (initialView && document.getElementById('view-' + initialView)) currentView = initialView;
+      showView(currentView);
+      maybeShowProfileCompletion();
+    }
+
+    function revealSignedOut() {
+      localStorage.removeItem('spmt_token');
+      sessionCache.clearPrivate();
+      authToken = null;
+      currentUser = null;
+      document.getElementById('auth').classList.remove('hidden');
+      document.getElementById('app').classList.add('hidden');
+    }
+
     async function boot() {
+      const cached = sessionCache.read('bridge')?.value;
+      let restored = false;
+      if (cached?.user) {
+        try {
+          applyBridge(cached, false);
+          revealSignedInShell();
+          restored = true;
+          document.getElementById('account-summary').dataset.cacheState = 'restored';
+        } catch {}
+      }
       try {
         // The HttpOnly SPMT cookie is authoritative. localStorage is only a
         // temporary compatibility carrier for older app-launch flows.
         await loadBridge();
-        document.getElementById('auth').classList.add('hidden');
-        document.getElementById('app').classList.remove('hidden');
-        if (initialView && document.getElementById('view-' + initialView)) currentView = initialView;
-        showView(currentView);
-        maybeShowProfileCompletion();
+        revealSignedInShell();
+        document.getElementById('account-summary').dataset.cacheState = 'fresh';
         await Promise.allSettled([loadInbox(), loadForums(), loadProviderGrants(), loadDeveloperPortal()]);
-      } catch {
-        localStorage.removeItem('spmt_token');
-        authToken = null;
-        currentUser = null;
-        document.getElementById('auth').classList.remove('hidden');
-        document.getElementById('app').classList.add('hidden');
+      } catch (error) {
+        if (restored && error?.status !== 401 && error?.status !== 403) {
+          document.getElementById('account-summary').dataset.cacheState = 'offline';
+          return;
+        }
+        revealSignedOut();
         if (recoveryError) {
           showAuthTab('recover');
           setNotice('auth-msg', recoveryError, 'err');

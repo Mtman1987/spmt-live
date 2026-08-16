@@ -16,6 +16,7 @@ if (!String(process.env.SPMT_CODEX_SERVICE_SECRET || '').trim() && spmtApiKey) {
 const publicIndexPath = fileURLToPath(new URL('../public/index.html', import.meta.url));
 let publicIndex = await readFile(publicIndexPath, 'utf8');
 const shellScripts = [
+  '/shared/session-cache.js',
   '/shared/shell-theme.js',
   '/shared/shell-chrome.js',
   '/shared/companion-installer-ui.js',

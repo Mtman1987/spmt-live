@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const runtime = fs.readFileSync('account-recovery-bootstrap.cjs', 'utf8');
+const adminRuntime = fs.readFileSync('admin-recovery-bootstrap.cjs', 'utf8');
 const start = fs.readFileSync('start.cjs', 'utf8');
 const dockerfile = fs.readFileSync('Dockerfile', 'utf8');
 const ui = fs.readFileSync('public/shared/account-recovery-ui.js', 'utf8');
@@ -15,9 +16,10 @@ function blockBetween(source, from, to) {
 }
 
 test('recovery runtime is installed before the bundled server and shipped in the production image', () => {
-  assert.match(start, /installOauthAuthorizeRecoveryBootstrap\(\);[\s\S]*installAccountRecoveryBootstrap\(\);[\s\S]*require\('\.\/dist\/server\.cjs'\)/);
+  assert.match(start, /installOauthAuthorizeRecoveryBootstrap\(\);[\s\S]*installAccountRecoveryBootstrap\(\);[\s\S]*installAdminRecoveryBootstrap\(\);[\s\S]*require\('\.\/dist\/server\.cjs'\)/);
   assert.match(start, /\/shared\/account-recovery-ui\.js/);
   assert.match(dockerfile, /COPY account-recovery-bootstrap\.cjs \.\/account-recovery-bootstrap\.cjs/);
+  assert.match(dockerfile, /COPY admin-recovery-bootstrap\.cjs \.\/admin-recovery-bootstrap\.cjs/);
 });
 
 test('recovery UI enhances the static form once without a self-triggering observer', () => {
@@ -60,4 +62,27 @@ test('Twitch recovery callback is canonical to spmt.live in production and ignor
   assert.match(callbackBlock, /\/api\/auth\/provider-claim/);
   assert.doesNotMatch(runtime, /SPMT_TWITCH_RECOVERY_REDIRECT_URI/);
   assert.doesNotMatch(runtime, /discord-stream-hub-new\.fly\.dev/);
+});
+
+test('owner recovery shortcut only issues existing one-time codes and never installs a default password', () => {
+  assert.match(adminRuntime, /\/api\/internal\/auth\/admin-recovery-code/);
+  assert.match(adminRuntime, /SYSTEM_API_KEY/);
+  assert.match(adminRuntime, /x-spmt-key/);
+  assert.match(adminRuntime, /WHERE discord_id = \? AND is_admin = 1/);
+  assert.match(adminRuntime, /WHERE discord_id = \?/);
+  assert.match(adminRuntime, /INSERT INTO account_recovery_codes/);
+  assert.match(adminRuntime, /ON CONFLICT\(user_id\) DO UPDATE/);
+  assert.match(adminRuntime, /recoveryCode/);
+  assert.doesNotMatch(adminRuntime, /UPDATE users SET password_hash/);
+  assert.doesNotMatch(adminRuntime, /spmtpassword['"`]/i);
+});
+
+test('owner recovery shortcut verifies the requesting Discord admin before looking up the target account', () => {
+  const block = blockBetween(adminRuntime, 'function issueOwnerRecoveryCode', '\nfunction installRoutes');
+  const requesterIndex = block.indexOf('WHERE discord_id = ? AND is_admin = 1');
+  const targetIndex = block.lastIndexOf('WHERE discord_id = ?');
+  assert.ok(requesterIndex >= 0, 'requester admin lookup should be present');
+  assert.ok(targetIndex > requesterIndex, 'target account lookup must happen only after requester admin verification');
+  assert.match(block, /status\(403\)/);
+  assert.match(block, /targets\.length !== 1/);
 });

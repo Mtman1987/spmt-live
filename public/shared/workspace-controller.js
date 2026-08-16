@@ -44,9 +44,10 @@
     const style = document.createElement('style');
     style.id = 'spmt-workspace-controller-style';
     style.textContent = `
-      [data-canonical-personal-overlay="true"]{z-index:${Z_OVERLAY}!important;pointer-events:none!important}
-      aside[data-workspace-footer="true"]{z-index:${Z_TRAY}!important}
+      [data-canonical-personal-overlay="true"],#spmt-overlay-runtime{z-index:${Z_OVERLAY}!important;pointer-events:none!important}
+      aside[data-workspace-footer="true"],#spmt-workspace-tray{z-index:${Z_TRAY}!important}
       .spmt-workspace-managed-panel{z-index:${Z_WORKSPACE}!important}
+      #spmt-workspace-tray.spmt-workspace-managed-panel{z-index:${Z_TRAY}!important}
       #spmt-workspace-controller{position:fixed;top:calc(var(--spmt-ecosystem-header-height,38px) + 6px);right:8px;z-index:${Z_CONTROLLER};display:none;align-items:center;gap:5px;padding:5px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(3,5,12,.9);box-shadow:0 10px 28px rgba(0,0,0,.38);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);font:800 9px/1 Inter,ui-sans-serif,system-ui,sans-serif;color:#e7ebf3}
       #spmt-workspace-controller.visible{display:flex}
       #spmt-workspace-controller button{appearance:none;border:1px solid rgba(255,255,255,.11);border-radius:999px;background:rgba(255,255,255,.045);color:#d9dfeb;padding:6px 8px;font:800 9px/1 inherit;letter-spacing:.035em;cursor:pointer;white-space:nowrap}
@@ -156,8 +157,14 @@
   }
 
   function findPanel() {
+    const nativeTray = document.getElementById('spmt-workspace-tray');
+    if (nativeTray instanceof HTMLElement) {
+      nativeTray.style.setProperty('z-index', String(Z_TRAY), 'important');
+      if (nativeTray.querySelector('.spmt-tray-panel')) return nativeTray;
+    }
+
     const tray = document.querySelector('aside[data-workspace-footer="true"]');
-    if (tray) {
+    if (tray instanceof HTMLElement) {
       tray.style.setProperty('z-index', String(Z_TRAY), 'important');
       const previous = tray.previousElementSibling;
       if (previous instanceof HTMLElement && previous.tagName === 'SECTION' && getComputedStyle(previous).position === 'fixed') return previous;
@@ -172,10 +179,10 @@
   }
 
   function applyPanelState() {
-    document.querySelectorAll('[data-canonical-personal-overlay="true"]').forEach((node) => {
+    document.querySelectorAll('[data-canonical-personal-overlay="true"],#spmt-overlay-runtime').forEach((node) => {
       if (node instanceof HTMLElement) node.style.setProperty('z-index', String(Z_OVERLAY), 'important');
     });
-    document.querySelectorAll('aside[data-workspace-footer="true"]').forEach((node) => {
+    document.querySelectorAll('aside[data-workspace-footer="true"],#spmt-workspace-tray').forEach((node) => {
       if (node instanceof HTMLElement) node.style.setProperty('z-index', String(Z_TRAY), 'important');
     });
 
@@ -190,7 +197,7 @@
     }
 
     panel.classList.add('spmt-workspace-managed-panel');
-    panel.style.setProperty('z-index', String(Z_WORKSPACE), 'important');
+    panel.style.setProperty('z-index', String(panel.id === 'spmt-workspace-tray' ? Z_TRAY : Z_WORKSPACE), 'important');
     panel.style.opacity = String(clamp(Number(state.opacity || 100), 40, 100) / 100);
     panel.style.pointerEvents = state.passThrough ? 'none' : 'auto';
 

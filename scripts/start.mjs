@@ -20,6 +20,7 @@ const shellScripts = [
   '/shared/shell-theme.js',
   '/shared/shell-chrome.js',
   '/shared/ecosystem-header.js',
+  '/shared/workspace-controller.js',
   '/shared/companion-installer-ui.js',
   '/shared/overlay-bay-shell-nav.js',
 ];

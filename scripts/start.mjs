@@ -19,6 +19,7 @@ const shellScripts = [
   '/shared/session-cache.js',
   '/shared/shell-theme.js',
   '/shared/shell-chrome.js',
+  '/shared/ecosystem-header.js',
   '/shared/companion-installer-ui.js',
   '/shared/overlay-bay-shell-nav.js',
 ];
@@ -79,8 +80,9 @@ serverBundle = replaceRequired(
 await writeFile(serverBundlePath, serverBundle, 'utf8');
 
 // Register canonical pre-routes before the bundled server creates Express.
-// Authentication is the existing SPMT OAuth/session bearer; no cross-app
-// service key is introduced for these browser-facing runtime paths.
+// Presence is intentionally public and privacy-limited; authenticated actions
+// continue to use the existing SPMT OAuth/session bearer.
+require('../presence-bootstrap.cjs').installPresenceBootstrap();
 require('../athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
 require('../tenant-overlay-bootstrap.cjs').installTenantOverlayBootstrap();
 

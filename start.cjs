@@ -31,6 +31,7 @@ function ensureWorkspaceShellBootstrap() {
     '/shared/session-cache.js',
     '/shared/shell-theme.js',
     '/shared/shell-chrome.js',
+    '/shared/ecosystem-header.js',
     '/shared/companion-installer-ui.js',
     '/shared/overlay-bay-shell-nav.js',
   ]);
@@ -60,6 +61,11 @@ function ensureWorkspaceShellBootstrap() {
 }
 
 ensureWorkspaceShellBootstrap();
+
+// Install public live presence before the bundled server creates Express. The
+// feed exposes only short-lived app counts and display names; it never exposes
+// session tokens, browser IDs, email addresses, or provider identifiers.
+require('./presence-bootstrap.cjs').installPresenceBootstrap();
 
 // Install authenticated pre-routes before the bundled server creates Express.
 // Xbox Chromium now lives in the dedicated Fly xbox process group; this web

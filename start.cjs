@@ -35,6 +35,7 @@ function ensureWorkspaceShellBootstrap() {
     '/shared/workspace-controller.js',
     '/shared/companion-installer-ui.js',
     '/shared/overlay-bay-shell-nav.js',
+    '/shared/account-recovery-ui.js',
   ]);
 
   // Shared surfaces need the same tenant event publisher and the copyable,
@@ -72,6 +73,9 @@ require('./presence-bootstrap.cjs').installPresenceBootstrap();
 // Xbox Chromium now lives in the dedicated Fly xbox process group; this web
 // process only authenticates the user and proxies Overlay Bay control requests.
 require('./oauth-authorize-recovery-bootstrap.cjs').installOauthAuthorizeRecoveryBootstrap();
+// Account recovery shadows the older bundled recovery routes. It deliberately
+// reuses the canonical database and keeps all provider callbacks on spmt.live.
+require('./account-recovery-bootstrap.cjs').installAccountRecoveryBootstrap();
 require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
 require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
 // Event/grant routes must be installed before the older tenant routes because

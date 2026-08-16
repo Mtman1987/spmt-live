@@ -64,6 +64,11 @@ function ensureWorkspaceShellBootstrap() {
 
 ensureWorkspaceShellBootstrap();
 
+// Commlink is the canonical chat renderer embedded across the ecosystem. Keep
+// provider enrichment in StreamWeaver, but render the rich contract here once
+// so every app inherits the same readable names, media, embeds, and emotes.
+require('./commlink-rich-chat-bootstrap.cjs').installCommlinkRichChatBootstrap();
+
 // Install public live presence before the bundled server creates Express. The
 // feed exposes only short-lived app counts and display names; it never exposes
 // session tokens, browser IDs, email addresses, or provider identifiers.

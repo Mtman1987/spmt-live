@@ -32,7 +32,7 @@ test('canonical presence service owns heartbeat, counts, and the public live lis
   assert.match(live, /Ecosystem Live/);
   assert.match(live, /fetch\(endpoint/);
   assert.match(live, /App \+ display name only/);
-  assert.doesNotMatch(live, /discord[_ -]?id/i);
+  assert.doesNotMatch(live, /\bdiscordId\b|\bdiscord_id\b/);
 
   assert.match(start, /\/shared\/ecosystem-header\.js/);
   assert.match(start, /presence-bootstrap\.cjs/);

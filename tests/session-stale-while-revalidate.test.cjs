@@ -16,7 +16,7 @@ test('session cache stores only the last rendered private shell data', () => {
   assert.doesNotMatch(source, /spmt_token|authorization|password/i);
 });
 
-test('session bridge confirms transient auth failures before the shell signs out', () => {
+test('session bridge confirms transient failures before the shell signs out', () => {
   const source = read('public', 'shared', 'session-cache.js');
   assert.match(source, /installBridgeFetchResilience/);
   assert.match(source, /\/api\/session\/bridge/);

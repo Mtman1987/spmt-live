@@ -8,9 +8,8 @@
 
     const primary = root.querySelector('a[href="/api/auth/recover/twitch"]');
     if (primary) {
-      if (primary.textContent !== 'Verify with Twitch and recover in SPMT') {
-        primary.textContent = 'Verify with Twitch and recover in SPMT';
-      }
+      const label = 'Verify with Twitch and recover in SPMT';
+      if (primary.textContent !== label) primary.textContent = label;
       primary.setAttribute('title', 'This verification returns to spmt.live and never signs you into another app.');
       const description = primary.parentElement?.querySelector('.field-help');
       const text = 'If you joined through Space Mountain or your Discord DM does not arrive, verify the linked Twitch account here. The callback stays on spmt.live.';

@@ -30,9 +30,9 @@
   }
 
   // The primary shell treats a 401/403 from /api/session/bridge as a definitive
-  // sign-out. During a Fly rollout or a short process restart, one failed bridge
-  // probe must not eject every tenant. Confirm the failure once before returning
-  // it to the shell; genuine expired/revoked sessions still fail on the retry.
+  // sign-out. During a rollout or short restart, confirm that response once so
+  // one transient probe cannot eject every tenant. A truly expired/revoked
+  // session still fails the second request and is handled normally by the shell.
   function installBridgeFetchResilience() {
     if (window.__spmtBridgeFetchResilienceInstalled || typeof window.fetch !== 'function') return;
     window.__spmtBridgeFetchResilienceInstalled = true;

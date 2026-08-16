@@ -20,6 +20,12 @@ test('recovery runtime is installed before the bundled server and shipped in the
   assert.match(dockerfile, /COPY account-recovery-bootstrap\.cjs \.\/account-recovery-bootstrap\.cjs/);
 });
 
+test('recovery UI enhances the static form once without a self-triggering mutation observer', () => {
+  assert.match(ui, /spmtRecoveryEnhanced/);
+  assert.doesNotMatch(ui, /new MutationObserver/);
+  assert.match(ui, /DOMContentLoaded/);
+});
+
 test('Discord recovery trusts immutable Discord ID and tolerates username changes', () => {
   const block = blockBetween(runtime, 'async function sendRecoveryCodeToDiscord', '\nfunction canonicalRecoveryOrigin');
   assert.match(block, /discord_id/);

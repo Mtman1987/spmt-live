@@ -16,6 +16,15 @@ test('session cache stores only the last rendered private shell data', () => {
   assert.doesNotMatch(source, /spmt_token|authorization|password/i);
 });
 
+test('session bridge confirms transient auth failures before the shell signs out', () => {
+  const source = read('public', 'shared', 'session-cache.js');
+  assert.match(source, /installBridgeFetchResilience/);
+  assert.match(source, /\/api\/session\/bridge/);
+  assert.match(source, /\[401, 403, 502, 503, 504\]/);
+  assert.match(source, /setTimeout\(resolve, 450\)/);
+  assert.match(source, /cache: 'no-store'/);
+});
+
 test('primary SPMT shell restores cached identity before background revalidation', () => {
   const html = read('public', 'index.html');
   const cacheLoader = html.indexOf('<script src="/shared/session-cache.js"></script>');

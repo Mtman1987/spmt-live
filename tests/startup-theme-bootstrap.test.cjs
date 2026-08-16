@@ -86,6 +86,9 @@ test('Companion desktop download is described as an installer, not a ZIP', () =>
   assert.doesNotThrow(() => new vm.Script(source), 'Companion installer UI patch must remain valid browser JavaScript');
   assert.match(source, /Download installer/, 'Companion download action should say installer');
   assert.match(source, /Unsigned installer/, 'Companion status should truthfully say unsigned installer');
+  assert.match(source, /\/api\/companion\/bootstrap/, 'Companion download should request a tenant-bound one-time link');
+  assert.match(source, /spmt:companion-bootstrap/, 'tenant link should survive while the Windows installer runs');
+  assert.match(source, /Connect installed Companion/, 'the signed-in download flow should complete through the registered app protocol');
 });
 
 test('public docs manifest only references safe existing Markdown sources', () => {

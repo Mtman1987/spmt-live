@@ -77,13 +77,41 @@ const COMPANION_ACTION_CAPABILITIES: Record<string, string> = {
   'media.transcode': 'media.write',
   'obs.media.play': 'obs.control',
   'workflow.run': 'workflow.run',
+  'diagnostics.snapshot.write': 'diagnostics.write',
 };
 const COMPANION_CAPABILITIES = [...new Set(Object.values(COMPANION_ACTION_CAPABILITIES))];
 const companionSockets = new Map<string, WebSocket>();
 const COMPANION_WORKFLOWS = new Set(['test.echo', 'audio.jingle.play', 'song.render.request']);
+const COMPANION_BOOTSTRAP_SECONDS = 60 * 60;
+const SPMT_SESSION_SECONDS = 30 * 24 * 60 * 60;
 
 function companionText(value: unknown, max: number) {
   return String(value || '').trim().slice(0, max);
+}
+
+function redactCompanionDiagnosticText(value: unknown) {
+  return String(value ?? '')
+    .replace(/([?&](?:access_token|refresh_token|id_token|token|api_key|apikey|key|signature|jwt)=)[^&\s"'<>]+/gi, '$1[REDACTED]')
+    .replace(/(\bBearer\s+)[A-Za-z0-9._~+/=-]{12,}/gi, '$1[REDACTED]')
+    .replace(/(\b(?:authorization|x-api-key|api-key)\s*[:=]\s*)([^\s,;}\]]{8,})/gi, '$1[REDACTED]')
+    .replace(/(["']?(?:access_token|refresh_token|id_token|api_key|apikey|client_secret|password|authorization)["']?\s*[:=]\s*["'])([^"']+)(["'])/gi, '$1[REDACTED]$3')
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, '[REDACTED_JWT]');
+}
+
+function sanitizeCompanionDiagnosticValue(value: unknown, depth = 0): unknown {
+  if (depth > 10) return '[TRUNCATED]';
+  if (typeof value === 'string') return redactCompanionDiagnosticText(value).slice(0, 8_000);
+  if (typeof value === 'number' || typeof value === 'boolean' || value == null) return value;
+  if (Array.isArray(value)) return value.slice(-500).map((item) => sanitizeCompanionDiagnosticValue(item, depth + 1));
+  if (typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).slice(0, 500).map(([key, item]) => [
+      key.slice(0, 120),
+      /(?:authorization|password|secret|token|api[_-]?key|cookie)/i.test(key)
+        ? '[REDACTED]'
+        : sanitizeCompanionDiagnosticValue(item, depth + 1),
+    ]));
+  }
+  return redactCompanionDiagnosticText(value);
 }
 
 function validateCompanionPayload(action: string, value: unknown): Record<string, unknown> | null {
@@ -121,6 +149,21 @@ function validateCompanionPayload(action: string, value: unknown): Record<string
       : {};
     if (!COMPANION_WORKFLOWS.has(workflowId) || JSON.stringify(input).length > 20_000) return null;
     return { workflowId, input };
+  }
+  if (action === 'diagnostics.snapshot.write') {
+    const snapshotId = companionText(payload.snapshotId, 120);
+    const capturedAt = companionText(payload.capturedAt, 40);
+    const mode = payload.mode === 'debug' ? 'debug' : 'verbose';
+    const capturedTime = Date.parse(capturedAt);
+    if (!snapshotId || !Number.isFinite(capturedTime)) return null;
+    const states = payload.states && typeof payload.states === 'object' && !Array.isArray(payload.states)
+      ? sanitizeCompanionDiagnosticValue(payload.states) as Record<string, unknown>
+      : {};
+    const logs = Array.isArray(payload.logs)
+      ? payload.logs.slice(-500).map((entry) => sanitizeCompanionDiagnosticValue(entry))
+      : [];
+    const sanitized = { snapshotId, capturedAt: new Date(capturedTime).toISOString(), mode, states, logs };
+    return JSON.stringify(sanitized).length <= 400_000 ? sanitized : null;
   }
   return null;
 }
@@ -1219,6 +1262,7 @@ function extractMentionedUsers(body: unknown, explicitMentions: unknown) {
   return users.length ? JSON.stringify(users) : null;
 }
 
+app.use('/api/platform/companion/diagnostics', express.json({ limit: '512kb' }));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -5422,11 +5466,83 @@ app.get('/api/arena/leaderboard', (req, res) => {
 });
 
 // ─── SpaceMountain Companion devices and scoped command relay ───
+function createCompanionDevice(userId: string, nameValue: unknown, capabilityValues: unknown) {
+  const name = String(nameValue || 'My SpaceMountain Companion').trim().slice(0, 80) || 'My SpaceMountain Companion';
+  const requested = Array.isArray(capabilityValues)
+    ? capabilityValues.map((value: unknown) => String(value))
+    : COMPANION_CAPABILITIES;
+  const capabilities = [...new Set(requested.filter((value: string) => COMPANION_CAPABILITIES.includes(value)))];
+  const id = uuidv4();
+  const token = randomCredential(48);
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO companion_devices (
+      id, user_id, name, token_hash, capabilities, status, last_seen_at, created_at, updated_at, revoked_at
+    ) VALUES (?, ?, ?, ?, ?, 'offline', NULL, ?, ?, NULL)
+  `).run(id, userId, name, hashSecret(token), JSON.stringify(capabilities), now, now);
+  return {
+    device: { id, name, capabilities, status: 'offline', createdAt: now },
+    pairingToken: token,
+    relayUrl: 'wss://spmt.live/api/companion/relay',
+  };
+}
+
 app.get('/api/companion/capabilities', (_req, res) => {
   res.json({
     schemaVersion: 1,
     capabilities: COMPANION_CAPABILITIES,
     actions: COMPANION_ACTION_CAPABILITIES,
+  });
+});
+
+app.post('/api/companion/bootstrap', authenticate, (req: any, res) => {
+  const code = randomCredential(48);
+  const now = new Date();
+  db.prepare('DELETE FROM companion_bootstrap_codes WHERE expires_at <= ? OR used_at IS NOT NULL').run(now.toISOString());
+  db.prepare(`
+    INSERT INTO companion_bootstrap_codes (code_hash, user_id, expires_at, used_at, created_at)
+    VALUES (?, ?, ?, NULL, ?)
+  `).run(
+    hashSecret(code),
+    req.user.id,
+    new Date(now.getTime() + COMPANION_BOOTSTRAP_SECONDS * 1000).toISOString(),
+    now.toISOString(),
+  );
+  res.status(201).json({
+    launchUrl: `spmt-companion://bootstrap?code=${encodeURIComponent(code)}`,
+    downloadUrl: COMPANION_RELEASE_DOWNLOAD_URL,
+    expiresIn: COMPANION_BOOTSTRAP_SECONDS,
+  });
+});
+
+app.post('/api/companion/bootstrap/exchange', (req, res) => {
+  const code = String(req.body?.code || '').trim();
+  if (!code || code.length > 512) return res.status(400).json({ error: 'A valid Companion link code is required' });
+  const codeHash = hashSecret(code);
+  const bootstrap = db.prepare(`
+    SELECT * FROM companion_bootstrap_codes
+    WHERE code_hash = ? AND used_at IS NULL
+  `).get(codeHash) as any;
+  if (!bootstrap) return res.status(400).json({ error: 'Companion link is invalid or already used' });
+  if (new Date(bootstrap.expires_at) <= new Date()) {
+    return res.status(400).json({ error: 'Companion link expired; create a new link from SPMT' });
+  }
+
+  const usedAt = new Date().toISOString();
+  const claimed = db.prepare(`
+    UPDATE companion_bootstrap_codes SET used_at = ?
+    WHERE code_hash = ? AND used_at IS NULL
+  `).run(usedAt, codeHash);
+  if (!claimed.changes) return res.status(400).json({ error: 'Companion link is invalid or already used' });
+
+  const user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(bootstrap.user_id) as any;
+  if (!user) return res.status(404).json({ error: 'Companion tenant no longer exists' });
+  const pairing = createCompanionDevice(user.id, req.body?.name, req.body?.capabilities);
+  return res.json({
+    ...pairing,
+    sessionToken: signSession(user),
+    expiresIn: SPMT_SESSION_SECONDS,
+    user: serializeUser(user),
   });
 });
 
@@ -5449,23 +5565,87 @@ app.get('/api/companion/devices', authenticate, (req: any, res) => {
 });
 
 app.post('/api/companion/devices/pair', authenticate, (req: any, res) => {
-  const name = String(req.body?.name || 'My SpaceMountain Companion').trim().slice(0, 80);
-  const requested = Array.isArray(req.body?.capabilities)
-    ? req.body.capabilities.map((value: unknown) => String(value))
-    : COMPANION_CAPABILITIES;
-  const capabilities = [...new Set(requested.filter((value: string) => COMPANION_CAPABILITIES.includes(value)))];
-  const id = uuidv4();
-  const token = randomCredential(48);
-  const now = new Date().toISOString();
+  res.status(201).json(createCompanionDevice(req.user.id, req.body?.name, req.body?.capabilities));
+});
+
+app.post('/api/platform/companion/diagnostics', authenticatePlatformKey('apps:read'), (req: any, res) => {
+  const userId = String(req.platformKey?.userId || '').trim();
+  if (!userId) return res.status(403).json({ error: 'A tenant-bound SPMT platform key is required' });
+  const action = 'diagnostics.snapshot.write';
+  const capability = COMPANION_ACTION_CAPABILITIES[action];
+  const payload = validateCompanionPayload(action, req.body);
+  if (!payload) return res.status(400).json({ error: 'Diagnostics snapshot payload is invalid or too large' });
+
+  const newest = db.prepare(`
+    SELECT created_at FROM companion_commands
+    WHERE user_id = ? AND action = ?
+    ORDER BY datetime(created_at) DESC LIMIT 1
+  `).get(userId, action) as any;
+  if (newest && Date.now() - Date.parse(newest.created_at) < 60_000) {
+    return res.status(429).json({ error: 'A diagnostics snapshot was already accepted in the last minute' });
+  }
+
+  const device = db.prepare(`
+    SELECT * FROM companion_devices
+    WHERE user_id = ? AND revoked_at IS NULL
+    ORDER BY CASE WHEN status = 'online' THEN 0 ELSE 1 END, datetime(updated_at) DESC
+    LIMIT 1
+  `).get(userId) as any;
+  if (!device) return res.status(409).json({ error: 'No tenant-linked Companion device is available' });
+
+  const capabilities = Array.from(new Set([...(JSON.parse(device.capabilities || '[]') as string[]), capability]));
+  db.prepare('UPDATE companion_devices SET capabilities = ?, updated_at = ? WHERE id = ?')
+    .run(JSON.stringify(capabilities), new Date().toISOString(), device.id);
+
+  const issuedAt = new Date();
+  const expiresAt = new Date(issuedAt.getTime() + 7 * 24 * 60 * 60_000);
   db.prepare(`
-    INSERT INTO companion_devices (
-      id, user_id, name, token_hash, capabilities, status, last_seen_at, created_at, updated_at, revoked_at
-    ) VALUES (?, ?, ?, ?, ?, 'offline', NULL, ?, ?, NULL)
-  `).run(id, req.user.id, name || 'My SpaceMountain Companion', hashSecret(token), JSON.stringify(capabilities), now, now);
-  res.status(201).json({
-    device: { id, name: name || 'My SpaceMountain Companion', capabilities, status: 'offline', createdAt: now },
-    pairingToken: token,
-    relayUrl: 'wss://spmt.live/api/companion/relay',
+    UPDATE companion_commands
+    SET status = 'expired', completed_at = COALESCE(completed_at, ?)
+    WHERE device_id = ? AND action = ? AND status = 'queued'
+  `).run(issuedAt.toISOString(), device.id, action);
+  db.prepare(`
+    DELETE FROM companion_commands
+    WHERE action = ? AND user_id = ? AND status IN ('completed', 'failed', 'expired')
+      AND id NOT IN (
+        SELECT id FROM companion_commands
+        WHERE action = ? AND user_id = ? AND status IN ('completed', 'failed', 'expired')
+        ORDER BY datetime(created_at) DESC LIMIT 50
+      )
+  `).run(action, userId, action, userId);
+
+  const id = uuidv4();
+  const envelope = {
+    schemaVersion: 1,
+    id,
+    issuedAt: issuedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    userId,
+    deviceId: device.id,
+    source: 'fly-machine-rotator',
+    capability,
+    action,
+    payload,
+    requiresConfirmation: false,
+  };
+  const socket = companionSockets.get(device.id);
+  const status = socket?.readyState === WebSocket.OPEN ? 'sent' : 'queued';
+  db.prepare(`
+    INSERT INTO companion_commands (
+      id, user_id, device_id, source, capability, action, payload, status, result, error,
+      requires_confirmation, issued_at, expires_at, created_at, completed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, ?, ?, ?, NULL)
+  `).run(
+    id, userId, device.id, envelope.source, capability, action, JSON.stringify(payload), status,
+    envelope.issuedAt, envelope.expiresAt, envelope.issuedAt,
+  );
+  if (status === 'sent') socket!.send(JSON.stringify(envelope));
+  return res.status(202).json({
+    accepted: true,
+    snapshotId: payload.snapshotId,
+    deviceId: device.id,
+    status,
+    expiresAt: envelope.expiresAt,
   });
 });
 

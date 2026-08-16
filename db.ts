@@ -581,6 +581,18 @@ export function initDb() {
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS companion_bootstrap_codes (
+      code_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS companion_bootstrap_codes_expiry
+      ON companion_bootstrap_codes(expires_at);
+
     CREATE TABLE IF NOT EXISTS companion_commands (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,

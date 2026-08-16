@@ -4,16 +4,17 @@
 
   function enhanceRecovery() {
     const root = document.getElementById('form-recover');
-    if (!root) return;
+    if (!root || root.dataset.spmtRecoveryEnhanced === '1') return;
 
     const primary = root.querySelector('a[href="/api/auth/recover/twitch"]');
     if (primary) {
-      primary.textContent = 'Verify with Twitch and recover in SPMT';
+      if (primary.textContent !== 'Verify with Twitch and recover in SPMT') {
+        primary.textContent = 'Verify with Twitch and recover in SPMT';
+      }
       primary.setAttribute('title', 'This verification returns to spmt.live and never signs you into another app.');
       const description = primary.parentElement?.querySelector('.field-help');
-      if (description) {
-        description.textContent = 'If you joined through Space Mountain or your Discord DM does not arrive, verify the linked Twitch account here. The callback stays on spmt.live.';
-      }
+      const text = 'If you joined through Space Mountain or your Discord DM does not arrive, verify the linked Twitch account here. The callback stays on spmt.live.';
+      if (description && description.textContent !== text) description.textContent = text;
     }
 
     const dmForm = Array.from(root.querySelectorAll('form')).find((form) =>
@@ -21,9 +22,8 @@
     );
     if (dmForm && !dmForm.querySelector('[data-spmt-recovery-fallback]')) {
       const help = dmForm.querySelector('.field-help');
-      if (help) {
-        help.textContent = 'SPMT sends the code to the immutable Discord account linked to this SPMT identity. Discord username changes no longer break recovery. If the bot cannot open a DM, use Twitch verification below.';
-      }
+      const helpText = 'SPMT sends the code to the immutable Discord account linked to this SPMT identity. Discord username changes no longer break recovery. If the bot cannot open a DM, use Twitch verification below.';
+      if (help && help.textContent !== helpText) help.textContent = helpText;
       const fallback = document.createElement('a');
       fallback.className = 'btn blue';
       fallback.href = '/api/auth/recover/twitch';
@@ -32,6 +32,8 @@
       fallback.style.marginLeft = '8px';
       dmForm.querySelector('button[type="submit"]')?.insertAdjacentElement('afterend', fallback);
     }
+
+    root.dataset.spmtRecoveryEnhanced = '1';
   }
 
   function showRecoveryError() {
@@ -51,8 +53,11 @@
     } catch {}
   }
 
-  enhanceRecovery();
-  showRecoveryError();
-  const observer = new MutationObserver(enhanceRecovery);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  function boot() {
+    enhanceRecovery();
+    showRecoveryError();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
 })();

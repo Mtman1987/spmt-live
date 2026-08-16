@@ -76,6 +76,10 @@ require('./oauth-authorize-recovery-bootstrap.cjs').installOauthAuthorizeRecover
 // Account recovery shadows the older bundled recovery routes. It deliberately
 // reuses the canonical database and keeps all provider callbacks on spmt.live.
 require('./account-recovery-bootstrap.cjs').installAccountRecoveryBootstrap();
+// Owner/admin recovery is a narrow internal shortcut used by Athena DMs. It
+// only issues the existing one-use recovery code; it never installs a default
+// password or bypasses the Recover form's password-change step.
+require('./admin-recovery-bootstrap.cjs').installAdminRecoveryBootstrap();
 require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
 require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
 // Event/grant routes must be installed before the older tenant routes because

@@ -1,9 +1,12 @@
 const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const runtime = fs.readFileSync('account-recovery-bootstrap.cjs', 'utf8');
 const adminRuntime = fs.readFileSync('admin-recovery-bootstrap.cjs', 'utf8');
+const commlinkRichRuntime = fs.readFileSync('commlink-rich-chat-bootstrap.cjs', 'utf8');
 const start = fs.readFileSync('start.cjs', 'utf8');
 const dockerfile = fs.readFileSync('Dockerfile', 'utf8');
 const ui = fs.readFileSync('public/shared/account-recovery-ui.js', 'utf8');
@@ -20,6 +23,50 @@ test('recovery runtime is installed before the bundled server and shipped in the
   assert.match(start, /\/shared\/account-recovery-ui\.js/);
   assert.match(dockerfile, /COPY account-recovery-bootstrap\.cjs \.\/account-recovery-bootstrap\.cjs/);
   assert.match(dockerfile, /COPY admin-recovery-bootstrap\.cjs \.\/admin-recovery-bootstrap\.cjs/);
+});
+
+test('canonical Commlink rich chat renderer is installed before serving and shipped in production', () => {
+  assert.match(start, /installCommlinkRichChatBootstrap\(\);[\s\S]*installPresenceBootstrap\(\)/);
+  assert.match(dockerfile, /COPY commlink-rich-chat-bootstrap\.cjs \.\/commlink-rich-chat-bootstrap\.cjs/);
+  assert.match(commlinkRichRuntime, /friendlyChannelName/);
+  assert.match(commlinkRichRuntime, /inline-chat-emote/);
+  assert.match(commlinkRichRuntime, /discord-embed-card/);
+  assert.match(commlinkRichRuntime, /discord: item\.meta\?\.discord/);
+});
+
+test('canonical Commlink rich chat renderer is idempotent on real Commlink assets', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'spmt-commlink-rich-'));
+  const tempJs = path.join(tempRoot, 'commlink.js');
+  const tempCss = path.join(tempRoot, 'commlink.css');
+  fs.copyFileSync('public/commlink/commlink.js', tempJs);
+  fs.copyFileSync('public/commlink/commlink.css', tempCss);
+
+  const previousJs = process.env.SPMT_COMMLINK_JS_PATH;
+  const previousCss = process.env.SPMT_COMMLINK_CSS_PATH;
+  process.env.SPMT_COMMLINK_JS_PATH = tempJs;
+  process.env.SPMT_COMMLINK_CSS_PATH = tempCss;
+  try {
+    const { installCommlinkRichChatBootstrap } = require('../commlink-rich-chat-bootstrap.cjs');
+    installCommlinkRichChatBootstrap();
+    const onceJs = fs.readFileSync(tempJs, 'utf8');
+    const onceCss = fs.readFileSync(tempCss, 'utf8');
+    installCommlinkRichChatBootstrap();
+    const twiceJs = fs.readFileSync(tempJs, 'utf8');
+    const twiceCss = fs.readFileSync(tempCss, 'utf8');
+
+    assert.equal(twiceJs, onceJs);
+    assert.equal(twiceCss, onceCss);
+    assert.equal((onceJs.match(/function renderProviderChatText\(/g) || []).length, 1);
+    assert.equal((onceCss.match(/\.inline-chat-emote\s*\{/g) || []).length, 1);
+    assert.match(onceJs, /friendlyChannelName\(provider, channel\.channelName/);
+    assert.match(onceJs, /message\.discord\?\.embeds/);
+  } finally {
+    if (previousJs === undefined) delete process.env.SPMT_COMMLINK_JS_PATH;
+    else process.env.SPMT_COMMLINK_JS_PATH = previousJs;
+    if (previousCss === undefined) delete process.env.SPMT_COMMLINK_CSS_PATH;
+    else process.env.SPMT_COMMLINK_CSS_PATH = previousCss;
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
 });
 
 test('recovery UI enhances the static form once without a self-triggering observer', () => {

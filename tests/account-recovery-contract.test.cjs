@@ -20,7 +20,7 @@ test('recovery runtime is installed before the bundled server and shipped in the
   assert.match(dockerfile, /COPY account-recovery-bootstrap\.cjs \.\/account-recovery-bootstrap\.cjs/);
 });
 
-test('recovery UI enhances the static form once without a self-triggering mutation observer', () => {
+test('recovery UI enhances the static form once without a self-triggering observer', () => {
   assert.match(ui, /spmtRecoveryEnhanced/);
   assert.doesNotMatch(ui, /new MutationObserver/);
   assert.match(ui, /DOMContentLoaded/);

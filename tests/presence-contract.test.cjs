@@ -28,6 +28,10 @@ test('canonical presence service owns heartbeat, counts, and the public live lis
   assert.match(header, /SPACEMOUNTAIN\.LIVE/);
   assert.match(header, /aria-current/);
   assert.match(header, /window\.self !== window\.top/);
+  assert.match(header, /#spmt-ecosystem-header\{[^}]*pointer-events:none/);
+  assert.match(header, /spmt-eco-brand[^}]*pointer-events:auto/);
+  assert.match(header, /spmt-eco-chip[^}]*pointer-events:auto/);
+  assert.match(header, /spmt-eco-total[^}]*pointer-events:auto/);
 
   assert.match(live, /Ecosystem Live/);
   assert.match(live, /fetch\(endpoint/);

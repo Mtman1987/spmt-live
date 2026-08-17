@@ -64,6 +64,11 @@ function ensureWorkspaceShellBootstrap() {
 
 ensureWorkspaceShellBootstrap();
 
+// Project the canonical Commlink feed into human-facing categories before the
+// bundled server registers /api/commlink/feed. Raw event records remain intact
+// in storage for Athena, analytics, diagnostics, and other consumers.
+require('./commlink-feed-projection-bootstrap.cjs').installCommlinkFeedProjectionBootstrap();
+
 // Commlink is the canonical chat renderer embedded across the ecosystem. Keep
 // provider enrichment in StreamWeaver, but render the rich contract here once
 // so every app inherits the same readable names, media, embeds, and emotes.

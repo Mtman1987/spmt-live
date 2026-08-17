@@ -5,7 +5,13 @@ const path = require('node:path');
 
 function replaceRequired(source, from, to, label) {
   if (source.includes(to)) return source;
-  if (!source.includes(from)) throw new Error(`Commlink rich chat bootstrap could not find ${label}`);
+  if (!source.includes(from)) {
+    const complete = source.includes('function renderProviderChatText(')
+      && source.includes('const discordEmbeds =')
+      && source.includes("message.provider === 'discord' && item.type === 'emote'");
+    if (complete) return source;
+    throw new Error(`Commlink rich chat bootstrap could not find ${label}`);
+  }
   return source.replace(from, to);
 }
 

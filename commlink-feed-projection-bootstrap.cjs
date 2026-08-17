@@ -28,10 +28,17 @@ const APP_LABELS = new Map([
 ]);
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
+const DISCORD_API_CACHE_TTL_MS = 5 * 60 * 1000;
+const NEGATIVE_CACHE_TTL_MS = 60 * 1000;
+const MAX_DISCORD_LOOKUPS = 8;
 const channelCache = new Map();
 const userCache = new Map();
 const guildCache = new Map();
 const roleCache = new Map();
+const discordApiCache = new Map();
+const discordApiInFlight = new Map();
+const queuedDiscordLookups = [];
+let activeDiscordLookups = 0;
 let identityDb = null;
 
 function compactText(value, max = 240) {
@@ -43,9 +50,12 @@ function compactText(value, max = 240) {
 }
 
 function appLabel(value) {
-  const raw = compactText(value, 120).toLowerCase();
+  const raw = compactText(value, 120);
   if (!raw) return 'SPMT';
-  return APP_LABELS.get(raw) || raw
+  const known = APP_LABELS.get(raw.toLowerCase());
+  if (known) return known;
+  if (/\s/.test(raw) || !/[._-]/.test(raw)) return raw;
+  return raw
     .replace(/[._-]+/g, ' ')
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
@@ -77,10 +87,12 @@ function classifyCommlinkItem(item) {
   const recordType = compactText(item?.meta?.spmtRecordType, 40).toLowerCase();
   const eventType = eventTypeFor(item);
   const type = compactText(item?.type, 40).toLowerCase();
+  const important = IMPORTANT_EVENT_RE.test(eventType);
 
   let category = 'activity';
   if (recordType === 'notification') category = 'notification';
   else if (recordType === 'message' || CHAT_TYPES.has(type)) category = 'chat';
+  else if (important) category = 'activity';
   else if (DIAGNOSTIC_EVENT_RE.test(eventType) || TECHNICAL_EVENT_RE.test(eventType)) category = 'diagnostic';
   else if (provider === 'spmt' && type === 'system') category = 'activity';
   else if (type === 'notification') category = 'notification';
@@ -88,7 +100,7 @@ function classifyCommlinkItem(item) {
   return {
     category,
     defaultVisible: category !== 'diagnostic',
-    importance: IMPORTANT_EVENT_RE.test(eventType) ? 'important' : 'normal',
+    importance: important ? 'important' : 'normal',
   };
 }
 
@@ -102,18 +114,23 @@ function requestedCategories(req) {
   return categories;
 }
 
-function cacheRead(cache, key) {
+function cacheLookup(cache, key) {
   const entry = cache.get(key);
-  if (!entry) return null;
+  if (!entry) return { hit: false, value: null };
   if (entry.expiresAt <= Date.now()) {
     cache.delete(key);
-    return null;
+    return { hit: false, value: null };
   }
-  return entry.value;
+  return { hit: true, value: entry.value };
 }
 
-function cacheWrite(cache, key, value) {
-  cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
+function cacheRead(cache, key) {
+  const cached = cacheLookup(cache, key);
+  return cached.hit ? cached.value : null;
+}
+
+function cacheWrite(cache, key, value, ttlMs = CACHE_TTL_MS) {
+  cache.set(key, { value, expiresAt: Date.now() + ttlMs });
   if (cache.size > 2000) {
     const now = Date.now();
     for (const [entryKey, entry] of cache) {
@@ -121,6 +138,24 @@ function cacheWrite(cache, key, value) {
     }
   }
   return value;
+}
+
+function runDiscordLookup(task) {
+  return new Promise((resolve, reject) => {
+    const execute = () => {
+      activeDiscordLookups += 1;
+      Promise.resolve()
+        .then(task)
+        .then(resolve, reject)
+        .finally(() => {
+          activeDiscordLookups -= 1;
+          const next = queuedDiscordLookups.shift();
+          if (next) next();
+        });
+    };
+    if (activeDiscordLookups < MAX_DISCORD_LOOKUPS) execute();
+    else queuedDiscordLookups.push(execute);
+  });
 }
 
 function databasePath() {
@@ -166,16 +201,35 @@ function resolveLocalIdentity(value) {
 async function discordApi(pathname, fetchImpl = global.fetch) {
   const token = compactText(process.env.DISCORD_BOT_TOKEN, 256);
   if (!token || typeof fetchImpl !== 'function') return null;
-  try {
-    const response = await fetchImpl(`https://discord.com/api/v10${pathname}`, {
-      headers: { Authorization: `Bot ${token}`, Accept: 'application/json' },
-      signal: typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(1800) : undefined,
-    });
-    if (!response.ok) return null;
-    return await response.json();
-  } catch {
-    return null;
-  }
+
+  const cacheKey = compactText(pathname, 500);
+  const cached = cacheLookup(discordApiCache, cacheKey);
+  if (cached.hit) return cached.value;
+  const existing = discordApiInFlight.get(cacheKey);
+  if (existing) return existing;
+
+  const request = runDiscordLookup(async () => {
+    try {
+      const response = await fetchImpl(`https://discord.com/api/v10${pathname}`, {
+        headers: { Authorization: `Bot ${token}`, Accept: 'application/json' },
+        signal: typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(1800) : undefined,
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch {
+      return null;
+    }
+  }).then((value) => cacheWrite(
+    discordApiCache,
+    cacheKey,
+    value,
+    value == null ? NEGATIVE_CACHE_TTL_MS : DISCORD_API_CACHE_TTL_MS,
+  )).finally(() => {
+    discordApiInFlight.delete(cacheKey);
+  });
+
+  discordApiInFlight.set(cacheKey, request);
+  return request;
 }
 
 async function resolveDiscordGuild(guildId, fetchImpl = global.fetch) {
@@ -450,6 +504,7 @@ async function projectCommlinkPayload(payload, req = {}, overrides = {}) {
   return {
     ...payload,
     items: visibleItems,
+    count: visibleItems.length,
     channels: projectedChannels,
     presentation: {
       version: 'commlink-presentation.v1',

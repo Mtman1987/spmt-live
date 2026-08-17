@@ -74,6 +74,10 @@ require('./commlink-feed-projection-bootstrap.cjs').installCommlinkFeedProjectio
 // so every app inherits the same readable names, media, embeds, and emotes.
 require('./commlink-rich-chat-bootstrap.cjs').installCommlinkRichChatBootstrap();
 
+// Source controls patch the rich-rendered Commlink asset, so this must stay
+// after rich chat and before Express begins serving the canonical surface.
+require('./commlink-source-controls-bootstrap.cjs').installCommlinkSourceControlsBootstrap();
+
 // Install public live presence before the bundled server creates Express. The
 // feed exposes only short-lived app counts and display names; it never exposes
 // session tokens, browser IDs, email addresses, or provider identifiers.

@@ -82,10 +82,12 @@ await writeFile(serverBundlePath, serverBundle, 'utf8');
 
 // Register canonical pre-routes before the bundled server creates Express.
 // Presence is intentionally public and privacy-limited; authenticated actions
-// continue to use the existing SPMT OAuth/session bearer.
+// continue to use the existing SPMT OAuth/session bearer. The Commlink
+// diagnostic route is machine-only and uses the existing ecosystem service key.
 require('../presence-bootstrap.cjs').installPresenceBootstrap();
 require('../athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
 require('../tenant-overlay-bootstrap.cjs').installTenantOverlayBootstrap();
+require('../commlink-diagnostic-bootstrap.cjs').installCommlinkDiagnosticBootstrap();
 
 await import('../dist/server.cjs');
 

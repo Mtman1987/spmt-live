@@ -57,14 +57,25 @@ test('routing and delivery acknowledgements are diagnostics by default', () => {
   assert.equal(classifyCommlinkItem(baseItem()).category, 'activity');
 });
 
-test('default feed hides diagnostics but callers can opt in', async () => {
+test('important user-facing events beat diagnostic token matches', () => {
+  const presentation = classifyCommlinkItem(baseItem({
+    meta: { spmtRecordType: 'event', eventType: 'game.reward_received' },
+  }));
+  assert.equal(presentation.category, 'activity');
+  assert.equal(presentation.importance, 'important');
+  assert.equal(presentation.defaultVisible, true);
+});
+
+test('default feed hides diagnostics but callers can opt in and count matches visible items', async () => {
   const diagnostic = baseItem({ eventId: 'diag', meta: { spmtRecordType: 'event', eventType: 'discord.activity_forwarded' }, text: 'Discord activity was forwarded to Chat Tag.' });
   const activity = baseItem({ eventId: 'activity' });
-  const normal = await projectCommlinkPayload({ items: [diagnostic, activity], channels: [] }, { query: {} }, deps);
+  const normal = await projectCommlinkPayload({ items: [diagnostic, activity], channels: [], count: 2 }, { query: {} }, deps);
   assert.deepEqual(normal.items.map((item) => item.eventId), ['activity']);
+  assert.equal(normal.count, 1);
   assert.equal(normal.presentation.hiddenCount, 1);
-  const debug = await projectCommlinkPayload({ items: [diagnostic, activity], channels: [] }, { query: { diagnostics: '1' } }, deps);
+  const debug = await projectCommlinkPayload({ items: [diagnostic, activity], channels: [], count: 2 }, { query: { diagnostics: '1' } }, deps);
   assert.deepEqual(debug.items.map((item) => item.eventId), ['diag', 'activity']);
+  assert.equal(debug.count, 2);
 });
 
 test('Discord snowflakes stay identifiers while channel display text becomes readable', async () => {
@@ -100,6 +111,11 @@ test('structured app events compose readable actor and target text', async () =>
   assert.equal(payload.items[0].sourceName, 'ChatTag');
   assert.equal(payload.items[0].channelName, 'Player Tagged');
   assert.equal(payload.items[0].presentation.category, 'activity');
+});
+
+test('friendly app source names keep their capitalization', async () => {
+  const payload = await projectCommlinkPayload({ items: [baseItem({ sourceName: 'MyCoolApp' })], channels: [] }, { query: {} }, deps);
+  assert.equal(payload.items[0].sourceName, 'MyCoolApp');
 });
 
 test('unresolved opaque identifiers never become human display text', async () => {

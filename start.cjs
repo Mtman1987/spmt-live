@@ -20,6 +20,9 @@ function ensureScripts(filePath, scripts) {
   fs.writeFileSync(filePath, html, 'utf8');
 }
 
+// The Docker image runs this file directly, so production shell bootstraps must
+// live here instead of only in scripts/start.mjs. Ensure the canonical workspace
+// renderers are present before Express begins serving public/index.html.
 function ensureWorkspaceShellBootstrap() {
   const publicIndexPath = process.env.SPMT_PUBLIC_INDEX_PATH
     ? path.resolve(process.env.SPMT_PUBLIC_INDEX_PATH)
@@ -35,6 +38,9 @@ function ensureWorkspaceShellBootstrap() {
     '/shared/account-recovery-ui.js',
   ]);
 
+  // Shared surfaces need the same tenant event publisher and the copyable,
+  // read-only Personal renderer URL. These scripts enhance the existing v2/v3
+  // Overlay Bay instead of introducing another editor/runtime.
   const sharedIndexPath = process.env.SPMT_SHARED_INDEX_PATH
     ? path.resolve(process.env.SPMT_SHARED_INDEX_PATH)
     : path.join(__dirname, 'public', 'shared', 'index.html');
@@ -45,6 +51,9 @@ function ensureWorkspaceShellBootstrap() {
     '/shared/overlay-text-controls.js',
   ]);
 
+  // Public and Personal use the same canonical tenant renderer. Rich text is a
+  // renderer enhancement layered onto the existing scene contract so old URLs
+  // and old saved layouts remain valid.
   const tenantOutputPath = process.env.SPMT_TENANT_OUTPUT_PATH
     ? path.resolve(process.env.SPMT_TENANT_OUTPUT_PATH)
     : path.join(__dirname, 'public', 'tenant-output.html');
@@ -55,16 +64,43 @@ function ensureWorkspaceShellBootstrap() {
 
 ensureWorkspaceShellBootstrap();
 
+// Project the canonical Commlink feed into human-facing categories before the
+// bundled server registers /api/commlink/feed. Raw event records remain intact
+// in storage for Athena, analytics, diagnostics, and other consumers.
 require('./commlink-feed-projection-bootstrap.cjs').installCommlinkFeedProjectionBootstrap();
+
+// Commlink is the canonical chat renderer embedded across the ecosystem. Keep
+// provider enrichment in StreamWeaver, but render the rich contract here once
+// so every app inherits the same readable names, media, embeds, and emotes.
 require('./commlink-rich-chat-bootstrap.cjs').installCommlinkRichChatBootstrap();
+
+// Source controls patch the rich-rendered Commlink asset, so this must stay
+// after rich chat and before Express begins serving the canonical surface.
 require('./commlink-source-controls-bootstrap.cjs').installCommlinkSourceControlsBootstrap();
+
+// Install public live presence before the bundled server creates Express. The
+// feed exposes only short-lived app counts and display names; it never exposes
+// session tokens, browser IDs, email addresses, or provider identifiers.
 require('./presence-bootstrap.cjs').installPresenceBootstrap();
+
+// Install authenticated pre-routes before the bundled server creates Express.
+// Xbox Chromium now lives in the dedicated Fly xbox process group; this web
+// process only authenticates the user and proxies Overlay Bay control requests.
 require('./oauth-authorize-recovery-bootstrap.cjs').installOauthAuthorizeRecoveryBootstrap();
+// Account recovery shadows the older bundled recovery routes. It deliberately
+// reuses the canonical database and keeps all provider callbacks on spmt.live.
 require('./account-recovery-bootstrap.cjs').installAccountRecoveryBootstrap();
+// Owner/admin recovery is a narrow internal shortcut used by Athena DMs. It
+// only issues the existing one-use recovery code; it never installs a default
+// password or bypasses the Recover form's password-change step.
 require('./admin-recovery-bootstrap.cjs').installAdminRecoveryBootstrap();
 require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
 require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
+// Event/grant routes must be installed before the older tenant routes because
+// they extend the Personal data contract with a narrow read-only render key.
 require('./tenant-overlay-events-bootstrap.cjs').installTenantOverlayEventsBootstrap();
+// Canonical tenant outputs shadow the legacy single-overlay API as a PUBLIC
+// compatibility alias, so existing Xbox/Worktray consumers keep one source of truth.
 require('./tenant-overlay-bootstrap.cjs').installTenantOverlayBootstrap();
 
 require('./dist/server.cjs');

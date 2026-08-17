@@ -9,6 +9,12 @@ function replaceRequired(source, from, to, label) {
   return source.replace(from, to);
 }
 
+function replaceAllRequired(source, from, to, label) {
+  if (source.includes(to) && !source.includes(from)) return source;
+  if (!source.includes(from)) throw new Error(`Commlink source controls bootstrap could not find ${label}`);
+  return source.replaceAll(from, to);
+}
+
 function installCommlinkSourceControlsBootstrap() {
   const jsPath = process.env.SPMT_COMMLINK_JS_PATH
     ? path.resolve(process.env.SPMT_COMMLINK_JS_PATH)
@@ -18,6 +24,9 @@ function installCommlinkSourceControlsBootstrap() {
     : path.join(__dirname, 'public', 'commlink', 'commlink.css');
 
   let source = fs.readFileSync(jsPath, 'utf8');
+  if (!source.includes('function friendlyChannelName(')) {
+    throw new Error('Commlink source controls bootstrap requires the rich-chat bootstrap to run first');
+  }
 
   const oldActiveSources = `const activeSources = () => {
   const space = state.chatSpaces.find((item) => item.id === state.activeSpace) || state.chatSpaces[0];
@@ -52,13 +61,15 @@ const activeSources = () => {
   return state.sources.filter((source) => space.sources.includes(source.id));
 };
 
-function messageBelongsToSpace(message, space, sourceIds, aggregateProviders) {
+function messageBelongsToSpace(message, space, sourceIds, aggregateProviders, hiddenSourceIds = null) {
+  if (hiddenSourceIds?.has(message.sourceId)) return false;
+  if (state.feedMode === 'synthetic' && state.activeSpace === 'friday') return true;
   if (state.feedMode !== 'synthetic' && space.sourceMode === 'all') return true;
   return sourceIds.has(message.sourceId) || aggregateProviders.has(message.provider);
 }
 
 function messageCategoryVisible(message, space) {
-  const categories = new Set(space.presentationCategories || DEFAULT_PRESENTATION_CATEGORIES);
+  const categories = new Set(Array.isArray(space.presentationCategories) ? space.presentationCategories : DEFAULT_PRESENTATION_CATEGORIES);
   return categories.has(message.presentationCategory || (message.kind === 'chat' ? 'chat' : 'activity'));
 }`;
   source = replaceRequired(source, oldActiveSources, newActiveSources, 'active source selection');
@@ -86,6 +97,19 @@ function messageCategoryVisible(message, space) {
 
   source = replaceRequired(
     source,
+    `  const deskSourceIds = new Set(panels.flatMap((panel) => state.chatSpaces.find((space) => space.id === panel.chatSpaceId)?.sources || []));`,
+    `  const deskSourceIds = new Set(panels.flatMap((panel) => {
+    const space = state.chatSpaces.find((entry) => entry.id === panel.chatSpaceId);
+    const normalized = normalizedSpace(space);
+    return state.feedMode !== 'synthetic' && normalized.sourceMode === 'all'
+      ? state.sources.map((source) => source.id)
+      : normalized.sources;
+  }));`,
+    'desk source tabs',
+  );
+
+  source = replaceRequired(
+    source,
     `    const sourceIds = new Set(space.sources.filter((id) => !hidden.has(id)));
     const aggregateProviders = new Set(state.sources
       .filter((source) => source.aggregate && sourceIds.has(source.id))
@@ -96,12 +120,14 @@ function messageCategoryVisible(message, space) {
       || (message.provider === 'spmt' && sourceIds.has('spmt-direct'))
     )).slice(-30);`,
     `    const normalized = normalizedSpace(space);
-    const sourceIds = new Set(normalized.sources.filter((id) => !hidden.has(id)));
+    const sourceIds = new Set((state.feedMode !== 'synthetic' && normalized.sourceMode === 'all'
+      ? state.sources.map((source) => source.id)
+      : normalized.sources).filter((id) => !hidden.has(id)));
     const aggregateProviders = new Set(state.sources
       .filter((source) => source.aggregate && sourceIds.has(source.id))
       .map((source) => source.provider));
     const visibleMessages = state.messages.filter((message) => (
-      messageBelongsToSpace(message, normalized, sourceIds, aggregateProviders)
+      messageBelongsToSpace(message, normalized, sourceIds, aggregateProviders, hidden)
       && messageCategoryVisible(message, normalized)
     )).slice(-30);`,
     'desk message visibility rules',
@@ -146,7 +172,12 @@ function messageCategoryVisible(message, space) {
   );
 
   const uniqueMarker = `  const unique = Array.from(new Map(channelSources.map((source) => [source.id, source])).values());`;
-  const uniqueReplacement = `  const eventSources = (Array.isArray(payload.items) ? payload.items : []).map((item) => {
+  const uniqueReplacement = `  const retainedIds = new Set(state.chatSpaces.flatMap((space) => [
+    ...(space.sources || []),
+    ...(space.selectedDestinationIds || []),
+    ...(space.bridgeSourceIds || []),
+  ]));
+  const eventSources = (Array.isArray(payload.items) ? payload.items : []).map((item) => {
     const provider = canonicalProvider(item);
     const sourceId = String(item.sourceId || \`${'${provider}:${item.channelId || \'unknown\'}'}\`);
     const health = healthByProvider.get(item.platform) || healthByProvider.get(provider) || {};
@@ -164,21 +195,39 @@ function messageCategoryVisible(message, space) {
       state: \`${'${String(health.status || \'recent\')}'} · ${'${provider === \'spmt\' ? \'app activity\' : \'read only\'}'}\`,
       health: health.status || 'recent',
       readOnly: true,
+      eventBacked: true,
     };
   });
-  const unique = Array.from(new Map([...channelSources, ...eventSources].map((source) => [source.id, source])).values());`;
+  const retainedEventSources = state.sources.filter((source) => source.eventBacked && retainedIds.has(source.id));
+  const uniqueById = new Map([...retainedEventSources, ...eventSources].map((source) => [source.id, source]));
+  channelSources.forEach((channelSource) => {
+    const eventSource = uniqueById.get(channelSource.id);
+    uniqueById.set(channelSource.id, {
+      ...(eventSource || {}),
+      ...channelSource,
+      guildId: channelSource.guildId || eventSource?.guildId || '',
+      guildName: channelSource.guildName || eventSource?.guildName || '',
+      categoryId: channelSource.categoryId || eventSource?.categoryId || '',
+      categoryName: channelSource.categoryName || eventSource?.categoryName || '',
+      capabilities: channelSource.capabilities,
+      state: channelSource.state,
+      readOnly: channelSource.readOnly,
+      eventBacked: false,
+    });
+  });
+  const unique = Array.from(uniqueById.values());`;
   source = replaceRequired(source, uniqueMarker, uniqueReplacement, 'event-backed source discovery');
 
   source = replaceRequired(
     source,
     `  const params = new URLSearchParams({ limit: query ? '100' : '200' });`,
     `  const params = new URLSearchParams({ limit: query ? '100' : '200' });
-  const categories = activeSpaceRecord().presentationCategories || DEFAULT_PRESENTATION_CATEGORIES;
-  params.set('categories', categories.join(','));`,
+  const categories = activeSpaceRecord().presentationCategories;
+  if (categories.length) params.set('categories', categories.join(','));`,
     'presentation category feed request',
   );
 
-  source = source.replaceAll('schemaVersion: 3,', 'schemaVersion: 4,');
+  source = replaceAllRequired(source, 'schemaVersion: 3,', 'schemaVersion: 4,', 'workspace schema version');
   source = replaceRequired(
     source,
     `      sources: [...space.sources],
@@ -206,7 +255,7 @@ function messageCategoryVisible(message, space) {
     `    sources: [],
     selectedDestinationIds: [],`,
     `    sources: [],
-    sourceMode: 'custom',
+    sourceMode: 'all',
     presentationCategories: [...DEFAULT_PRESENTATION_CATEGORIES],
     selectedDestinationIds: [],`,
     'new ChatSpace source defaults',
@@ -240,32 +289,32 @@ function messageCategoryVisible(message, space) {
       if (!sourceGroups.has(location)) sourceGroups.set(location, []);
       sourceGroups.get(location).push(source);
     });
+    const labels = { chat: 'Chat', activity: 'Activity', notification: 'Notifications', diagnostic: 'Diagnostics' };
     const categoryControls = VALID_PRESENTATION_CATEGORIES.map((category) => {
-      const labels = { chat: 'Chat', activity: 'Activity', notification: 'Notifications', diagnostic: 'Diagnostics' };
       const help = category === 'diagnostic' ? 'Internal delivery/debug events (off by default)' : 'User-facing feed events';
-      return \`<label class="workspace-category-row"><input type="checkbox" data-presentation-category="${'${category}'}" ${'${categories.has(category) ? \'checked\' : \'\'}'}><span><strong>${'${labels[category]}'}</strong><small>${'${help}'}</small></span></label>\`;
+      return '<label class="workspace-category-row"><input type="checkbox" data-presentation-category="' + escapeHtml(category) + '" ' + (categories.has(category) ? 'checked' : '') + '><span><strong>' + escapeHtml(labels[category]) + '</strong><small>' + escapeHtml(help) + '</small></span></label>';
     }).join('');
-    const groupedSources = Array.from(sourceGroups.entries()).map(([label, sources]) => \`
-      <section class="workspace-source-group">
-        <h3>${'${escapeHtml(label)}'}</h3>
-        ${'${sources.sort((a, b) => String(a.channel).localeCompare(String(b.channel))).map((source) => {'}
-          const provider = providerFor(source.provider);
-          return \`<div class="workspace-source-row" style="${'${providerStyle(source.provider)}'}">
-            <span class="provider-logo">${'${provider.short}'}</span>
-            <span><strong>${'${escapeHtml(source.provider === \'discord\' ? `#${String(source.channel).replace(/^#/, \'\')}` : source.channel)}'}</strong><small>${'${escapeHtml(source.sourceName || source.state)}'}</small></span>
-            <label><input type="checkbox" data-space-source="${'${source.id}'}" ${'${members.has(source.id) ? \'checked\' : \'\'}'} ${'${normalized.sourceMode === \'all\' ? \'disabled\' : \'\'}'}> Show</label>
-            <label><input type="checkbox" data-bridge-source="${'${source.id}'}" ${'${bridged.has(source.id) ? \'checked\' : \'\'}'} ${'${members.has(source.id) && normalized.sourceMode !== \'all\' ? \'\' : \'disabled\'}'}> Bridge</label>
-          </div>\`;
-        }).join(\'\')}' }
-      </section>\`).join('');
-    $('#workspace-source-editor').innerHTML = \`
-      <div class="workspace-source-mode">
-        <label><input type="radio" name="workspace-source-mode" value="all" ${'${normalized.sourceMode === \'all\' ? \'checked\' : \'\'}'}> Everything from every connected source</label>
-        <label><input type="radio" name="workspace-source-mode" value="custom" ${'${normalized.sourceMode === \'custom\' ? \'checked\' : \'\'}'}> Only selected sources</label>
-      </div>
-      <div class="workspace-category-grid">${'${categoryControls}'}</div>
-      ${'${groupedSources || \'<div class="feed-empty">No connected sources have reported activity yet.</div>\'}'}
-      <a class="secondary-button full-button link-button" href="/?view=connections" target="_top">Open the SPMT Connections hub</a>\`;
+    const groupedSources = Array.from(sourceGroups.entries()).map(([label, sources]) => {
+      const rows = sources.sort((a, b) => String(a.channel).localeCompare(String(b.channel))).map((source) => {
+        const provider = providerFor(source.provider);
+        const channelLabel = source.provider === 'discord' ? '#' + String(source.channel).replace(/^#/, '') : source.channel;
+        return '<div class="workspace-source-row" style="' + providerStyle(source.provider) + '">' +
+          '<span class="provider-logo">' + escapeHtml(provider.short) + '</span>' +
+          '<span><strong>' + escapeHtml(channelLabel) + '</strong><small>' + escapeHtml(source.sourceName || source.state) + '</small></span>' +
+          '<label><input type="checkbox" data-space-source="' + escapeHtml(source.id) + '" ' + (members.has(source.id) ? 'checked' : '') + ' ' + (normalized.sourceMode === 'all' ? 'disabled' : '') + '> Show</label>' +
+          '<label><input type="checkbox" data-bridge-source="' + escapeHtml(source.id) + '" ' + (bridged.has(source.id) ? 'checked' : '') + ' ' + (members.has(source.id) && normalized.sourceMode !== 'all' ? '' : 'disabled') + '> Bridge</label>' +
+        '</div>';
+      }).join('');
+      return '<section class="workspace-source-group"><h3>' + escapeHtml(label) + '</h3>' + rows + '</section>';
+    }).join('');
+    $('#workspace-source-editor').innerHTML =
+      '<div class="workspace-source-mode">' +
+        '<label><input type="radio" name="workspace-source-mode" value="all" ' + (normalized.sourceMode === 'all' ? 'checked' : '') + '> Everything from every connected source</label>' +
+        '<label><input type="radio" name="workspace-source-mode" value="custom" ' + (normalized.sourceMode === 'custom' ? 'checked' : '') + '> Only selected sources</label>' +
+      '</div>' +
+      '<div class="workspace-category-grid">' + categoryControls + '</div>' +
+      (groupedSources || '<div class="feed-empty">No connected sources have reported activity yet.</div>') +
+      '<a class="secondary-button full-button link-button" href="/?view=connections" target="_top">Open the SPMT Connections hub</a>';
   } else {`;
   source = replaceRequired(source, oldEditor, newEditor, 'hierarchical source picker');
 
@@ -278,12 +327,19 @@ function messageCategoryVisible(message, space) {
     `    const sourceMode = $('[name="workspace-source-mode"]:checked')?.value === 'custom' ? 'custom' : 'all';
     const sources = $$('[data-space-source]:checked').map((input) => input.dataset.spaceSource);
     const sourceSet = new Set(sources);
+    const allowedSourceIds = sourceMode === 'all' ? new Set(state.sources.map((source) => source.id)) : sourceSet;
     const presentationCategories = $$('[data-presentation-category]:checked').map((input) => input.dataset.presentationCategory);
     space.name = name;
     space.sourceMode = sourceMode;
     space.presentationCategories = presentationCategories;
     space.sources = sources;`,
     'source preference save',
+  );
+  source = replaceRequired(
+    source,
+    `    space.selectedDestinationIds = (space.selectedDestinationIds || []).filter((id) => sourceSet.has(id));`,
+    `    space.selectedDestinationIds = (space.selectedDestinationIds || []).filter((id) => allowedSourceIds.has(id));`,
+    'destination preservation for all mode',
   );
   source = replaceRequired(
     source,
@@ -295,32 +351,32 @@ function messageCategoryVisible(message, space) {
     'active source preference refresh',
   );
 
-  source = replaceRequired(
-    source,
-    `  $('#workspace-source-editor').addEventListener('change', (event) => {
-    if (!event.target.matches('[data-space-source]')) return;
-    const bridge = $(`[data-bridge-source="${'${CSS.escape(event.target.dataset.spaceSource)}'}"]`);
-    bridge.disabled = !event.target.checked;
-    if (!event.target.checked) bridge.checked = false;
-  });`,
-    `  $('#workspace-source-editor').addEventListener('change', (event) => {
-    if (event.target.matches('[name="workspace-source-mode"]')) {
-      const custom = event.target.value === 'custom';
-      $$('[data-space-source]').forEach((input) => { input.disabled = !custom; });
-      $$('[data-bridge-source]').forEach((input) => {
-        const member = $(`[data-space-source="${'${CSS.escape(input.dataset.bridgeSource)}'}"]`);
-        input.disabled = !custom || !member?.checked;
-        if (!custom) input.checked = false;
-      });
-      return;
-    }
-    if (!event.target.matches('[data-space-source]')) return;
-    const bridge = $(`[data-bridge-source="${'${CSS.escape(event.target.dataset.spaceSource)}'}"]`);
-    bridge.disabled = !event.target.checked;
-    if (!event.target.checked) bridge.checked = false;
-  });`,
-    'source picker mode interactions',
-  );
+  const oldSourcePickerListener = [
+    "  $('#workspace-source-editor').addEventListener('change', (event) => {",
+    "    if (!event.target.matches('[data-space-source]')) return;",
+    "    const bridge = $(`[data-bridge-source=\"${CSS.escape(event.target.dataset.spaceSource)}\"]`);",
+    "    bridge.disabled = !event.target.checked;",
+    "    if (!event.target.checked) bridge.checked = false;",
+    "  });",
+  ].join('\n');
+  const newSourcePickerListener = [
+    "  $('#workspace-source-editor').addEventListener('change', (event) => {",
+    "    if (event.target.matches('[name=\"workspace-source-mode\"]')) {",
+    "      const custom = event.target.value === 'custom';",
+    "      $$('[data-space-source]').forEach((input) => { input.disabled = !custom; });",
+    "      $$('[data-bridge-source]').forEach((input) => {",
+    "        const member = $('[data-space-source=\"' + CSS.escape(input.dataset.bridgeSource) + '\"]');",
+    "        input.disabled = !custom || !member?.checked;",
+    "      });",
+    "      return;",
+    "    }",
+    "    if (!event.target.matches('[data-space-source]')) return;",
+    "    const bridge = $('[data-bridge-source=\"' + CSS.escape(event.target.dataset.spaceSource) + '\"]');",
+    "    bridge.disabled = !event.target.checked;",
+    "    if (!event.target.checked) bridge.checked = false;",
+    "  });",
+  ].join('\n');
+  source = replaceRequired(source, oldSourcePickerListener, newSourcePickerListener, 'source picker mode interactions');
 
   fs.writeFileSync(jsPath, source, 'utf8');
 

@@ -26,6 +26,7 @@ COPY start.cjs ./start.cjs
 COPY oauth-authorize-recovery-bootstrap.cjs ./oauth-authorize-recovery-bootstrap.cjs
 COPY account-recovery-bootstrap.cjs ./account-recovery-bootstrap.cjs
 COPY admin-recovery-bootstrap.cjs ./admin-recovery-bootstrap.cjs
+COPY commlink-feed-projection-bootstrap.cjs ./commlink-feed-projection-bootstrap.cjs
 COPY commlink-rich-chat-bootstrap.cjs ./commlink-rich-chat-bootstrap.cjs
 COPY cloud-xbox-bootstrap.cjs ./cloud-xbox-bootstrap.cjs
 COPY tenant-overlay-events-bootstrap.cjs ./tenant-overlay-events-bootstrap.cjs

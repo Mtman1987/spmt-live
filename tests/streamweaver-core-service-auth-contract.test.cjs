@@ -1,6 +1,8 @@
 const fs = require('node:fs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const jwt = require('jsonwebtoken');
+const { hasServiceRecoveryAccess } = require('../admin-recovery-bootstrap.cjs');
 
 const server = fs.readFileSync('server.ts', 'utf8');
 const scopePatch = fs.readFileSync('scripts/patch-canonical-service-scopes.mjs', 'utf8');
@@ -11,17 +13,52 @@ test('StreamWeaver receives only its approved core service scopes', () => {
   assert.match(server, /OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT/);
 });
 
-test('admin recovery accepts canonical StreamWeaver client credentials', () => {
-  assert.match(recovery, /payload\?\.client_id === 'streamweaver'/);
-  assert.match(recovery, /payload\?\.token_use === 'client_credentials'/);
-  assert.match(recovery, /scopes\.includes\('account-recovery:write'\)/);
-  assert.match(recovery, /jwt\.verify\(bearer, jwtSecret\)/);
+test('client credentials require an explicit narrow scope', () => {
+  assert.match(scopePatch, /client_credentials requires an explicit scope/);
+  assert.match(scopePatch, /const scopes = Array\.from\(new Set\(requestedScopes\)\)/);
 });
 
-test('admin recovery preserves Discord requester and SPMT admin verification', () => {
+test('admin recovery behavior accepts only the scoped StreamWeaver machine identity', () => {
+  const previous = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = 'service-auth-contract-secret';
+  try {
+    const good = jwt.sign({
+      client_id: 'streamweaver',
+      token_use: 'client_credentials',
+      scopes: ['account-recovery:write'],
+    }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: 60 });
+    const wrongScope = jwt.sign({
+      client_id: 'streamweaver',
+      token_use: 'client_credentials',
+      scopes: ['events:write'],
+    }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: 60 });
+    const wrongClient = jwt.sign({
+      client_id: 'discord-stream-hub',
+      token_use: 'client_credentials',
+      scopes: ['account-recovery:write'],
+    }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: 60 });
+
+    assert.equal(hasServiceRecoveryAccess({ headers: { authorization: `Bearer ${good}` } }), true);
+    assert.equal(hasServiceRecoveryAccess({ headers: { authorization: `Bearer ${wrongScope}` } }), false);
+    assert.equal(hasServiceRecoveryAccess({ headers: { authorization: `Bearer ${wrongClient}` } }), false);
+    assert.equal(hasServiceRecoveryAccess({ headers: {} }), false);
+  } finally {
+    if (previous === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = previous;
+  }
+});
+
+test('admin recovery pins the machine JWT algorithm and preserves human admin authorization', () => {
+  assert.match(recovery, /algorithms: \['HS256'\]/);
   assert.match(recovery, /requesterDiscordId/);
   assert.match(recovery, /WHERE discord_id = \? AND is_admin = 1/);
   assert.match(recovery, /SPMT owner\/admin verification failed/);
+});
+
+test('service-published events are readable by their own machine source app', () => {
+  assert.match(scopePatch, /req\.platformKey\.service/);
+  assert.match(scopePatch, /WHERE created_by IS NULL AND source_app = \?/);
+  assert.match(scopePatch, /\.all\(req\.platformKey\.appId, limit\)/);
 });
 
 test('legacy recovery key is compatibility-only with bounded telemetry', () => {

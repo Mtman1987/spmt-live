@@ -90,6 +90,7 @@ require('../athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
 require('../tenant-overlay-bootstrap.cjs').installTenantOverlayBootstrap();
 require('../commlink-diagnostic-bootstrap.cjs').installCommlinkDiagnosticBootstrap();
 require('../easter-egg-entitlement-bootstrap.cjs').installEasterEggEntitlementBootstrap();
+require('../lost-signal-transmission-bootstrap.cjs').installLostSignalTransmissionBootstrap();
 
 await import('../dist/server.cjs');
 

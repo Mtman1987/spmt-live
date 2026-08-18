@@ -15,6 +15,8 @@ test('Lost Signal game is a five-minute transmitter puzzle with three carrier lo
   assert.match(source, /HOLD_MS=1800/);
   assert.match(source, /SIGNAL STABILIZED/);
   assert.match(source, /SIGNAL LOST/);
+  assert.match(source, /Three carrier bands are out of phase/);
+  assert.doesNotMatch(source, /carrier bands are drifting out of phase/i);
 });
 
 test('Lost Signal grows the black-hole pressure and keeps the warranty reveal', () => {
@@ -24,6 +26,9 @@ test('Lost Signal grows the black-hole pressure and keeps the warranty reveal', 
   assert.match(source, /coverage may expire/);
   assert.match(source, /spacecraft\\'s extended warranty/);
   assert.match(source, /TRANSMISSION TERMINATED/);
+  assert.match(source, /@keyframes signalReturn/);
+  assert.match(source, /successReturn/);
+  assert.match(source, /setTimeout\(showSuccessResult,1900\)/);
 });
 
 test('Lost Signal completion joins the shared canonical egg record without message wiring', () => {

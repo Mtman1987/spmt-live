@@ -18,10 +18,13 @@
     .fragment{margin-top:12px;min-height:22px;font:700 12px/1.4 ui-monospace,monospace;color:#a8c7ff;letter-spacing:.06em}
     .channels{display:grid;gap:14px;margin-top:18px}.channel{border:1px solid #202942;border-radius:12px;padding:13px;background:#060a15}.row{display:flex;justify-content:space-between;gap:12px;align-items:center}.label{font-size:12px;font-weight:900;letter-spacing:.12em}.lock{font-size:11px;color:#718096}.channel.locked{border-color:#2dd4bf88;box-shadow:0 0 22px #14b8a633}.channel.locked .lock{color:#5eead4;font-weight:900}.meter{height:7px;background:#0b1324;border-radius:999px;overflow:hidden;margin:10px 0}.meter>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#334155,#60a5fa,#5eead4);transition:width .12s linear}.readout{font:700 11px ui-monospace,monospace;color:#8fa0b8}
     input[type=range]{width:100%;accent-color:#7dd3fc}
-    .voidWrap{display:grid;place-items:center;min-height:340px;position:relative}.void{width:92px;height:92px;border-radius:50%;background:radial-gradient(circle,#000 0 33%,#140829 39%,#5b21b6 47%,#22d3ee 53%,#7c3aed 58%,transparent 68%);box-shadow:0 0 34px #7c3aed99,0 0 76px #22d3ee44;animation:spin 6s linear infinite,pulse 1.3s ease-in-out infinite alternate;transform:scale(var(--void-scale,1));transition:transform 1s linear;z-index:2}.rings{position:absolute;width:220px;height:220px;border:1px solid #7c3aed33;border-radius:50%;box-shadow:0 0 70px #4f46e522}.rings:after,.rings:before{content:"";position:absolute;inset:28px;border:1px dashed #38bdf844;border-radius:50%}.rings:after{inset:58px;animation:spin 8s linear infinite reverse}
+    .voidWrap{display:grid;place-items:center;min-height:340px;position:relative}.void{width:92px;height:92px;border-radius:50%;background:radial-gradient(circle,#000 0 33%,#140829 39%,#5b21b6 47%,#22d3ee 53%,#7c3aed 58%,transparent 68%);box-shadow:0 0 34px #7c3aed99,0 0 76px #22d3ee44;animation:spin 6s linear infinite,pulse 1.3s ease-in-out infinite alternate;transform:scale(var(--void-scale,1));transition:transform 1s linear;z-index:2}.void.successReturn{animation:signalReturn 1.9s cubic-bezier(.7,.05,.2,1) forwards;transition:none}.rings.successReturn{animation:ringsReturn 1.9s ease-in forwards}
+    .rings{position:absolute;width:220px;height:220px;border:1px solid #7c3aed33;border-radius:50%;box-shadow:0 0 70px #4f46e522}.rings:after,.rings:before{content:"";position:absolute;inset:28px;border:1px dashed #38bdf844;border-radius:50%}.rings:after{inset:58px;animation:spin 8s linear infinite reverse}
     .help{font-size:12px;color:#8796ad;line-height:1.6;margin-top:16px}.help b{color:#dbeafe}.login{display:none;margin-top:12px;padding:10px 12px;border:1px solid #7f1d1d;border-radius:10px;background:#2b0b12;color:#fecaca;font-size:12px}
     .result{position:fixed;inset:0;z-index:30;display:none;place-items:center;background:#010205f2;padding:24px;text-align:center}.result.show{display:grid}.result .card{max-width:720px}.result h2{font-size:clamp(30px,7vw,72px);margin:0 0 18px;letter-spacing:-.04em}.console{font:700 clamp(13px,2.2vw,19px)/1.8 ui-monospace,monospace;color:#dbeafe;white-space:pre-line}.reward{margin-top:22px;padding:16px;border:1px solid #2dd4bf66;border-radius:14px;color:#99f6e4;background:#042f2e55}.failVoid{position:fixed;left:50%;top:50%;width:130px;height:130px;margin:-65px;border-radius:50%;z-index:29;display:none;background:radial-gradient(circle,#000 0 42%,#2e1065 58%,#020617 71%);box-shadow:0 0 70px #7c3aedaa;animation:consume 3.1s ease-in forwards}.failVoid.show{display:block}
     @keyframes spin{to{rotate:360deg}}@keyframes pulse{from{filter:brightness(.78)}to{filter:brightness(1.25)}}@keyframes consume{0%{transform:scale(1)}100%{transform:scale(35)}}
+    @keyframes signalReturn{0%{transform:scale(6.8);opacity:1;filter:brightness(1.3)}58%{transform:scale(1.05);opacity:1;filter:brightness(1.05)}84%{transform:scale(.18);opacity:.9;filter:brightness(1.7)}100%{transform:scale(0);opacity:0;filter:brightness(2)}}
+    @keyframes ringsReturn{0%{transform:scale(2.4);opacity:.8}70%{transform:scale(.65);opacity:.45}100%{transform:scale(0);opacity:0}}
     @media(max-width:760px){main{grid-template-columns:1fr}.voidWrap{min-height:240px}header{align-items:flex-start}.timer{font-size:23px}}
   </style>
 </head>
@@ -32,7 +35,7 @@
     <main>
       <section class="panel">
         <h1>The Lost Signal</h1>
-        <p class="sub">Three carrier bands are drifting out of phase. Tune each one until the signal locks. The anomaly is getting closer.</p>
+        <p class="sub">Three carrier bands are out of phase. Tune each one until the signal locks. The anomaly is getting closer.</p>
         <div class="wave"><canvas id="scope" width="720" height="150"></canvas></div>
         <div class="fragment" id="fragment">...urgent matter...</div>
         <div class="channels" id="channels"></div>
@@ -40,7 +43,7 @@
       </section>
       <aside class="panel">
         <div class="eyebrow">ANOMALY MASS</div>
-        <div class="voidWrap"><div class="rings"></div><div class="void" id="void"></div></div>
+        <div class="voidWrap"><div class="rings" id="rings"></div><div class="void" id="void"></div></div>
         <div class="help"><b>Receiver note:</b> signal strength rises as each band approaches phase lock. Hold all three carriers steady long enough to stabilize the path.</div>
       </aside>
     </main>
@@ -54,7 +57,7 @@
   const DURATION=300000, LOCK_TOLERANCE=4, HOLD_MS=1800;
   const targets=[27,63,84];
   const fragments=['...urgent matter...','...your vessel...','...coverage may expire...','...attempting final contact...','...carrier instability increasing...'];
-  const channelsEl=document.getElementById('channels'), timerEl=document.getElementById('timer'), fragmentEl=document.getElementById('fragment'), voidEl=document.getElementById('void');
+  const channelsEl=document.getElementById('channels'), timerEl=document.getElementById('timer'), fragmentEl=document.getElementById('fragment'), voidEl=document.getElementById('void'), ringsEl=document.getElementById('rings');
   const scope=document.getElementById('scope'), ctx=scope.getContext('2d');
   const result=document.getElementById('result'), resultTitle=document.getElementById('resultTitle'), resultConsole=document.getElementById('resultConsole'), reward=document.getElementById('reward'), loginWarning=document.getElementById('loginWarning');
   let started=performance.now(), raf=0, stableSince=0, finished=false, lastFragment=-1;
@@ -95,15 +98,22 @@
     ctx.beginPath(); for(let x=0;x<w;x+=3){const t=x/w*Math.PI*8+now/420; const y=h/2+Math.sin(t)*24+Math.sin(t*2.3)*9+(Math.random()-.5)*noise; x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}
     ctx.strokeStyle=states.every(s=>s.locked)?'#5eead4':'#7dd3fc';ctx.lineWidth=2;ctx.shadowBlur=12;ctx.shadowColor=ctx.strokeStyle;ctx.stroke();ctx.shadowBlur=0;
   }
-  function finishSuccess(){
-    if(finished)return; finished=true; cancelAnimationFrame(raf); document.getElementById('status').textContent='SIGNAL STABILIZED';
+  function freezeControls(){ states.forEach(state=>{ if(state.input) state.input.disabled=true; }); }
+  function showSuccessResult(){
     result.classList.add('show'); resultTitle.textContent='SIGNAL STABILIZED';
     resultConsole.textContent='SOURCE RESOLVED\nDECODING TRANSMISSION...\n\nHello.\nWe\'ve been trying to reach you regarding your spacecraft\'s extended warranty.\nYour vessel may qualify for—\n\nTRANSMISSION TERMINATED';
     reward.hidden=false; reward.textContent='TRANSMITTER AUTHORIZATION RETAINED · Outbound carrier unlocked · Command: !signal';
+  }
+  function finishSuccess(){
+    if(finished)return; finished=true; cancelAnimationFrame(raf); freezeControls(); document.getElementById('status').textContent='SIGNAL STABILIZED';
+    voidEl.style.setProperty('--void-scale','6.8');
+    void voidEl.offsetWidth;
+    voidEl.classList.add('successReturn'); ringsEl.classList.add('successReturn');
     persistSignal().catch(()=>{loginWarning.style.display='block'});
+    setTimeout(showSuccessResult,1900);
   }
   function finishFailure(){
-    if(finished)return; finished=true; cancelAnimationFrame(raf); const f=document.getElementById('failVoid'); f.classList.add('show'); document.getElementById('status').textContent='CARRIER COLLAPSE';
+    if(finished)return; finished=true; cancelAnimationFrame(raf); freezeControls(); const f=document.getElementById('failVoid'); f.classList.add('show'); document.getElementById('status').textContent='CARRIER COLLAPSE';
     setTimeout(()=>{result.classList.add('show'); resultTitle.textContent='SIGNAL LOST'; resultConsole.textContent='NO CARRIER\nNO RETURN PATH\n\nThe receiver will accept another attempt.';},2800);
   }
   function tick(now){

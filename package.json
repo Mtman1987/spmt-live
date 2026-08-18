@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "patch:canonical-service-scopes": "node scripts/patch-canonical-service-scopes.mjs",
-    "patch:runtime-contracts": "npm run patch:canonical-service-scopes && node scripts/patch-lost-signal-persistence-confirmation.mjs",
+    "patch:runtime-contracts": "npm run patch:canonical-service-scopes && node scripts/patch-lost-signal-persistence-confirmation.mjs && node scripts/patch-black-hole-easter-egg-reliability.mjs",
     "predev": "npm run patch:runtime-contracts",
     "dev": "tsx watch server.ts",
     "pretypecheck": "npm run patch:runtime-contracts",

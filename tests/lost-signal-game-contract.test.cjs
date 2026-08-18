@@ -41,7 +41,19 @@ test('Lost Signal uses generated transmissions with a warranty fallback and atmo
   assert.match(source, /AUDIO OFF/);
   assert.match(source, /@keyframes signalReturn/);
   assert.match(source, /successReturn/);
-  assert.match(source, /setTimeout\(showSuccessResult,1900\)/);
+  assert.match(source, /setTimeout\(async\(\)=>/);
+});
+
+test('Lost Signal only claims retained authorization after bounded canonical persistence confirmation', () => {
+  assert.match(source, /function showSuccessResult\(persisted\)/);
+  assert.match(source, /const persistence=Promise\.race\(\[/);
+  assert.match(source, /persistSignal\(\)\.then\(\(\)=>true\)\.catch\(\(\)=>false\)/);
+  assert.match(source, /new Promise\(resolve=>setTimeout\(\(\)=>resolve\(false\),6000\)\)/);
+  assert.match(source, /const persisted=await persistence/);
+  assert.match(source, /showSuccessResult\(persisted\)/);
+  assert.match(source, /persisted[\s\S]*TRANSMITTER AUTHORIZATION RETAINED/);
+  assert.match(source, /TRANSMITTER AUTHORIZATION NOT RETAINED/);
+  assert.doesNotMatch(source, /persistSignal\(\)\.catch\(\(\)=>\{loginWarning\.style\.display='block'\}\); setTimeout\(showSuccessResult,1900\)/);
 });
 
 test('Lost Signal transmission proxy keeps the model key server-side and falls back safely', () => {

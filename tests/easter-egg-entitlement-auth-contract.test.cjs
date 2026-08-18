@@ -18,10 +18,11 @@ test('easter egg entitlement accepts scoped StreamWeaver client-credentials toke
 test('StreamWeaver entitlement service scope is applied consistently', () => {
   assert.match(scopePatch, /entitlements:read/);
   assert.equal(packageJson.scripts['patch:canonical-service-scopes'], 'node scripts/patch-canonical-service-scopes.mjs');
-  assert.equal(packageJson.scripts.predev, 'npm run patch:canonical-service-scopes');
-  assert.equal(packageJson.scripts.pretypecheck, 'npm run patch:canonical-service-scopes');
-  assert.equal(packageJson.scripts.prebuild, 'npm run patch:canonical-service-scopes');
-  assert.match(packageJson.scripts.prestart, /patch:canonical-service-scopes/);
+  assert.match(packageJson.scripts['patch:runtime-contracts'], /patch:canonical-service-scopes/);
+  assert.equal(packageJson.scripts.predev, 'npm run patch:runtime-contracts');
+  assert.equal(packageJson.scripts.pretypecheck, 'npm run patch:runtime-contracts');
+  assert.equal(packageJson.scripts.prebuild, 'npm run patch:runtime-contracts');
+  assert.match(packageJson.scripts.prestart, /patch:runtime-contracts/);
 });
 
 test('production installs and ships the easter egg entitlement route', () => {

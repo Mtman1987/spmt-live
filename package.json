@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch server.ts",
     "typecheck": "tsc --noEmit",
+    "prebuild": "node scripts/patch-canonical-service-scopes.mjs",
     "build": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "sdk:build": "esbuild sdk/index.ts --bundle --platform=neutral --format=esm --target=es2022 --outfile=sdk/dist/index.js && tsc sdk/index.ts --declaration --emitDeclarationOnly --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck --outDir sdk/dist",
     "sdk:package": "npm run sdk:build && node scripts/package-sdk.mjs",

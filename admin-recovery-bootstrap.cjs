@@ -41,7 +41,7 @@ function hasServiceRecoveryAccess(req) {
   const jwtSecret = String(process.env.JWT_SECRET || '').trim();
   if (!bearer || !jwtSecret) return false;
   try {
-    const payload = jwt.verify(bearer, jwtSecret);
+    const payload = jwt.verify(bearer, jwtSecret, { algorithms: ['HS256'] });
     const scopes = Array.isArray(payload?.scopes) ? payload.scopes.map(String) : [];
     return payload?.client_id === 'streamweaver'
       && payload?.token_use === 'client_credentials'

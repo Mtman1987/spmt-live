@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "spmt.auth-migrations/v1",
+  "updatedAt": "2026-08-18T05:30:00Z",
+  "policy": {
+    "legacyAcceptance": "compatibility-only",
+    "newLegacyAuthAllowed": false,
+    "retireAfterZeroUse": true,
+    "canonicalUserAuth": "spmt-oauth-user-session",
+    "canonicalServiceAuth": "spmt-oauth-client-credentials"
+  },
+  "entries": [
+    {
+      "id": "AUTH-DSH-001",
+      "status": "active-legacy",
+      "caller": { "repo": "Mtman1987/DiscordStreamHub", "path": "src/lib/spmt-client.ts" },
+      "callee": { "repo": "Mtman1987/spmt-live", "route": "/api/platform/identity/grandfather" },
+      "legacy": { "env": ["SPMT_API_KEY"], "transport": "Authorization: Bearer <legacy platform key>" },
+      "canonical": { "type": "client_credentials", "clientId": "discord-stream-hub", "scopes": ["identity:write"] },
+      "notes": "Add DSH service scope before switching caller. Keep SPMT developer-key acceptance during migration."
+    },
+    {
+      "id": "AUTH-DSH-002",
+      "status": "active-legacy",
+      "caller": { "repo": "Mtman1987/DiscordStreamHub", "path": "src/lib/spmt-wallet-client.ts" },
+      "callee": { "repo": "Mtman1987/spmt-live", "route": "/api/platform/xp/*" },
+      "legacy": { "env": ["SPMT_API_KEY"], "transport": "Authorization: Bearer <legacy platform key>" },
+      "canonical": { "type": "client_credentials", "clientId": "discord-stream-hub", "scopes": ["xp:write"] },
+      "notes": "Extend DSH service scope allow-list first."
+    },
+    {
+      "id": "AUTH-DSH-003",
+      "status": "active-legacy",
+      "caller": { "repo": "Mtman1987/DiscordStreamHub", "path": "src/lib/mtfixit-orchestrator.ts" },
+      "callee": { "repo": "Mtman1987/fly-machine-rotator", "route": "/api/dsh/mtfixit/*" },
+      "legacy": { "env": ["SPMT_API_KEY", "SPMT_PLATFORM_API_KEY"], "transport": "x-dsh-mtfixit-key" },
+      "canonical": { "type": "client_credentials", "clientId": "discord-stream-hub", "scopes": ["athena:write"] },
+      "notes": "Highest-priority migration. DSH already has athena:write service scope. Rotator should verify the SPMT service token and caller identity."
+    },
+    {
+      "id": "AUTH-DSH-004",
+      "status": "active-legacy",
+      "caller": { "repo": "Mtman1987/DiscordStreamHub", "path": "src/app/api/discord/gateway-ingress/route.ts" },
+      "callee": { "repo": "Mtman1987/DiscordStreamHub", "route": "/api/discord/mtfixit" },
+      "legacy": { "env": ["DISCORD_BOT_TOKEN"], "transport": "x-discord-bot-token reused as same-app internal authorization" },
+      "canonical": { "type": "same-process", "clientId": null, "scopes": [] },
+      "notes": "Provider token remains required for Discord API calls; only its reuse as internal app auth is migration debt. Prefer direct module call."
+    },
+    {
+      "id": "AUTH-SW-001",
+      "status": "active-legacy",
+      "caller": { "repo": "Mtman1987/streamweaver", "path": "src/lib/spmt-client.ts" },
+      "callee": { "repo": "Mtman1987/spmt-live", "route": "/api/platform/events" },
+      "legacy": { "env": ["SPMT_API_KEY"], "transport": "Authorization: Bearer <legacy platform key>" },
+      "canonical": { "type": "client_credentials", "clientId": "streamweaver", "scopes": ["events:write"] },
+      "notes": "Register least-privilege StreamWeaver service scopes before switching."
+    },
+    {
+      "id": "AUTH-SW-002",
+      "status": "active-legacy",
+      "caller": { "repo": "Mtman1987/streamweaver", "path": "src/lib/spmt-client.ts" },
+      "callee": { "repo": "Mtman1987/spmt-live", "route": "/api/internal/auth/admin-recovery-code" },
+      "legacy": { "env": ["SPMT_SYSTEM_KEY"], "transport": "x-spmt-key" },
+      "canonical": { "type": "client_credentials", "clientId": "streamweaver", "scopes": ["account-recovery:write"] },
+      "notes": "Keep immutable Discord requester and SPMT admin checks in addition to service auth."
+    },
+    {
+      "id": "AUTH-SW-003",
+      "status": "active-legacy",
+      "caller": { "repo": "Mtman1987/streamweaver", "path": "src/lib/spmt-easter-eggs.ts" },
+      "callee": { "repo": "Mtman1987/spmt-live", "route": "/api/internal/easter-eggs/entitlement" },
+      "legacy": { "env": ["SPMT_SYSTEM_KEY"], "transport": "x-spmt-key" },
+      "canonical": { "type": "client_credentials", "clientId": "streamweaver", "scopes": ["entitlements:read"] },
+      "notes": "Define narrow read scope before migration."
+    },
+    {
+      "id": "AUTH-SW-004",
+      "status": "active-legacy",
+      "caller": { "repo": "Mtman1987/spmt-live", "path": "server.ts" },
+      "callee": { "repo": "Mtman1987/streamweaver", "route": "/api/shared-chat/spmt-feed" },
+      "legacy": { "env": ["SYSTEM_API_KEY", "SPMT_SYSTEM_KEY"], "transport": "x-spmt-key + tenant/user context headers" },
+      "canonical": { "type": "client_credentials", "clientId": "spmt-core", "scopes": ["commlink:read"] },
+      "notes": "Register an SPMT core service identity and keep tenant/user context separate from authentication."
+    },
+    {
+      "id": "AUTH-SW-005",
+      "status": "active-legacy",
+      "caller": { "repo": "Mtman1987/spmt-live", "path": "server.ts" },
+      "callee": { "repo": "Mtman1987/streamweaver", "route": "/api/shared-chat/spmt-operator" },
+      "legacy": { "env": ["SYSTEM_API_KEY", "SPMT_SYSTEM_KEY"], "transport": "x-spmt-key + tenant/user context headers" },
+      "canonical": { "type": "client_credentials", "clientId": "spmt-core", "scopes": ["commlink:control"] },
+      "notes": "Use separate control scope from read-only feed."
+    },
+    {
+      "id": "AUTH-SW-006",
+      "status": "active-legacy",
+      "caller": { "repo": "Mtman1987/spmt-live", "path": "server.ts" },
+      "callee": { "repo": "Mtman1987/streamweaver", "route": "/api/shared-chat/spmt-dispatch" },
+      "legacy": { "env": ["SYSTEM_API_KEY", "SPMT_SYSTEM_KEY"], "transport": "x-spmt-key + tenant/user context headers" },
+      "canonical": { "type": "client_credentials", "clientId": "spmt-core", "scopes": ["commlink:dispatch"] },
+      "notes": "Provider dispatch/moderation is higher-risk than feed read."
+    },
+    {
+      "id": "AUTH-CT-001",
+      "status": "active-legacy",
+      "caller": { "repo": "Mtman1987/chat-tag", "path": "src/lib/spmt-client.ts" },
+      "callee": { "repo": "Mtman1987/spmt-live", "route": "/api/platform/*" },
+      "legacy": { "env": ["SPMT_API_KEY"], "transport": "Authorization: Bearer <legacy platform key>" },
+      "canonical": { "type": "client_credentials", "clientId": "chat-tag", "scopes": ["identity:write", "events:write", "xp:write"] },
+      "notes": "Trim scopes to actual live methods during migration."
+    },
+    {
+      "id": "AUTH-HMO-001",
+      "status": "active-legacy",
+      "caller": { "repo": "Mtman1987/hearmeout-main", "path": "src/lib/spmt-client.ts" },
+      "callee": { "repo": "Mtman1987/spmt-live", "route": "/api/platform/*" },
+      "legacy": { "env": ["SPMT_API_KEY"], "transport": "Authorization: Bearer <legacy platform key>" },
+      "canonical": { "type": "client_credentials", "clientId": "hearmeout", "scopes": ["identity:write", "events:write"] },
+      "notes": "Trim scopes to actual live methods during migration."
+    },
+    {
+      "id": "AUTH-ROT-001",
+      "status": "active-legacy",
+      "caller": { "repo": "Mtman1987/DiscordStreamHub", "path": "src/lib/mtfixit-orchestrator.ts" },
+      "callee": { "repo": "Mtman1987/fly-machine-rotator", "route": "/api/dsh/mtfixit/*" },
+      "legacy": { "env": ["SPMT_API_KEY", "SPMT_PLATFORM_API_KEY", "DSH_MTFIXIT_KEY", "CLOUDFLARE_WORKER_BRIDGE_SECRET", "INTERNAL_BRIDGE_KEY"], "transport": "x-dsh-mtfixit-key or x-cloudflare-bridge-secret" },
+      "canonical": { "type": "service-token-validation", "clientId": "discord-stream-hub", "scopes": ["athena:write"] },
+      "notes": "Rotator should verify DSH service bearer through SPMT /api/oauth/serviceinfo. Keep all legacy aliases until canonical traffic is verified."
+    },
+    {
+      "id": "AUTH-ROT-002",
+      "status": "blocked-contract-redesign",
+      "caller": { "repo": "Mtman1987/fly-machine-rotator", "path": "src/companionDiagnostics.ts" },
+      "callee": { "repo": "Mtman1987/spmt-live", "route": "/api/platform/companion/diagnostics" },
+      "legacy": { "env": ["SPMT_API_KEY", "SPMT_PLATFORM_API_KEY"], "transport": "tenant-bound legacy platform key bearer" },
+      "canonical": { "type": "to-be-designed", "clientId": "rotator", "scopes": ["companion:diagnostics:write"] },
+      "notes": "Current callee derives tenant user from platform-key userId. Service bearer cannot be substituted until tenant authorization is redesigned."
+    }
+  ]
+}

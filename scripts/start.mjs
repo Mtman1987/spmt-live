@@ -23,6 +23,7 @@ const shellScripts = [
   '/shared/workspace-controller.js',
   '/shared/companion-installer-ui.js',
   '/shared/overlay-bay-shell-nav.js',
+  '/shared/black-hole-easter-egg.js',
 ];
 if (!publicIndex.includes('</body>')) throw new Error('SPMT shell bootstrap could not find </body>');
 let shellChanged = false;
@@ -88,6 +89,7 @@ require('../presence-bootstrap.cjs').installPresenceBootstrap();
 require('../athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
 require('../tenant-overlay-bootstrap.cjs').installTenantOverlayBootstrap();
 require('../commlink-diagnostic-bootstrap.cjs').installCommlinkDiagnosticBootstrap();
+require('../easter-egg-entitlement-bootstrap.cjs').installEasterEggEntitlementBootstrap();
 
 await import('../dist/server.cjs');
 

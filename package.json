@@ -13,7 +13,7 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:suite": "node scripts/operations/suite-smoke.mjs",
     "test:identity-reconciliation": "tsx --test tests/identity-reconciliation.test.ts",
-    "test:startup-theme": "node --test tests/startup-theme-bootstrap.test.cjs tests/ecosystem-docs.test.cjs tests/companion-bootstrap-contract.test.cjs tests/session-stale-while-revalidate.test.cjs tests/commlink-feed-projection-contract.test.cjs tests/commlink-source-controls-contract.test.cjs tests/commlink-diagnostic-feed-contract.test.cjs tests/black-hole-easter-egg-contract.test.cjs",
+    "test:startup-theme": "node --test tests/startup-theme-bootstrap.test.cjs tests/ecosystem-docs.test.cjs tests/companion-bootstrap-contract.test.cjs tests/session-stale-while-revalidate.test.cjs tests/commlink-feed-projection-contract.test.cjs tests/commlink-source-controls-contract.test.cjs tests/commlink-diagnostic-feed-contract.test.cjs tests/black-hole-easter-egg-contract.test.cjs tests/lost-signal-game-contract.test.cjs",
     "test:presence": "node --test tests/presence-contract.test.cjs",
     "test:account-recovery": "node --test tests/account-recovery-contract.test.cjs",
     "test:overlay-bay": "node --test tests/overlay-bay-v2-contract.test.cjs",

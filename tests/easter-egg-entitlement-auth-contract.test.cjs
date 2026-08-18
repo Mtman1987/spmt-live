@@ -15,9 +15,13 @@ test('easter egg entitlement accepts scoped StreamWeaver client-credentials toke
   assert.match(bootstrap, /jwt\.verify\(bearer, jwtSecret\)/);
 });
 
-test('StreamWeaver entitlement service scope is applied before build', () => {
-  assert.match(scopePatch, /'streamweaver': \['entitlements:read'\]/);
-  assert.equal(packageJson.scripts.prebuild, 'node scripts/patch-canonical-service-scopes.mjs');
+test('StreamWeaver entitlement service scope is applied consistently', () => {
+  assert.match(scopePatch, /entitlements:read/);
+  assert.equal(packageJson.scripts['patch:canonical-service-scopes'], 'node scripts/patch-canonical-service-scopes.mjs');
+  assert.equal(packageJson.scripts.predev, 'npm run patch:canonical-service-scopes');
+  assert.equal(packageJson.scripts.pretypecheck, 'npm run patch:canonical-service-scopes');
+  assert.equal(packageJson.scripts.prebuild, 'npm run patch:canonical-service-scopes');
+  assert.match(packageJson.scripts.prestart, /patch:canonical-service-scopes/);
 });
 
 test('production installs and ships the easter egg entitlement route', () => {
@@ -26,7 +30,9 @@ test('production installs and ships the easter egg entitlement route', () => {
   assert.match(dockerfile, /CMD \["node", "start\.cjs"\]/);
 });
 
-test('legacy entitlement key remains compatibility-only and emits migration telemetry', () => {
+test('legacy entitlement key remains compatibility-only with bounded telemetry', () => {
   assert.match(bootstrap, /LEGACY_AUTH_USED migration=AUTH-SW-003/);
+  assert.match(bootstrap, /caller=unverified/);
+  assert.match(bootstrap, /LEGACY_AUTH_LOG_INTERVAL_MS/);
   assert.match(bootstrap, /process\.env\.SYSTEM_API_KEY/);
 });

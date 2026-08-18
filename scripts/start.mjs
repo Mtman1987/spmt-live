@@ -84,7 +84,9 @@ await writeFile(serverBundlePath, serverBundle, 'utf8');
 // Register canonical pre-routes before the bundled server creates Express.
 // Presence is intentionally public and privacy-limited; authenticated actions
 // continue to use the existing SPMT OAuth/session bearer. Commlink diagnostics
-// are machine-only and use the existing ecosystem service key.
+// accept the scoped Discord Stream Hub service token first and retain the old
+// machine key only as a migration fallback.
+require('../commlink-service-oauth-patch.cjs').applyCommlinkServiceOauthPatch();
 require('../presence-bootstrap.cjs').installPresenceBootstrap();
 require('../athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
 require('../tenant-overlay-bootstrap.cjs').installTenantOverlayBootstrap();

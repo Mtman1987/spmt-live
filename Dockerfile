@@ -29,6 +29,7 @@ COPY admin-recovery-bootstrap.cjs ./admin-recovery-bootstrap.cjs
 COPY commlink-feed-projection-bootstrap.cjs ./commlink-feed-projection-bootstrap.cjs
 COPY commlink-rich-chat-bootstrap.cjs ./commlink-rich-chat-bootstrap.cjs
 COPY commlink-source-controls-bootstrap.cjs ./commlink-source-controls-bootstrap.cjs
+COPY commlink-diagnostic-bootstrap.cjs ./commlink-diagnostic-bootstrap.cjs
 COPY cloud-xbox-bootstrap.cjs ./cloud-xbox-bootstrap.cjs
 COPY tenant-overlay-events-bootstrap.cjs ./tenant-overlay-events-bootstrap.cjs
 COPY tenant-overlay-bootstrap.cjs ./tenant-overlay-bootstrap.cjs

@@ -37,6 +37,27 @@ test('black-hole puzzle preserves the Cosmo game loop but uses canonical SPMT st
   assert.doesNotMatch(source, /indexedDB/i);
 });
 
+test('black-hole completion only reports stabilized after bounded canonical persistence', () => {
+  const source = read('public/shared/black-hole-easter-egg.js');
+  assert.match(source, /async function finishGame\(won\)/);
+  assert.match(source, /writeCompletion\(\)\.then\(\(\) => true\)/);
+  assert.match(source, /window\.setTimeout\(\(\) => resolve\(false\), 6000\)/);
+  assert.match(source, /persisted \? 'ANOMALY STABILIZED' : 'ANOMALY NOT RETAINED'/);
+  assert.doesNotMatch(source, /result\.innerHTML = `<span>\$\{won \? 'ANOMALY STABILIZED'/);
+});
+
+test('black-hole hidden trigger works with mouse, touch/pointer, and keyboard double activation', () => {
+  const source = read('public/shared/black-hole-easter-egg.js');
+  assert.match(source, /mark\.addEventListener\('dblclick', activate\)/);
+  assert.match(source, /mark\.addEventListener\('pointerup'/);
+  assert.match(source, /event\.pointerType === 'mouse'/);
+  assert.match(source, /lastPointerActivationAt/);
+  assert.match(source, /mark\.addEventListener\('keydown'/);
+  assert.match(source, /event\.key !== 'Enter' && event\.key !== ' '/);
+  assert.match(source, /lastKeyboardActivationAt/);
+  assert.match(source, /mark\.tabIndex = 0/);
+});
+
 test('machine-only entitlement derives Voidwalker from the three canonical egg flags', () => {
   const source = read('easter-egg-entitlement-bootstrap.cjs');
   assert.doesNotThrow(() => new vm.Script(source), 'entitlement bootstrap must remain valid CommonJS');

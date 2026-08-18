@@ -6,7 +6,9 @@ const path = require('node:path');
 
 const APP_ID = 'spacemountain-live';
 const NAMESPACE = 'easter-eggs';
+const LEGACY_AUTH_LOG_INTERVAL_MS = 60_000;
 let entitlementDb = null;
+let lastLegacyAuthLogAt = 0;
 
 function openDb() {
   if (entitlementDb) return entitlementDb;
@@ -38,8 +40,9 @@ function legacySystemAuthorized(req) {
   const configured = String(process.env.SYSTEM_API_KEY || '').trim();
   const provided = String(req.headers['x-spmt-key'] || '').trim();
   const authorized = Boolean(configured && provided && provided === configured);
-  if (authorized) {
-    console.warn('[auth-migration] LEGACY_AUTH_USED migration=AUTH-SW-003 caller=streamweaver route=/api/internal/easter-eggs/entitlement transport=x-spmt-key');
+  if (authorized && Date.now() - lastLegacyAuthLogAt >= LEGACY_AUTH_LOG_INTERVAL_MS) {
+    lastLegacyAuthLogAt = Date.now();
+    console.warn('[auth-migration] LEGACY_AUTH_USED migration=AUTH-SW-003 caller=unverified route=/api/internal/easter-eggs/entitlement transport=x-spmt-key');
   }
   return authorized;
 }

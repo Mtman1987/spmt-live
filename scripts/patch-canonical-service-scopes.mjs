@@ -35,7 +35,7 @@ function ensureClientScopes(clientId, requiredScopes) {
   source = source.slice(0, blockStart) + nextBlock + source.slice(blockEnd);
 }
 
-ensureClientScopes('streamweaver', ['entitlements:read']);
+ensureClientScopes('streamweaver', ['entitlements:read', 'events:write', 'account-recovery:write']);
 ensureClientScopes('discord-stream-hub', ['discord:control', 'athena:write', 'identity:write', 'events:write', 'xp:write']);
 
 fs.writeFileSync(serverFile, source, 'utf8');

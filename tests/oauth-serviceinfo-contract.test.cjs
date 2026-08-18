@@ -4,8 +4,16 @@ const assert = require('node:assert/strict');
 
 const source = fs.readFileSync('server.ts', 'utf8');
 
-test('Discord Stream Hub has only its approved service OAuth scopes', () => {
-  assert.ok(source.includes("'discord-stream-hub': ['discord:control', 'athena:write']"));
+test('Discord Stream Hub has its approved canonical service OAuth scopes', () => {
+  const blockStart = source.indexOf('const OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT');
+  const blockEnd = source.indexOf('\n};', blockStart);
+  assert.ok(blockStart >= 0 && blockEnd > blockStart, 'client-credentials scope allow-list should exist');
+  const serviceScopes = source.slice(blockStart, blockEnd);
+  const entry = serviceScopes.match(/'discord-stream-hub': \[([^\]]+)\]/);
+  assert.ok(entry, 'discord-stream-hub client-credentials scope entry should exist');
+  for (const scope of ['discord:control', 'athena:write', 'identity:write', 'events:write', 'xp:write']) {
+    assert.ok(entry[1].includes(`'${scope}'`), `discord-stream-hub should include ${scope}`);
+  }
 });
 
 test('serviceinfo validates signed client-credentials tokens without a user session', () => {

@@ -38,5 +38,55 @@ function ensureClientScopes(clientId, requiredScopes) {
 ensureClientScopes('streamweaver', ['entitlements:read', 'events:write', 'account-recovery:write']);
 ensureClientScopes('discord-stream-hub', ['discord:control', 'athena:write', 'identity:write', 'events:write', 'xp:write']);
 
+const tokenBefore = `    const requestedScopes = String(scope || '').split(/\\s+/).map((value) => value.trim()).filter(Boolean);
+    const scopes = requestedScopes.length ? Array.from(new Set(requestedScopes)) : allowedScopes;
+    if (!scopes.length || scopes.some((value) => !allowedScopes.includes(value))) {`;
+const tokenAfter = `    const requestedScopes = String(scope || '').split(/\\s+/).map((value) => value.trim()).filter(Boolean);
+    if (!requestedScopes.length) {
+      return res.status(400).json({ error: 'client_credentials requires an explicit scope' });
+    }
+    const scopes = Array.from(new Set(requestedScopes));
+    if (scopes.some((value) => !allowedScopes.includes(value))) {`;
+if (source.includes(tokenBefore)) {
+  source = source.replace(tokenBefore, tokenAfter);
+} else if (!source.includes("client_credentials requires an explicit scope")) {
+  throw new Error('SPMT explicit client-credentials scope contract marker missing');
+}
+
+const eventBefore = `app.get('/api/platform/events', authenticatePlatformKey('events:write'), (req: any, res) => {
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+  const events = db.prepare(\`
+    SELECT id, type, version, timestamp, source_app, actor_user_id, actor_username,
+      actor_display_name, visibility, payload, links, created_by, created_at
+    FROM platform_events
+    WHERE created_by = ? AND (? IS NULL OR source_app = ?)
+    ORDER BY datetime(created_at) DESC
+    LIMIT ?
+  \`).all(req.platformKey.userId, req.platformKey.appId, req.platformKey.appId, limit) as any[];`;
+const eventAfter = `app.get('/api/platform/events', authenticatePlatformKey('events:write'), (req: any, res) => {
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+  const events = req.platformKey.service
+    ? db.prepare(\`
+        SELECT id, type, version, timestamp, source_app, actor_user_id, actor_username,
+          actor_display_name, visibility, payload, links, created_by, created_at
+        FROM platform_events
+        WHERE created_by IS NULL AND source_app = ?
+        ORDER BY datetime(created_at) DESC
+        LIMIT ?
+      \`).all(req.platformKey.appId, limit) as any[]
+    : db.prepare(\`
+        SELECT id, type, version, timestamp, source_app, actor_user_id, actor_username,
+          actor_display_name, visibility, payload, links, created_by, created_at
+        FROM platform_events
+        WHERE created_by = ? AND (? IS NULL OR source_app = ?)
+        ORDER BY datetime(created_at) DESC
+        LIMIT ?
+      \`).all(req.platformKey.userId, req.platformKey.appId, req.platformKey.appId, limit) as any[];`;
+if (source.includes(eventBefore)) {
+  source = source.replace(eventBefore, eventAfter);
+} else if (!source.includes('WHERE created_by IS NULL AND source_app = ?')) {
+  throw new Error('SPMT service event read contract marker missing');
+}
+
 fs.writeFileSync(serverFile, source, 'utf8');
-console.log('Canonical SPMT service scopes applied.');
+console.log('Canonical SPMT service scopes and machine contracts applied.');

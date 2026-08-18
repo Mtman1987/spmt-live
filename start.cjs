@@ -78,6 +78,11 @@ require('./commlink-rich-chat-bootstrap.cjs').installCommlinkRichChatBootstrap()
 // after rich chat and before Express begins serving the canonical surface.
 require('./commlink-source-controls-bootstrap.cjs').installCommlinkSourceControlsBootstrap();
 
+// Machine diagnostics use the same bounded, redacted Commlink evidence adapter
+// in production as in the source/start.mjs path. Auth remains compatibility-first
+// while callers migrate to scoped SPMT service OAuth.
+require('./commlink-diagnostic-bootstrap.cjs').installCommlinkDiagnosticBootstrap();
+
 // Install public live presence before the bundled server creates Express. The
 // feed exposes only short-lived app counts and display names; it never exposes
 // session tokens, browser IDs, email addresses, or provider identifiers.

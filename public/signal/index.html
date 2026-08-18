@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SPMT // Lost Signal</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#020308;color:#e5edf7}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(circle at 50% 15%,#111933 0,#070a16 38%,#020308 76%);overflow-x:hidden}
+    body{min-height:100vh;display:grid;place-items:center;padding:22px}
+    .shell{position:relative;width:min(980px,100%);border:1px solid #26304a;border-radius:22px;background:rgba(4,8,18,.92);box-shadow:0 30px 90px #000a,0 0 80px #312e8140;overflow:hidden}
+    .scan{position:absolute;inset:0;pointer-events:none;opacity:.15;background:repeating-linear-gradient(0deg,transparent 0 3px,#9ae6ff1b 4px 5px);mix-blend-mode:screen}
+    header{position:relative;z-index:2;display:flex;justify-content:space-between;gap:16px;align-items:center;padding:18px 22px;border-bottom:1px solid #26304a;background:#050817d9}
+    .eyebrow{font-size:11px;font-weight:900;letter-spacing:.18em;color:#8be9fd}.status{font-size:12px;color:#9aa8bd}.timer{font:900 28px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#f8fafc;text-shadow:0 0 18px #60a5fa88}
+    main{position:relative;z-index:2;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(260px,.8fr);gap:18px;padding:22px}
+    .panel{border:1px solid #26304a;border-radius:16px;background:linear-gradient(180deg,#091022d9,#040711e6);padding:18px;box-shadow:inset 0 1px #ffffff0c}
+    h1{margin:3px 0 6px;font-size:clamp(28px,5vw,54px);letter-spacing:-.04em}.sub{margin:0 0 20px;color:#8fa0b8;line-height:1.55}.wave{height:150px;border:1px solid #1f2b44;border-radius:12px;background:#02050c;overflow:hidden;position:relative}.wave canvas{width:100%;height:100%;display:block}
+    .fragment{margin-top:12px;min-height:22px;font:700 12px/1.4 ui-monospace,monospace;color:#a8c7ff;letter-spacing:.06em}
+    .channels{display:grid;gap:14px;margin-top:18px}.channel{border:1px solid #202942;border-radius:12px;padding:13px;background:#060a15}.row{display:flex;justify-content:space-between;gap:12px;align-items:center}.label{font-size:12px;font-weight:900;letter-spacing:.12em}.lock{font-size:11px;color:#718096}.channel.locked{border-color:#2dd4bf88;box-shadow:0 0 22px #14b8a633}.channel.locked .lock{color:#5eead4;font-weight:900}.meter{height:7px;background:#0b1324;border-radius:999px;overflow:hidden;margin:10px 0}.meter>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#334155,#60a5fa,#5eead4);transition:width .12s linear}.readout{font:700 11px ui-monospace,monospace;color:#8fa0b8}
+    input[type=range]{width:100%;accent-color:#7dd3fc}
+    .voidWrap{display:grid;place-items:center;min-height:340px;position:relative}.void{width:92px;height:92px;border-radius:50%;background:radial-gradient(circle,#000 0 33%,#140829 39%,#5b21b6 47%,#22d3ee 53%,#7c3aed 58%,transparent 68%);box-shadow:0 0 34px #7c3aed99,0 0 76px #22d3ee44;animation:spin 6s linear infinite,pulse 1.3s ease-in-out infinite alternate;transform:scale(var(--void-scale,1));transition:transform 1s linear;z-index:2}.rings{position:absolute;width:220px;height:220px;border:1px solid #7c3aed33;border-radius:50%;box-shadow:0 0 70px #4f46e522}.rings:after,.rings:before{content:"";position:absolute;inset:28px;border:1px dashed #38bdf844;border-radius:50%}.rings:after{inset:58px;animation:spin 8s linear infinite reverse}
+    .help{font-size:12px;color:#8796ad;line-height:1.6;margin-top:16px}.help b{color:#dbeafe}.login{display:none;margin-top:12px;padding:10px 12px;border:1px solid #7f1d1d;border-radius:10px;background:#2b0b12;color:#fecaca;font-size:12px}
+    .result{position:fixed;inset:0;z-index:30;display:none;place-items:center;background:#010205f2;padding:24px;text-align:center}.result.show{display:grid}.result .card{max-width:720px}.result h2{font-size:clamp(30px,7vw,72px);margin:0 0 18px;letter-spacing:-.04em}.console{font:700 clamp(13px,2.2vw,19px)/1.8 ui-monospace,monospace;color:#dbeafe;white-space:pre-line}.reward{margin-top:22px;padding:16px;border:1px solid #2dd4bf66;border-radius:14px;color:#99f6e4;background:#042f2e55}.failVoid{position:fixed;left:50%;top:50%;width:130px;height:130px;margin:-65px;border-radius:50%;z-index:29;display:none;background:radial-gradient(circle,#000 0 42%,#2e1065 58%,#020617 71%);box-shadow:0 0 70px #7c3aedaa;animation:consume 3.1s ease-in forwards}.failVoid.show{display:block}
+    @keyframes spin{to{rotate:360deg}}@keyframes pulse{from{filter:brightness(.78)}to{filter:brightness(1.25)}}@keyframes consume{0%{transform:scale(1)}100%{transform:scale(35)}}
+    @media(max-width:760px){main{grid-template-columns:1fr}.voidWrap{min-height:240px}header{align-items:flex-start}.timer{font-size:23px}}
+  </style>
+</head>
+<body>
+  <section class="shell" id="gameShell">
+    <div class="scan"></div>
+    <header><div><div class="eyebrow">SPMT // UNAUTHORIZED CARRIER</div><div class="status" id="status">SIGNAL DETECTED · SOURCE UNKNOWN</div></div><div class="timer" id="timer">05:00</div></header>
+    <main>
+      <section class="panel">
+        <h1>The Lost Signal</h1>
+        <p class="sub">Three carrier bands are drifting out of phase. Tune each one until the signal locks. The anomaly is getting closer.</p>
+        <div class="wave"><canvas id="scope" width="720" height="150"></canvas></div>
+        <div class="fragment" id="fragment">...urgent matter...</div>
+        <div class="channels" id="channels"></div>
+        <div class="login" id="loginWarning">This transmission can be solved here, but SPMT must be signed in to retain the authorization.</div>
+      </section>
+      <aside class="panel">
+        <div class="eyebrow">ANOMALY MASS</div>
+        <div class="voidWrap"><div class="rings"></div><div class="void" id="void"></div></div>
+        <div class="help"><b>Receiver note:</b> signal strength rises as each band approaches phase lock. Hold all three carriers steady long enough to stabilize the path.</div>
+      </aside>
+    </main>
+  </section>
+  <div class="failVoid" id="failVoid"></div>
+  <div class="result" id="result"><div class="card"><h2 id="resultTitle"></h2><div class="console" id="resultConsole"></div><div class="reward" id="reward" hidden></div></div></div>
+<script>
+(() => {
+  'use strict';
+  const APP_ID='spacemountain-live', NAMESPACE='easter-eggs', EGG='signal';
+  const DURATION=300000, LOCK_TOLERANCE=4, HOLD_MS=1800;
+  const targets=[27,63,84];
+  const fragments=['...urgent matter...','...your vessel...','...coverage may expire...','...attempting final contact...','...carrier instability increasing...'];
+  const channelsEl=document.getElementById('channels'), timerEl=document.getElementById('timer'), fragmentEl=document.getElementById('fragment'), voidEl=document.getElementById('void');
+  const scope=document.getElementById('scope'), ctx=scope.getContext('2d');
+  const result=document.getElementById('result'), resultTitle=document.getElementById('resultTitle'), resultConsole=document.getElementById('resultConsole'), reward=document.getElementById('reward'), loginWarning=document.getElementById('loginWarning');
+  let started=performance.now(), raf=0, stableSince=0, finished=false, lastFragment=-1;
+  const states=targets.map((target,index)=>({target,value:[46,35,54][index],locked:false,meter:null,input:null,card:null,readout:null}));
+
+  function channelMarkup(state,index){
+    const card=document.createElement('div'); card.className='channel';
+    card.innerHTML=`<div class="row"><span class="label">CARRIER ${String.fromCharCode(65+index)}</span><span class="lock">SEARCHING</span></div><div class="meter"><i></i></div><input type="range" min="0" max="100" step="1" value="${state.value}" aria-label="Carrier ${String.fromCharCode(65+index)} tuning"><div class="readout">PHASE ${state.value.toFixed(0)} · SIGNAL 0%</div>`;
+    state.card=card; state.meter=card.querySelector('.meter i'); state.input=card.querySelector('input'); state.readout=card.querySelector('.readout');
+    state.input.addEventListener('input',()=>{ state.value=Number(state.input.value); updateState(state); });
+    channelsEl.appendChild(card); updateState(state);
+  }
+  function updateState(state){
+    const distance=Math.abs(state.value-state.target), strength=Math.max(0,100-distance*3.2); state.locked=distance<=LOCK_TOLERANCE;
+    state.meter.style.width=`${strength}%`; state.card.classList.toggle('locked',state.locked); state.card.querySelector('.lock').textContent=state.locked?'PHASE LOCK':'SEARCHING'; state.readout.textContent=`PHASE ${state.value.toFixed(0)} · SIGNAL ${Math.round(strength)}%`;
+  }
+  states.forEach(channelMarkup);
+
+  async function readState(){
+    const r=await fetch(`/api/app-state/${APP_ID}/${NAMESPACE}`,{credentials:'include',cache:'no-store',headers:{Accept:'application/json'}});
+    if(r.status===401){ loginWarning.style.display='block'; throw new Error('not signed in'); }
+    if(r.status===404) return {revision:0,etag:'',data:{}};
+    if(!r.ok) throw new Error(`read ${r.status}`);
+    const p=await r.json(); return {revision:Number(p.revision||0),etag:r.headers.get('etag')||'',data:p.data&&typeof p.data==='object'?p.data:{}};
+  }
+  async function persistSignal(attempt=0){
+    const current=await readState(); const eggs=current.data.eggs&&typeof current.data.eggs==='object'?current.data.eggs:{}; const old=eggs[EGG]&&typeof eggs[EGG]==='object'?eggs[EGG]:{};
+    const data={...current.data,eggs:{...eggs,[EGG]:{...old,completed:true,discoveredAt:old.discoveredAt||new Date().toISOString(),source:'spmt-live-signal'}}};
+    const headers={'Content-Type':'application/json',Accept:'application/json'}; if(current.etag) headers['If-Match']=current.etag;
+    const r=await fetch(`/api/app-state/${APP_ID}/${NAMESPACE}`,{method:'PUT',credentials:'include',headers,body:JSON.stringify({schemaVersion:1,revision:current.revision,data})});
+    if(r.status===409&&attempt<1)return persistSignal(attempt+1); if(!r.ok)throw new Error(`write ${r.status}`);
+    window.dispatchEvent(new CustomEvent('spmt:easter-egg-complete',{detail:{egg:EGG,completed:true}}));
+  }
+  function drawScope(now){
+    const w=scope.width,h=scope.height; ctx.clearRect(0,0,w,h); ctx.strokeStyle='#0f2740';ctx.lineWidth=1;
+    for(let x=0;x<w;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()} for(let y=25;y<h;y+=25){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
+    const avg=states.reduce((a,s)=>a+Math.abs(s.value-s.target),0)/states.length; const noise=Math.min(30,5+avg*.55);
+    ctx.beginPath(); for(let x=0;x<w;x+=3){const t=x/w*Math.PI*8+now/420; const y=h/2+Math.sin(t)*24+Math.sin(t*2.3)*9+(Math.random()-.5)*noise; x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}
+    ctx.strokeStyle=states.every(s=>s.locked)?'#5eead4':'#7dd3fc';ctx.lineWidth=2;ctx.shadowBlur=12;ctx.shadowColor=ctx.strokeStyle;ctx.stroke();ctx.shadowBlur=0;
+  }
+  function finishSuccess(){
+    if(finished)return; finished=true; cancelAnimationFrame(raf); document.getElementById('status').textContent='SIGNAL STABILIZED';
+    result.classList.add('show'); resultTitle.textContent='SIGNAL STABILIZED';
+    resultConsole.textContent='SOURCE RESOLVED\nDECODING TRANSMISSION...\n\nHello.\nWe\'ve been trying to reach you regarding your spacecraft\'s extended warranty.\nYour vessel may qualify for—\n\nTRANSMISSION TERMINATED';
+    reward.hidden=false; reward.textContent='TRANSMITTER AUTHORIZATION RETAINED · Outbound carrier unlocked · Command: !signal';
+    persistSignal().catch(()=>{loginWarning.style.display='block'});
+  }
+  function finishFailure(){
+    if(finished)return; finished=true; cancelAnimationFrame(raf); const f=document.getElementById('failVoid'); f.classList.add('show'); document.getElementById('status').textContent='CARRIER COLLAPSE';
+    setTimeout(()=>{result.classList.add('show'); resultTitle.textContent='SIGNAL LOST'; resultConsole.textContent='NO CARRIER\nNO RETURN PATH\n\nThe receiver will accept another attempt.';},2800);
+  }
+  function tick(now){
+    if(finished)return; const elapsed=now-started, remaining=Math.max(0,DURATION-elapsed), sec=Math.ceil(remaining/1000); timerEl.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+    const progress=Math.min(1,elapsed/DURATION); const scale=1+Math.pow(progress,2.2)*5.8; voidEl.style.setProperty('--void-scale',scale.toFixed(3));
+    const fragmentIndex=Math.min(fragments.length-1,Math.floor(progress*fragments.length)); if(fragmentIndex!==lastFragment){lastFragment=fragmentIndex;fragmentEl.textContent=fragments[fragmentIndex]}
+    const all=states.every(s=>s.locked); if(all){ if(!stableSince)stableSince=now; if(now-stableSince>=HOLD_MS)return finishSuccess(); } else stableSince=0;
+    drawScope(now); if(remaining<=0)return finishFailure(); raf=requestAnimationFrame(tick);
+  }
+  raf=requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

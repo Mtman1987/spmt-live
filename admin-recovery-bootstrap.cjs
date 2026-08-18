@@ -1,10 +1,13 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const jwt = require('jsonwebtoken');
 const path = require('node:path');
 const Database = require('better-sqlite3');
 
+const LEGACY_AUTH_LOG_INTERVAL_MS = 60_000;
 let recoveryDb = null;
+let lastLegacyAuthLogAt = 0;
 
 function hashSecret(value) {
   return crypto.createHash('sha256').update(String(value || '')).digest('hex');
@@ -33,10 +36,34 @@ function constantTimeEqual(left, right) {
   return a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function hasInternalRecoveryAccess(req) {
+function hasServiceRecoveryAccess(req) {
+  const bearer = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || '';
+  const jwtSecret = String(process.env.JWT_SECRET || '').trim();
+  if (!bearer || !jwtSecret) return false;
+  try {
+    const payload = jwt.verify(bearer, jwtSecret);
+    const scopes = Array.isArray(payload?.scopes) ? payload.scopes.map(String) : [];
+    return payload?.client_id === 'streamweaver'
+      && payload?.token_use === 'client_credentials'
+      && scopes.includes('account-recovery:write');
+  } catch {
+    return false;
+  }
+}
+
+function hasLegacyRecoveryAccess(req) {
   const expected = String(process.env.SYSTEM_API_KEY || '').trim();
   const supplied = String(req.headers['x-spmt-key'] || '').trim();
-  return Boolean(expected && supplied && constantTimeEqual(expected, supplied));
+  const allowed = Boolean(expected && supplied && constantTimeEqual(expected, supplied));
+  if (allowed && Date.now() - lastLegacyAuthLogAt >= LEGACY_AUTH_LOG_INTERVAL_MS) {
+    lastLegacyAuthLogAt = Date.now();
+    console.warn('[auth-migration] LEGACY_AUTH_USED migration=AUTH-SW-002 caller=unverified route=/api/internal/auth/admin-recovery-code transport=x-spmt-key');
+  }
+  return allowed;
+}
+
+function hasInternalRecoveryAccess(req) {
+  return hasServiceRecoveryAccess(req) || hasLegacyRecoveryAccess(req);
 }
 
 function normalizeDiscordId(value) {
@@ -156,4 +183,5 @@ module.exports = {
   generateRecoveryCode,
   normalizeDiscordId,
   hasInternalRecoveryAccess,
+  hasServiceRecoveryAccess,
 };

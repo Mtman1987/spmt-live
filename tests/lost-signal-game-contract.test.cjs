@@ -6,11 +6,12 @@ const path = require('node:path');
 const test = require('node:test');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'signal', 'index.html'), 'utf8');
+const bootstrap = fs.readFileSync(path.join(__dirname, '..', 'lost-signal-transmission-bootstrap.cjs'), 'utf8');
 
 test('Lost Signal game is a five-minute transmitter puzzle with three carrier locks', () => {
   assert.match(source, /The Lost Signal/);
   assert.match(source, /DURATION=300000/);
-  assert.match(source, /targets=\[27,63,84\]/);
+  assert.match(source, /baseTargets=\[27,63,84\]/);
   assert.match(source, /CARRIER/);
   assert.match(source, /HOLD_MS=1800/);
   assert.match(source, /SIGNAL STABILIZED/);
@@ -19,16 +20,38 @@ test('Lost Signal game is a five-minute transmitter puzzle with three carrier lo
   assert.doesNotMatch(source, /carrier bands are drifting out of phase/i);
 });
 
-test('Lost Signal grows the black-hole pressure and keeps the warranty reveal', () => {
-  assert.match(source, /Math\.pow\(progress,2\.2\)\*5\.8/);
-  assert.match(source, /urgent matter/);
-  assert.match(source, /your vessel/);
-  assert.match(source, /coverage may expire/);
-  assert.match(source, /spacecraft\\'s extended warranty/);
-  assert.match(source, /TRANSMISSION TERMINATED/);
+test('Lost Signal replays add win-gated carrier drift without changing the first-run prize', () => {
+  assert.match(source, /previousWins>0/);
+  assert.match(source, /driftSpeed=/);
+  assert.match(source, /moveTargets\(dt\)/);
+  assert.match(source, /Math\.max\(2\.5,4-/);
+  assert.match(source, /wins:Math\.max\(1,oldWins\+1\)/);
+  assert.match(source, /old\.completed===true\?1:0/);
+  assert.match(source, /Command: !signal/);
+});
+
+test('Lost Signal uses generated transmissions with a warranty fallback and atmospheric audio', () => {
+  assert.match(source, /\/api\/signal\/transmission/);
+  assert.match(source, /packet\.fragments/);
+  assert.match(source, /packet\.message/);
+  assert.match(source, /spacecraft's extended warranty/);
+  assert.match(source, /SpeechSynthesisUtterance/);
+  assert.match(source, /createBufferSource/);
+  assert.match(source, /bandpass/);
+  assert.match(source, /AUDIO OFF/);
   assert.match(source, /@keyframes signalReturn/);
   assert.match(source, /successReturn/);
   assert.match(source, /setTimeout\(showSuccessResult,1900\)/);
+});
+
+test('Lost Signal transmission proxy keeps the model key server-side and falls back safely', () => {
+  assert.match(bootstrap, /\/api\/signal\/transmission/);
+  assert.match(bootstrap, /spmt_token/);
+  assert.match(bootstrap, /jwt\.verify/);
+  assert.match(bootstrap, /\/api\/internal\/lost-signal\/transmission/);
+  assert.match(bootstrap, /x-spmt-key/);
+  assert.match(bootstrap, /fallbackPacket/);
+  assert.match(bootstrap, /completed === true \? 1 : 0/);
 });
 
 test('Lost Signal completion joins the shared canonical egg record without message wiring', () => {
@@ -39,6 +62,5 @@ test('Lost Signal completion joins the shared canonical egg record without messa
   assert.match(source, /completed:true/);
   assert.match(source, /If-Match/);
   assert.match(source, /r\.status===409/);
-  assert.match(source, /Command: !signal/);
   assert.doesNotMatch(source, /discord\.com\/api\/webhooks|sendWebhookMessage|manual-shoutout|eligible channels/i);
 });

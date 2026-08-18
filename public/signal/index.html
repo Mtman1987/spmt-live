@@ -11,7 +11,7 @@
     .shell{position:relative;width:min(980px,100%);border:1px solid #26304a;border-radius:22px;background:rgba(4,8,18,.92);box-shadow:0 30px 90px #000a,0 0 80px #312e8140;overflow:hidden}
     .scan{position:absolute;inset:0;pointer-events:none;opacity:.15;background:repeating-linear-gradient(0deg,transparent 0 3px,#9ae6ff1b 4px 5px);mix-blend-mode:screen}
     header{position:relative;z-index:2;display:flex;justify-content:space-between;gap:16px;align-items:center;padding:18px 22px;border-bottom:1px solid #26304a;background:#050817d9}
-    .eyebrow{font-size:11px;font-weight:900;letter-spacing:.18em;color:#8be9fd}.status{font-size:12px;color:#9aa8bd}.timer{font:900 28px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#f8fafc;text-shadow:0 0 18px #60a5fa88}
+    .eyebrow{font-size:11px;font-weight:900;letter-spacing:.18em;color:#8be9fd}.status{font-size:12px;color:#9aa8bd}.timer{font:900 28px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#f8fafc;text-shadow:0 0 18px #60a5fa88}.audioToggle{margin-left:10px;border:1px solid #31506f;border-radius:999px;background:#07111f;color:#9bdcff;padding:7px 10px;font:800 10px ui-monospace,monospace;letter-spacing:.08em;cursor:pointer}.audioToggle.on{border-color:#2dd4bf;color:#99f6e4;box-shadow:0 0 18px #14b8a633}
     main{position:relative;z-index:2;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(260px,.8fr);gap:18px;padding:22px}
     .panel{border:1px solid #26304a;border-radius:16px;background:linear-gradient(180deg,#091022d9,#040711e6);padding:18px;box-shadow:inset 0 1px #ffffff0c}
     h1{margin:3px 0 6px;font-size:clamp(28px,5vw,54px);letter-spacing:-.04em}.sub{margin:0 0 20px;color:#8fa0b8;line-height:1.55}.wave{height:150px;border:1px solid #1f2b44;border-radius:12px;background:#02050c;overflow:hidden;position:relative}.wave canvas{width:100%;height:100%;display:block}
@@ -31,13 +31,13 @@
 <body>
   <section class="shell" id="gameShell">
     <div class="scan"></div>
-    <header><div><div class="eyebrow">SPMT // UNAUTHORIZED CARRIER</div><div class="status" id="status">SIGNAL DETECTED · SOURCE UNKNOWN</div></div><div class="timer" id="timer">05:00</div></header>
+    <header><div><div class="eyebrow">SPMT // UNAUTHORIZED CARRIER</div><div class="status" id="status">SIGNAL DETECTED · SOURCE UNKNOWN</div></div><div><span class="timer" id="timer">05:00</span><button class="audioToggle" id="audioToggle" type="button">AUDIO OFF</button></div></header>
     <main>
       <section class="panel">
         <h1>The Lost Signal</h1>
         <p class="sub">Three carrier bands are out of phase. Tune each one until the signal locks. The anomaly is getting closer.</p>
         <div class="wave"><canvas id="scope" width="720" height="150"></canvas></div>
-        <div class="fragment" id="fragment">...urgent matter...</div>
+        <div class="fragment" id="fragment">...searching carrier...</div>
         <div class="channels" id="channels"></div>
         <div class="login" id="loginWarning">This transmission can be solved here, but SPMT must be signed in to retain the authorization.</div>
       </section>
@@ -54,24 +54,63 @@
 (() => {
   'use strict';
   const APP_ID='spacemountain-live', NAMESPACE='easter-eggs', EGG='signal';
-  const DURATION=300000, LOCK_TOLERANCE=4, HOLD_MS=1800;
-  const targets=[27,63,84];
-  const fragments=['...urgent matter...','...your vessel...','...coverage may expire...','...attempting final contact...','...carrier instability increasing...'];
-  const channelsEl=document.getElementById('channels'), timerEl=document.getElementById('timer'), fragmentEl=document.getElementById('fragment'), voidEl=document.getElementById('void'), ringsEl=document.getElementById('rings');
+  const DURATION=300000, HOLD_MS=1800;
+  const baseTargets=[27,63,84], initialValues=[46,35,54];
+  const FALLBACK={fragments:['...urgent matter...','...your vessel...','...coverage may expire...','...attempting final contact...','...carrier instability increasing...'],message:['Hello.',"We've been trying to reach you regarding your spacecraft's extended warranty.",'Your vessel may qualify for—']};
+  let packet=FALLBACK, previousWins=0, lockTolerance=4, driftSpeed=0;
+  const channelsEl=document.getElementById('channels'), timerEl=document.getElementById('timer'), fragmentEl=document.getElementById('fragment'), voidEl=document.getElementById('void'), ringsEl=document.getElementById('rings'), audioToggle=document.getElementById('audioToggle');
   const scope=document.getElementById('scope'), ctx=scope.getContext('2d');
   const result=document.getElementById('result'), resultTitle=document.getElementById('resultTitle'), resultConsole=document.getElementById('resultConsole'), reward=document.getElementById('reward'), loginWarning=document.getElementById('loginWarning');
-  let started=performance.now(), raf=0, stableSince=0, finished=false, lastFragment=-1;
-  const states=targets.map((target,index)=>({target,value:[46,35,54][index],locked:false,meter:null,input:null,card:null,readout:null}));
+  let started=0, raf=0, stableSince=0, finished=false, lastFragment=-1, lastTick=0, initialized=false;
+  const states=baseTargets.map((target,index)=>({target,value:initialValues[index],locked:false,meter:null,input:null,card:null,readout:null,dir:index===1?-1:1,driftFactor:[.82,1.04,1.2][index]}));
+
+  let audioCtx=null, staticGain=null, musicGain=null, staticSource=null, pulseOsc=null, scanOsc=null, audioArmed=false;
+  function setGain(node,value,seconds=.18){ if(!audioCtx||!node)return; const t=audioCtx.currentTime; node.gain.cancelScheduledValues(t); node.gain.setValueAtTime(node.gain.value,t); node.gain.linearRampToValueAtTime(value,t+seconds); }
+  function buildAudio(){
+    if(audioCtx)return;
+    const AC=window.AudioContext||window.webkitAudioContext; if(!AC)return;
+    audioCtx=new AC();
+    const master=audioCtx.createGain(); master.gain.value=.55; master.connect(audioCtx.destination);
+    staticGain=audioCtx.createGain(); staticGain.gain.value=.105; staticGain.connect(master);
+    musicGain=audioCtx.createGain(); musicGain.gain.value=.065; musicGain.connect(master);
+    const length=audioCtx.sampleRate*2, buffer=audioCtx.createBuffer(1,length,audioCtx.sampleRate), data=buffer.getChannelData(0);
+    for(let i=0;i<length;i++)data[i]=(Math.random()*2-1)*(.72+Math.sin(i*.071)*.18);
+    staticSource=audioCtx.createBufferSource(); staticSource.buffer=buffer; staticSource.loop=true;
+    const filter=audioCtx.createBiquadFilter(); filter.type='bandpass'; filter.frequency.value=1450; filter.Q.value=.7; staticSource.connect(filter); filter.connect(staticGain); staticSource.start();
+    const drone=audioCtx.createOscillator(), droneGain=audioCtx.createGain(); drone.type='sine'; drone.frequency.value=48; droneGain.gain.value=.22; drone.connect(droneGain); droneGain.connect(musicGain); drone.start();
+    const upper=audioCtx.createOscillator(), upperGain=audioCtx.createGain(); upper.type='triangle'; upper.frequency.value=96; upper.detune.value=-17; upperGain.gain.value=.045; upper.connect(upperGain); upperGain.connect(musicGain); upper.start();
+    pulseOsc=audioCtx.createOscillator(); const pulseGain=audioCtx.createGain(); pulseOsc.type='square'; pulseOsc.frequency.value=2.1; pulseGain.gain.value=.012; pulseOsc.connect(pulseGain); pulseGain.connect(musicGain); pulseOsc.start();
+    scanOsc=audioCtx.createOscillator(); const scanGain=audioCtx.createGain(); scanOsc.type='sine'; scanOsc.frequency.value=730; scanGain.gain.value=.01; scanOsc.connect(scanGain); scanGain.connect(master); scanOsc.start();
+    const scanLfo=audioCtx.createOscillator(), scanDepth=audioCtx.createGain(); scanLfo.frequency.value=.13; scanDepth.gain.value=560; scanLfo.connect(scanDepth); scanDepth.connect(scanOsc.frequency); scanLfo.start();
+  }
+  async function armAudio(){
+    buildAudio(); if(!audioCtx)return;
+    await audioCtx.resume().catch(()=>{}); audioArmed=audioCtx.state==='running';
+    audioToggle.textContent=audioArmed?'AUDIO ON':'AUDIO OFF'; audioToggle.classList.toggle('on',audioArmed);
+  }
+  function silenceAudio(){ if(staticGain)setGain(staticGain,0,.3); if(musicGain)setGain(musicGain,0,.5); if(window.speechSynthesis)window.speechSynthesis.cancel(); }
+  function roboticVoice(){
+    const voices=window.speechSynthesis?.getVoices?.()||[];
+    return voices.find(v=>/robot|zira|david|mark|google us english|english united states/i.test(v.name))||voices.find(v=>/^en[-_]/i.test(v.lang))||voices[0];
+  }
+  function speakFragment(text){
+    if(!audioArmed||!window.speechSynthesis)return;
+    window.speechSynthesis.cancel(); setGain(staticGain,.025,.16);
+    const utter=new SpeechSynthesisUtterance(String(text).replace(/^\.+|\.+$/g,'')); utter.voice=roboticVoice(); utter.rate=.78; utter.pitch=.62; utter.volume=.72;
+    utter.onend=()=>{setGain(staticGain,.12,.2)}; utter.onerror=()=>{setGain(staticGain,.12,.2)};
+    window.speechSynthesis.speak(utter);
+  }
+  audioToggle.addEventListener('click',async()=>{ if(audioArmed){audioArmed=false;audioToggle.textContent='AUDIO OFF';audioToggle.classList.remove('on');silenceAudio();return;} await armAudio(); });
 
   function channelMarkup(state,index){
     const card=document.createElement('div'); card.className='channel';
     card.innerHTML=`<div class="row"><span class="label">CARRIER ${String.fromCharCode(65+index)}</span><span class="lock">SEARCHING</span></div><div class="meter"><i></i></div><input type="range" min="0" max="100" step="1" value="${state.value}" aria-label="Carrier ${String.fromCharCode(65+index)} tuning"><div class="readout">PHASE ${state.value.toFixed(0)} · SIGNAL 0%</div>`;
     state.card=card; state.meter=card.querySelector('.meter i'); state.input=card.querySelector('input'); state.readout=card.querySelector('.readout');
-    state.input.addEventListener('input',()=>{ state.value=Number(state.input.value); updateState(state); });
+    state.input.addEventListener('input',()=>{ state.value=Number(state.input.value); updateState(state); if(audioArmed&&scanOsc&&audioCtx){scanOsc.frequency.setTargetAtTime(420+state.value*14,audioCtx.currentTime,.025);} });
     channelsEl.appendChild(card); updateState(state);
   }
   function updateState(state){
-    const distance=Math.abs(state.value-state.target), strength=Math.max(0,100-distance*3.2); state.locked=distance<=LOCK_TOLERANCE;
+    const distance=Math.abs(state.value-state.target), strength=Math.max(0,100-distance*3.2); state.locked=distance<=lockTolerance;
     state.meter.style.width=`${strength}%`; state.card.classList.toggle('locked',state.locked); state.card.querySelector('.lock').textContent=state.locked?'PHASE LOCK':'SEARCHING'; state.readout.textContent=`PHASE ${state.value.toFixed(0)} · SIGNAL ${Math.round(strength)}%`;
   }
   states.forEach(channelMarkup);
@@ -83,13 +122,39 @@
     if(!r.ok) throw new Error(`read ${r.status}`);
     const p=await r.json(); return {revision:Number(p.revision||0),etag:r.headers.get('etag')||'',data:p.data&&typeof p.data==='object'?p.data:{}};
   }
+  function winsFromState(current){
+    const old=current?.data?.eggs?.[EGG]; if(!old||typeof old!=='object')return 0;
+    const wins=Number(old.wins); if(Number.isInteger(wins)&&wins>=0)return wins; return old.completed===true?1:0;
+  }
+  async function loadRun(){
+    let current=null;
+    try{ current=await readState(); previousWins=winsFromState(current); }catch{ previousWins=0; }
+    lockTolerance=Math.max(2.5,4-Math.min(previousWins,8)*.18);
+    driftSpeed=previousWins>0 ? .22+2.2*(1-Math.exp(-previousWins/4.2)) : 0;
+    try{
+      const response=await fetch('/api/signal/transmission',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({runSeed:`${Date.now()}-${Math.random().toString(36).slice(2)}`})});
+      const payload=await response.json().catch(()=>({}));
+      if(response.ok&&payload?.packet?.fragments?.length===5&&payload?.packet?.message?.length){packet=payload.packet; if(Number.isInteger(payload.wins))previousWins=payload.wins;}
+    }catch{}
+    fragmentEl.textContent=packet.fragments[0];
+    started=performance.now(); lastTick=started; initialized=true; raf=requestAnimationFrame(tick);
+  }
   async function persistSignal(attempt=0){
-    const current=await readState(); const eggs=current.data.eggs&&typeof current.data.eggs==='object'?current.data.eggs:{}; const old=eggs[EGG]&&typeof eggs[EGG]==='object'?eggs[EGG]:{};
-    const data={...current.data,eggs:{...eggs,[EGG]:{...old,completed:true,discoveredAt:old.discoveredAt||new Date().toISOString(),source:'spmt-live-signal'}}};
+    const current=await readState(); const eggs=current.data.eggs&&typeof current.data.eggs==='object'?current.data.eggs:{}; const old=eggs[EGG]&&typeof eggs[EGG]==='object'?eggs[EGG]:{}; const oldWins=Number.isInteger(Number(old.wins))?Number(old.wins):(old.completed===true?1:0);
+    const data={...current.data,eggs:{...eggs,[EGG]:{...old,completed:true,wins:Math.max(1,oldWins+1),discoveredAt:old.discoveredAt||new Date().toISOString(),lastWonAt:new Date().toISOString(),source:'spmt-live-signal'}}};
     const headers={'Content-Type':'application/json',Accept:'application/json'}; if(current.etag) headers['If-Match']=current.etag;
     const r=await fetch(`/api/app-state/${APP_ID}/${NAMESPACE}`,{method:'PUT',credentials:'include',headers,body:JSON.stringify({schemaVersion:1,revision:current.revision,data})});
     if(r.status===409&&attempt<1)return persistSignal(attempt+1); if(!r.ok)throw new Error(`write ${r.status}`);
     window.dispatchEvent(new CustomEvent('spmt:easter-egg-complete',{detail:{egg:EGG,completed:true}}));
+  }
+  function moveTargets(dt){
+    if(!driftSpeed)return;
+    states.forEach((state,index)=>{
+      const wobble=.7+Math.sin((performance.now()/1000)*(0.31+index*.09)+index*1.7)*.3;
+      state.target+=state.dir*driftSpeed*state.driftFactor*wobble*dt;
+      if(state.target>=94){state.target=94;state.dir=-1;} else if(state.target<=6){state.target=6;state.dir=1;}
+      updateState(state);
+    });
   }
   function drawScope(now){
     const w=scope.width,h=scope.height; ctx.clearRect(0,0,w,h); ctx.strokeStyle='#0f2740';ctx.lineWidth=1;
@@ -101,29 +166,30 @@
   function freezeControls(){ states.forEach(state=>{ if(state.input) state.input.disabled=true; }); }
   function showSuccessResult(){
     result.classList.add('show'); resultTitle.textContent='SIGNAL STABILIZED';
-    resultConsole.textContent='SOURCE RESOLVED\nDECODING TRANSMISSION...\n\nHello.\nWe\'ve been trying to reach you regarding your spacecraft\'s extended warranty.\nYour vessel may qualify for—\n\nTRANSMISSION TERMINATED';
+    resultConsole.textContent=`SOURCE RESOLVED\nDECODING TRANSMISSION...\n\n${packet.message.join('\n')}\n\nTRANSMISSION TERMINATED`;
     reward.hidden=false; reward.textContent='TRANSMITTER AUTHORIZATION RETAINED · Outbound carrier unlocked · Command: !signal';
+    if(audioArmed&&window.speechSynthesis){setGain(staticGain,.015,.2);const final=new SpeechSynthesisUtterance(packet.message.join(' '));final.voice=roboticVoice();final.rate=.82;final.pitch=.68;final.volume=.75;final.onend=()=>setGain(staticGain,.08,.3);window.speechSynthesis.speak(final);}
   }
   function finishSuccess(){
     if(finished)return; finished=true; cancelAnimationFrame(raf); freezeControls(); document.getElementById('status').textContent='SIGNAL STABILIZED';
-    voidEl.style.setProperty('--void-scale','6.8');
-    void voidEl.offsetWidth;
-    voidEl.classList.add('successReturn'); ringsEl.classList.add('successReturn');
-    persistSignal().catch(()=>{loginWarning.style.display='block'});
-    setTimeout(showSuccessResult,1900);
+    voidEl.style.setProperty('--void-scale','6.8'); void voidEl.offsetWidth; voidEl.classList.add('successReturn'); ringsEl.classList.add('successReturn');
+    if(audioArmed&&musicGain)setGain(musicGain,.018,.9);
+    persistSignal().catch(()=>{loginWarning.style.display='block'}); setTimeout(showSuccessResult,1900);
   }
   function finishFailure(){
-    if(finished)return; finished=true; cancelAnimationFrame(raf); freezeControls(); const f=document.getElementById('failVoid'); f.classList.add('show'); document.getElementById('status').textContent='CARRIER COLLAPSE';
+    if(finished)return; finished=true; cancelAnimationFrame(raf); freezeControls(); silenceAudio(); const f=document.getElementById('failVoid'); f.classList.add('show'); document.getElementById('status').textContent='CARRIER COLLAPSE';
     setTimeout(()=>{result.classList.add('show'); resultTitle.textContent='SIGNAL LOST'; resultConsole.textContent='NO CARRIER\nNO RETURN PATH\n\nThe receiver will accept another attempt.';},2800);
   }
   function tick(now){
-    if(finished)return; const elapsed=now-started, remaining=Math.max(0,DURATION-elapsed), sec=Math.ceil(remaining/1000); timerEl.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+    if(finished||!initialized)return; const dt=Math.min(.05,Math.max(0,(now-lastTick)/1000)); lastTick=now; moveTargets(dt);
+    const elapsed=now-started, remaining=Math.max(0,DURATION-elapsed), sec=Math.ceil(remaining/1000); timerEl.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
     const progress=Math.min(1,elapsed/DURATION); const scale=1+Math.pow(progress,2.2)*5.8; voidEl.style.setProperty('--void-scale',scale.toFixed(3));
-    const fragmentIndex=Math.min(fragments.length-1,Math.floor(progress*fragments.length)); if(fragmentIndex!==lastFragment){lastFragment=fragmentIndex;fragmentEl.textContent=fragments[fragmentIndex]}
+    if(audioArmed&&pulseOsc&&audioCtx){pulseOsc.frequency.setTargetAtTime(2.0+progress*3.8,audioCtx.currentTime,.25); if(musicGain)setGain(musicGain,.06+progress*.045,.4);}
+    const fragmentIndex=Math.min(packet.fragments.length-1,Math.floor(progress*packet.fragments.length)); if(fragmentIndex!==lastFragment){lastFragment=fragmentIndex;fragmentEl.textContent=packet.fragments[fragmentIndex];speakFragment(packet.fragments[fragmentIndex]);}
     const all=states.every(s=>s.locked); if(all){ if(!stableSince)stableSince=now; if(now-stableSince>=HOLD_MS)return finishSuccess(); } else stableSince=0;
     drawScope(now); if(remaining<=0)return finishFailure(); raf=requestAnimationFrame(tick);
   }
-  raf=requestAnimationFrame(tick);
+  loadRun();
 })();
 </script>
 </body>

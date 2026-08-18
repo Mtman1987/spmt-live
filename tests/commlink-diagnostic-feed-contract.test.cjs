@@ -3,6 +3,9 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const Database = require('better-sqlite3');
+const jwt = require('jsonwebtoken');
+const { applyCommlinkServiceOauthPatch } = require('../commlink-service-oauth-patch.cjs');
+applyCommlinkServiceOauthPatch();
 const {
   buildSnapshot,
   isAuthorized,
@@ -36,11 +39,27 @@ function requestWith(secret) {
   return { headers: { authorization: `Bearer ${secret}` } };
 }
 
-test('machine diagnostic feed authenticates with the existing SPMT service key', () => {
+test('machine diagnostic feed retains legacy service-key auth during migration', () => {
   const env = { SPMT_API_KEY: 'shared-service-secret' };
   assert.equal(isAuthorized(requestWith('shared-service-secret'), env), true);
   assert.equal(isAuthorized(requestWith('wrong-secret'), env), false);
   assert.equal(isAuthorized({ headers: {} }, env), false);
+});
+
+test('machine diagnostic feed accepts only scoped Discord Stream Hub service OAuth', () => {
+  const env = { JWT_SECRET: 'test-jwt-secret' };
+  const valid = jwt.sign({ client_id: 'discord-stream-hub', token_use: 'client_credentials', scopes: ['athena:write'] }, env.JWT_SECRET);
+  const wrongClient = jwt.sign({ client_id: 'chat-tag', token_use: 'client_credentials', scopes: ['athena:write'] }, env.JWT_SECRET);
+  const wrongScope = jwt.sign({ client_id: 'discord-stream-hub', token_use: 'client_credentials', scopes: ['discord:control'] }, env.JWT_SECRET);
+  assert.equal(isAuthorized(requestWith(valid), env), true);
+  assert.equal(isAuthorized(requestWith(wrongClient), env), false);
+  assert.equal(isAuthorized(requestWith(wrongScope), env), false);
+});
+
+test('production startup installs the service OAuth patch before the diagnostic bootstrap', () => {
+  const fs = require('node:fs');
+  const start = fs.readFileSync('scripts/start.mjs', 'utf8');
+  assert.ok(start.indexOf("applyCommlinkServiceOauthPatch()") < start.indexOf("installCommlinkDiagnosticBootstrap()"));
 });
 
 test('incident windows are bounded even when callers request excessive history', () => {

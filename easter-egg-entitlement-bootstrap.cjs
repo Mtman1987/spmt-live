@@ -1,11 +1,14 @@
 'use strict';
 
 const Database = require('better-sqlite3');
+const jwt = require('jsonwebtoken');
 const path = require('node:path');
 
 const APP_ID = 'spacemountain-live';
 const NAMESPACE = 'easter-eggs';
+const LEGACY_AUTH_LOG_INTERVAL_MS = 60_000;
 let entitlementDb = null;
+let lastLegacyAuthLogAt = 0;
 
 function openDb() {
   if (entitlementDb) return entitlementDb;
@@ -18,10 +21,34 @@ function openDb() {
   return entitlementDb;
 }
 
-function systemAuthorized(req) {
+function serviceAuthorized(req) {
+  const bearer = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || '';
+  const jwtSecret = String(process.env.JWT_SECRET || '').trim();
+  if (!bearer || !jwtSecret) return false;
+  try {
+    const payload = jwt.verify(bearer, jwtSecret);
+    const scopes = Array.isArray(payload?.scopes) ? payload.scopes.map(String) : [];
+    return payload?.client_id === 'streamweaver'
+      && payload?.token_use === 'client_credentials'
+      && scopes.includes('entitlements:read');
+  } catch {
+    return false;
+  }
+}
+
+function legacySystemAuthorized(req) {
   const configured = String(process.env.SYSTEM_API_KEY || '').trim();
   const provided = String(req.headers['x-spmt-key'] || '').trim();
-  return Boolean(configured && provided && provided === configured);
+  const authorized = Boolean(configured && provided && provided === configured);
+  if (authorized && Date.now() - lastLegacyAuthLogAt >= LEGACY_AUTH_LOG_INTERVAL_MS) {
+    lastLegacyAuthLogAt = Date.now();
+    console.warn('[auth-migration] LEGACY_AUTH_USED migration=AUTH-SW-003 caller=unverified route=/api/internal/easter-eggs/entitlement transport=x-spmt-key');
+  }
+  return authorized;
+}
+
+function systemAuthorized(req) {
+  return serviceAuthorized(req) || legacySystemAuthorized(req);
 }
 
 function normalizeProvider(value) {

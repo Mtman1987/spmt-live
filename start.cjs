@@ -101,6 +101,10 @@ require('./account-recovery-bootstrap.cjs').installAccountRecoveryBootstrap();
 require('./admin-recovery-bootstrap.cjs').installAdminRecoveryBootstrap();
 require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
 require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
+// StreamWeaver reads the canonical user app-state entitlement through this
+// production pre-route. The route accepts scoped SPMT service OAuth first and
+// keeps the legacy key only as temporary migration compatibility.
+require('./easter-egg-entitlement-bootstrap.cjs').installEasterEggEntitlementBootstrap();
 // Event/grant routes must be installed before the older tenant routes because
 // they extend the Personal data contract with a narrow read-only render key.
 require('./tenant-overlay-events-bootstrap.cjs').installTenantOverlayEventsBootstrap();

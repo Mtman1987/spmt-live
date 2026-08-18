@@ -36,6 +36,7 @@ COPY tenant-overlay-bootstrap.cjs ./tenant-overlay-bootstrap.cjs
 COPY xbox-worker.cjs ./xbox-worker.cjs
 COPY xbox-worker-guard.cjs ./xbox-worker-guard.cjs
 COPY athena-command-bootstrap.cjs ./athena-command-bootstrap.cjs
+COPY easter-egg-entitlement-bootstrap.cjs ./easter-egg-entitlement-bootstrap.cjs
 COPY presence-bootstrap.cjs ./presence-bootstrap.cjs
 ENV NODE_ENV=production
 ENV DATABASE_PATH=/data/spmt.db

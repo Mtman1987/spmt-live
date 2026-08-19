@@ -23,7 +23,7 @@
     "test:startup-theme": "node --test tests/startup-theme-bootstrap.test.cjs tests/production-bootstrap-packaging-contract.test.cjs tests/ecosystem-docs.test.cjs tests/companion-bootstrap-contract.test.cjs tests/session-stale-while-revalidate.test.cjs tests/commlink-feed-projection-contract.test.cjs tests/commlink-source-controls-contract.test.cjs tests/commlink-diagnostic-feed-contract.test.cjs tests/black-hole-easter-egg-contract.test.cjs tests/commlink-black-hole-puzzle-contract.test.cjs tests/lost-signal-game-contract.test.cjs",
     "test:presence": "node --test tests/presence-contract.test.cjs",
     "test:account-recovery": "node --test tests/account-recovery-contract.test.cjs tests/verified-identity-reconciliation-bootstrap.test.cjs",
-    "test:overlay-bay": "node --test tests/overlay-bay-v2-contract.test.cjs",
+    "test:overlay-bay": "node --test tests/overlay-bay-v2-contract.test.cjs tests/overlay-bay-import-source-contract.test.cjs",
     "test:tenant-overlay": "node --test tests/tenant-overlay-platform-contract.test.cjs tests/tenant-overlay-events-contract.test.cjs",
     "test:cloud-xbox": "node --test tests/cloud-xbox-source-contract.test.cjs",
     "test:xbox-worker-resilience": "node --test tests/xbox-worker-cdp-resilience.test.cjs",
@@ -39,10 +39,9 @@
   "dependencies": {
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^12.11.1",
-    "cookie-parser": "^1.4.7",
+    "cookie-parser": "^4.21.2",
     "crypto-randomuuid": "^1.0.0",
     "dotenv": "^17.2.3",
-    "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "uuid": "^11.1.0",
     "ws": "^8.18.3"
@@ -54,8 +53,8 @@
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.14.0",
-    "@types/uuid": "^10.0.0",
-    "@types/ws": "^8.5.10",
+    "@types/uuid": "^11.0.0",
+    "@types/ws": "^8.5.13",
     "esbuild": "^0.25.0",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2"

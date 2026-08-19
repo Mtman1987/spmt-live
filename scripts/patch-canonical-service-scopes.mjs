@@ -35,7 +35,7 @@ function ensureClientScopes(clientId, requiredScopes) {
   source = source.slice(0, blockStart) + nextBlock + source.slice(blockEnd);
 }
 
-ensureClientScopes('streamweaver', ['entitlements:read', 'events:write', 'account-recovery:write']);
+ensureClientScopes('streamweaver', ['entitlements:read', 'events:write', 'account-recovery:write', 'chat-tag:blacklist:read']);
 ensureClientScopes('discord-stream-hub', ['discord:control', 'athena:write', 'identity:write', 'events:write', 'xp:write']);
 
 const tokenBefore = `    const requestedScopes = String(scope || '').split(/\\s+/).map((value) => value.trim()).filter(Boolean);

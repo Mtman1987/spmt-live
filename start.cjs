@@ -64,6 +64,13 @@ function ensureWorkspaceShellBootstrap() {
 
 ensureWorkspaceShellBootstrap();
 
+// The trusted combined-provider onboarding flow can safely reconcile the
+// historical split where two untouched SYSTEM_NO_LOGIN rows hold one verified
+// Discord ID and one verified Twitch ID. Patch the built bundle before Express
+// registers the route; claimed or cross-linked identities still stop for crew
+// review.
+require('./verified-identity-reconciliation-bootstrap.cjs').patchProductionServerBundle();
+
 // Project the canonical Commlink feed into human-facing categories before the
 // bundled server registers /api/commlink/feed. Raw event records remain intact
 // in storage for Athena, analytics, diagnostics, and other consumers.

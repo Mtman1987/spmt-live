@@ -18,8 +18,8 @@ const originalCommlink = commlink;
 commlink = replaceRequired(
   commlink,
   `function commlinkAuthHeaders(extra = {}) {\n  const token = localStorage.getItem('spmt_token');\n  return token ? { ...extra, Authorization: \`Bearer \${token}\` } : extra;\n}`,
-  `function commlinkAuthHeaders(extra = {}) {\n  // Commlink is served from spmt.live. The HttpOnly SPMT session cookie is\n  // authoritative; localStorage is not a second authentication system.\n  return { ...extra };\n}`,
-  'commlinkAuthHeaders localStorage compatibility token',
+  `function commlinkAuthHeaders(extra = {}) {\n  // Commlink is same-origin with SPMT. The HttpOnly SPMT session cookie is\n  // authoritative; localStorage is not a second authentication system.\n  return { ...extra };\n}`,
+  'auth helper',
 );
 
 const replacements = [
@@ -47,6 +47,11 @@ const replacements = [
     `async function loadCompanionDevices() {\n  const token = localStorage.getItem('spmt_token');\n  if (!token) return;\n  try {\n    const response = await fetch('/api/companion/devices', { headers: { Authorization: \`Bearer \${token}\` } });`,
     `async function loadCompanionDevices() {\n  try {\n    const response = await fetch('/api/companion/devices', { headers: commlinkAuthHeaders(), credentials: 'include' });`,
     'companion devices',
+  ],
+  [
+    `  const token = localStorage.getItem('spmt_token');\n  const payload = action === 'popout.show' ? { id: 1 } : {};\n  try {\n    const response = await fetch('/api/companion/commands', {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json', Authorization: \`Bearer \${token}\` },\n      body: JSON.stringify({ deviceId: device.id, action, capability: action === 'companion.status' ? 'companion.status' : 'overlay.control', payload }),\n    });`,
+    `  const payload = action === 'popout.show' ? { id: 1 } : {};\n  try {\n    const response = await fetch('/api/companion/commands', {\n      method: 'POST',\n      headers: commlinkAuthHeaders({ 'Content-Type': 'application/json' }),\n      credentials: 'include',\n      body: JSON.stringify({ deviceId: device.id, action, capability: action === 'companion.status' ? 'companion.status' : 'overlay.control', payload }),\n    });`,
+    'companion command',
   ],
   [
     `async function loadDiscoveries() {\n  const token = localStorage.getItem('spmt_token');\n  if (!token) {\n    renderDiscoveryStatus(null);\n    return;\n  }\n  try {\n    const response = await fetch('/api/discoveries', { headers: { Authorization: \`Bearer \${token}\` } });\n    if (!response.ok) throw new Error('Discovery state unavailable');`,
@@ -99,6 +104,16 @@ const replacements = [
     'profile GET bearer',
   ],
   [
+    `async function saveWorkspaceProfile() {\n  const token = localStorage.getItem('spmt_token');\n  if (!token || !state.profile || !state.etag) {`,
+    `async function saveWorkspaceProfile() {\n  if (!state.profile || !state.etag) {`,
+    'profile PUT gate',
+  ],
+  [
+    `      headers: {\n        'Content-Type': 'application/json',\n        Authorization: \`Bearer \${token}\`,\n        'If-Match': state.etag,\n      },`,
+    `      headers: commlinkAuthHeaders({\n        'Content-Type': 'application/json',\n        'If-Match': state.etag,\n      }),\n      credentials: 'include',`,
+    'profile PUT bearer',
+  ],
+  [
     `async function loadAccountXp() {\n  const token = localStorage.getItem('spmt_token');\n  if (!token) {\n    $('#account-xp').textContent = 'Sign in for account XP';\n    return;\n  }\n  try {\n    const response = await fetch('/api/xp', { headers: { Authorization: \`Bearer \${token}\` } });`,
     `async function loadAccountXp() {\n  try {\n    const response = await fetch('/api/xp', { headers: commlinkAuthHeaders(), credentials: 'include' });\n    if (response.status === 401 || response.status === 403) {\n      $('#account-xp').textContent = 'Sign in for account XP';\n      return;\n    }`,
     'account XP',
@@ -110,9 +125,7 @@ const replacements = [
   ],
 ];
 
-for (const [before, after, label] of replacements) {
-  commlink = replaceRequired(commlink, before, after, label);
-}
+for (const [before, after, label] of replacements) commlink = replaceRequired(commlink, before, after, label);
 
 if (commlink.includes("localStorage.getItem('spmt_token')")) {
   throw new Error('Commlink still contains an authoritative localStorage SPMT auth dependency');

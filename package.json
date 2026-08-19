@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "patch:canonical-service-scopes": "node scripts/patch-canonical-service-scopes.mjs",
-    "patch:runtime-contracts": "npm run patch:canonical-service-scopes && node scripts/patch-lost-signal-persistence-confirmation.mjs && node scripts/patch-black-hole-easter-egg-reliability.mjs",
+    "patch:runtime-contracts": "npm run patch:canonical-service-scopes && node scripts/patch-lost-signal-persistence-confirmation.mjs && node scripts/patch-black-hole-easter-egg-reliability.mjs && node scripts/patch-commlink-black-hole-physics.mjs",
     "predev": "npm run patch:runtime-contracts",
     "dev": "tsx watch server.ts",
     "pretypecheck": "npm run patch:runtime-contracts",
@@ -20,7 +20,7 @@
     "smoke:suite": "node scripts/operations/suite-smoke.mjs",
     "test:identity-reconciliation": "tsx --test tests/identity-reconciliation.test.ts",
     "pretest:startup-theme": "npm run patch:runtime-contracts",
-    "test:startup-theme": "node --test tests/startup-theme-bootstrap.test.cjs tests/production-bootstrap-packaging-contract.test.cjs tests/ecosystem-docs.test.cjs tests/companion-bootstrap-contract.test.cjs tests/session-stale-while-revalidate.test.cjs tests/commlink-feed-projection-contract.test.cjs tests/commlink-source-controls-contract.test.cjs tests/commlink-diagnostic-feed-contract.test.cjs tests/black-hole-easter-egg-contract.test.cjs tests/lost-signal-game-contract.test.cjs",
+    "test:startup-theme": "node --test tests/startup-theme-bootstrap.test.cjs tests/production-bootstrap-packaging-contract.test.cjs tests/ecosystem-docs.test.cjs tests/companion-bootstrap-contract.test.cjs tests/session-stale-while-revalidate.test.cjs tests/commlink-feed-projection-contract.test.cjs tests/commlink-source-controls-contract.test.cjs tests/commlink-diagnostic-feed-contract.test.cjs tests/black-hole-easter-egg-contract.test.cjs tests/commlink-black-hole-puzzle-contract.test.cjs tests/lost-signal-game-contract.test.cjs",
     "test:presence": "node --test tests/presence-contract.test.cjs",
     "test:account-recovery": "node --test tests/account-recovery-contract.test.cjs tests/verified-identity-reconciliation-bootstrap.test.cjs",
     "test:overlay-bay": "node --test tests/overlay-bay-v2-contract.test.cjs",

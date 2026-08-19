@@ -9,7 +9,7 @@ const scopePatch = fs.readFileSync('scripts/patch-canonical-service-scopes.mjs',
 const recovery = fs.readFileSync('admin-recovery-bootstrap.cjs', 'utf8');
 
 test('StreamWeaver receives only its approved core service scopes', () => {
-  assert.match(scopePatch, /ensureClientScopes\('streamweaver', \['entitlements:read', 'events:write', 'account-recovery:write'\]\)/);
+  assert.match(scopePatch, /ensureClientScopes\('streamweaver', \['entitlements:read', 'events:write', 'account-recovery:write', 'chat-tag:blacklist:read'\]\)/);
   assert.match(server, /OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT/);
 });
 

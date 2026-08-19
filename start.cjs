@@ -36,6 +36,8 @@ function ensureWorkspaceShellBootstrap() {
     '/shared/companion-installer-ui.js',
     '/shared/overlay-bay-shell-nav.js',
     '/shared/account-recovery-ui.js',
+    '/shared/easter-egg-recovery-outbox.js',
+    '/shared/black-hole-easter-egg.js',
   ]);
 
   // Shared surfaces need the same tenant event publisher and the copyable,

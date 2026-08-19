@@ -23,6 +23,7 @@ COPY --from=build /app/docs ./docs
 COPY --from=build /app/spec ./public/spec
 COPY scripts/operations ./scripts/operations
 COPY start.cjs ./start.cjs
+COPY verified-identity-reconciliation-bootstrap.cjs ./verified-identity-reconciliation-bootstrap.cjs
 COPY oauth-authorize-recovery-bootstrap.cjs ./oauth-authorize-recovery-bootstrap.cjs
 COPY account-recovery-bootstrap.cjs ./account-recovery-bootstrap.cjs
 COPY admin-recovery-bootstrap.cjs ./admin-recovery-bootstrap.cjs

@@ -85,6 +85,10 @@ require('./commlink-rich-chat-bootstrap.cjs').installCommlinkRichChatBootstrap()
 // after rich chat and before Express begins serving the canonical surface.
 require('./commlink-source-controls-bootstrap.cjs').installCommlinkSourceControlsBootstrap();
 
+// Make the signed-in SPMT identity explicit and keep outbound destination
+// selections stable while live provider sources refresh underneath the UI.
+require('./commlink-identity-routing-bootstrap.cjs').installCommlinkIdentityRoutingBootstrap();
+
 // Machine diagnostics use the same bounded, redacted Commlink evidence adapter
 // in production as in the source/start.mjs path. Auth remains compatibility-first
 // while callers migrate to scoped SPMT service OAuth.

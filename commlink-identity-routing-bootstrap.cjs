@@ -49,7 +49,52 @@ function installCommlinkIdentityRoutingBootstrap() {
     'identity state',
   );
 
-  const identityHelpers = `function accountInitials(user) {\n  const value = String(user?.displayName || user?.display_name || user?.username || 'SPMT').trim();\n  return value.split(/\\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || '?';\n}\n\nfunction renderAccountIdentity() {\n  const user = state.accountIdentity;\n  const displayName = String(user?.displayName || user?.display_name || user?.username || 'SPMT account');\n  const username = String(user?.username || '').trim();\n  const rewardTitle = state.discoveryStatus?.complete ? String(state.discoveryStatus?.reward?.title || '').trim() : '';\n  const title = $('#account-title');\n  if (title) title.textContent = rewardTitle ? \\`${'${displayName} · ${rewardTitle}'}\\` : displayName;\n  const authStatus = $('#account-auth-status');\n  if (authStatus) authStatus.textContent = user ? \\`Signed into SPMT as ${'${username ? `@${username}` : displayName}'}\\` : 'Not signed into SPMT';\n  const linked = Array.isArray(user?.linkedAccounts) ? user.linkedAccounts : Array.isArray(user?.linked_accounts) ? user.linked_accounts : [];\n  const twitch = linked.find((account) => account?.provider === 'twitch');\n  const providerStatus = $('#account-provider-status');\n  if (providerStatus) providerStatus.textContent = twitch\n    ? \\`Twitch channel: @${'${twitch.username || twitch.displayName || twitch.providerUserId}'} · bot send identity is separate\\`\n    : 'Commlink belongs to this SPMT account · provider identities are separate';\n  const avatarUrl = safeHttpUrl(user?.avatarUrl || user?.avatar_url);\n  const initials = accountInitials(user);\n  for (const element of [$('#account-avatar'), $('#topbar-account-avatar')].filter(Boolean)) {\n    element.innerHTML = avatarUrl\n      ? \\`<img class="account-avatar-image" src="${'${escapeHtml(avatarUrl)}'}" alt="" loading="lazy">\\`\n      : escapeHtml(initials);\n    element.title = user ? \\`SPMT: ${'${displayName}'}\\` : 'SPMT account';\n  }\n}\n\nasync function loadCommlinkIdentity() {\n  try {\n    const response = await fetch('/api/me', { headers: commlinkAuthHeaders(), credentials: 'include' });\n    if (response.status === 401 || response.status === 403) {\n      state.accountIdentity = null;\n      renderAccountIdentity();\n      return;\n    }\n    if (!response.ok) throw new Error(\\`SPMT identity returned ${'${response.status}'}\\`);\n    const payload = await response.json();\n    state.accountIdentity = payload?.user || null;\n    renderAccountIdentity();\n  } catch {\n    const authStatus = $('#account-auth-status');\n    if (authStatus) authStatus.textContent = 'SPMT identity temporarily unavailable';\n  }\n}\n\n`;
+  const identityHelpers = [
+    'function accountInitials(user) {',
+    "  const value = String(user?.displayName || user?.display_name || user?.username || 'SPMT').trim();",
+    "  return value.split(/\\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || '?';",
+    '}',
+    '',
+    'function renderAccountIdentity() {',
+    '  const user = state.accountIdentity;',
+    "  const displayName = String(user?.displayName || user?.display_name || user?.username || 'SPMT account');",
+    "  const username = String(user?.username || '').trim();",
+    "  const rewardTitle = state.discoveryStatus?.complete ? String(state.discoveryStatus?.reward?.title || '').trim() : '';",
+    "  const title = $('#account-title');",
+    "  if (title) title.textContent = rewardTitle ? displayName + ' · ' + rewardTitle : displayName;",
+    "  const authStatus = $('#account-auth-status');",
+    "  if (authStatus) authStatus.textContent = user ? 'Signed into SPMT as ' + (username ? '@' + username : displayName) : 'Not signed into SPMT';",
+    "  const linked = Array.isArray(user?.linkedAccounts) ? user.linkedAccounts : Array.isArray(user?.linked_accounts) ? user.linked_accounts : [];",
+    "  const twitch = linked.find((account) => account?.provider === 'twitch');",
+    "  const providerStatus = $('#account-provider-status');",
+    "  if (providerStatus) providerStatus.textContent = twitch ? 'Twitch channel: @' + (twitch.username || twitch.displayName || twitch.providerUserId) + ' · bot send identity is separate' : 'Commlink belongs to this SPMT account · provider identities are separate';",
+    '  const avatarUrl = safeHttpUrl(user?.avatarUrl || user?.avatar_url);',
+    '  const initials = accountInitials(user);',
+    "  for (const element of [$('#account-avatar'), $('#topbar-account-avatar')].filter(Boolean)) {",
+    "    element.innerHTML = avatarUrl ? '<img class=\"account-avatar-image\" src=\"' + escapeHtml(avatarUrl) + '\" alt=\"\" loading=\"lazy\">' : escapeHtml(initials);",
+    "    element.title = user ? 'SPMT: ' + displayName : 'SPMT account';",
+    '  }',
+    '}',
+    '',
+    'async function loadCommlinkIdentity() {',
+    '  try {',
+    "    const response = await fetch('/api/me', { headers: commlinkAuthHeaders(), credentials: 'include' });",
+    '    if (response.status === 401 || response.status === 403) {',
+    '      state.accountIdentity = null;',
+    '      renderAccountIdentity();',
+    '      return;',
+    '    }',
+    "    if (!response.ok) throw new Error('SPMT identity returned ' + response.status);",
+    '    const payload = await response.json();',
+    '    state.accountIdentity = payload?.user || null;',
+    '    renderAccountIdentity();',
+    '  } catch {',
+    "    const authStatus = $('#account-auth-status');",
+    "    if (authStatus) authStatus.textContent = 'SPMT identity temporarily unavailable';",
+    '  }',
+    '}',
+    '',
+  ].join('\n');
   if (!source.includes('function loadCommlinkIdentity()')) {
     const marker = 'function renderDiscoveryStatus(status, showUnlock = false) {';
     if (!source.includes(marker)) throw new Error('Commlink identity/routing bootstrap could not find discovery renderer');
@@ -74,7 +119,16 @@ function installCommlinkIdentityRoutingBootstrap() {
 
   if (!source.includes('function humanChannelLabel(')) {
     const marker = 'function canonicalProvider(item) {';
-    const helper = `function humanChannelLabel(provider, value) {\n  const raw = String(value || 'Unknown channel').trim();\n  if (provider !== 'discord') return raw;\n  if (/^discord:\\d+$/.test(raw)) return '#' + raw.replace(/^discord:/, '');\n  if (/^\\d+$/.test(raw)) return '#' + raw;\n  return raw.startsWith('#') ? raw : '#' + raw;\n}\n\n`;
+    const helper = [
+      'function humanChannelLabel(provider, value) {',
+      "  const raw = String(value || 'Unknown channel').trim();",
+      "  if (provider !== 'discord') return raw;",
+      "  if (/^discord:\\d+$/.test(raw)) return '#' + raw.replace(/^discord:/, '');",
+      "  if (/^\\d+$/.test(raw)) return '#' + raw;",
+      "  return raw.startsWith('#') ? raw : '#' + raw;",
+      '}',
+      '',
+    ].join('\n');
     if (!source.includes(marker)) throw new Error('Commlink identity/routing bootstrap could not find provider helper marker');
     source = source.replace(marker, helper + marker);
   }
@@ -90,10 +144,22 @@ function installCommlinkIdentityRoutingBootstrap() {
     else throw new Error('Commlink identity/routing bootstrap could not find source channel label');
   }
 
+  const destinationReplacement = [
+    '  const selectedBeforeRefresh = [...state.selectedDestinations];',
+    '  state.sources = unique;',
+    '  state.selectedDestinations = Array.from(new Set(selectedBeforeRefresh.map((id) => {',
+    '    if (unique.some((source) => source.id === id)) return id;',
+    '    const previous = previousSources.get(id);',
+    '    if (!previous) return null;',
+    "    const key = previous.provider + ':' + String(previous.channelId || previous.channel).toLowerCase();",
+    '    return sourceByProviderChannel.get(key) || null;',
+    '  }).filter(Boolean)));',
+    '  rememberSpaceDestinations();',
+  ].join('\n');
   source = replaceRequired(
     source,
     '  state.sources = unique;\n  state.selectedDestinations = state.selectedDestinations.filter((id) => unique.some((source) => source.id === id));',
-    `  const selectedBeforeRefresh = [...state.selectedDestinations];\n  state.sources = unique;\n  state.selectedDestinations = Array.from(new Set(selectedBeforeRefresh.map((id) => {\n    if (unique.some((source) => source.id === id)) return id;\n    const previous = previousSources.get(id);\n    if (!previous) return null;\n    return sourceByProviderChannel.get(\\`${'${previous.provider}:${String(previous.channelId || previous.channel).toLowerCase()}'}\\`) || null;\n  }).filter(Boolean)));\n  rememberSpaceDestinations();`,
+    destinationReplacement,
     'destination persistence across feed refresh',
   );
 
@@ -105,7 +171,14 @@ function installCommlinkIdentityRoutingBootstrap() {
   );
 
   const settingsListener = "  $('#settings-button').addEventListener('click', () => $('#settings-drawer').classList.remove('hidden'));";
-  const accountListener = `${settingsListener}\n  $('#topbar-account-avatar')?.addEventListener('click', () => {\n    const target = '/?view=account';\n    if (window.top && window.top !== window) window.top.location.href = target;\n    else window.location.href = target;\n  });`;
+  const accountListener = [
+    settingsListener,
+    "  $('#topbar-account-avatar')?.addEventListener('click', () => {",
+    "    const target = '/?view=account';",
+    '    if (window.top && window.top !== window) window.top.location.href = target;',
+    '    else window.location.href = target;',
+    '  });',
+  ].join('\n');
   source = replaceRequired(source, settingsListener, accountListener, 'account navigation');
 
   fs.writeFileSync(jsPath, source, 'utf8');

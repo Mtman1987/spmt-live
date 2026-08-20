@@ -198,7 +198,8 @@ function installCommlinkIdentityRoutingBootstrap() {
 
   const settingsListener = "  $('#settings-button').addEventListener('click', () => $('#settings-drawer').classList.remove('hidden'));";
   const accountListener = [
-    settingsListener,
+    "  const settingsButton = $('#settings-button');",
+    "  settingsButton.addEventListener('click', () => $('#settings-drawer').classList.remove('hidden'));",
     "  $('#topbar-account-avatar')?.addEventListener('click', () => {",
     "    const target = '/?view=account';",
     '    if (window.top && window.top !== window) window.top.location.href = target;',

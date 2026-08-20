@@ -4,8 +4,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 function replaceRequired(source, from, to, label) {
-  if (source.includes(to)) return source;
-  if (!source.includes(from)) throw new Error(`Commlink identity/routing bootstrap could not find ${label}`);
+  if (!source.includes(from)) {
+    if (source.includes(to)) return source;
+    throw new Error(`Commlink identity/routing bootstrap could not find ${label}`);
+  }
   return source.replace(from, to);
 }
 
@@ -135,7 +137,7 @@ function installCommlinkIdentityRoutingBootstrap() {
 
   const baseChannelLine = "    channel: String(item.channelName || item.sourceName || item.channelId || 'unknown'),";
   const richChannelLine = "    channel: friendlyChannelName(provider, item.channelName || item.sourceName || 'Unknown channel'),";
-  const newChannelLine = "    channel: humanChannelLabel(provider, item.channelName || item.sourceName || item.channelId || 'Unknown channel'),";
+  const newChannelLine = "    channel: humanChannelLabel(provider, item.channelName || item.channelId || item.sourceName || 'Unknown channel'),";
   if (!source.includes(newChannelLine)) {
     if (source.includes(richChannelLine)) source = source.replace(richChannelLine, newChannelLine);
     else if (source.includes(baseChannelLine)) source = source.replace(baseChannelLine, newChannelLine);
@@ -150,7 +152,7 @@ function installCommlinkIdentityRoutingBootstrap() {
   const baseSourceChannel = "      channel: String(channel.channelName || channel.sourceName || channel.channelId),";
   const richSourceChannel = "      channel: friendlyChannelName(provider, channel.channelName || channel.displayName || channel.sourceName || 'Unknown channel'),";
   const oldRichSourceChannel = "      channel: friendlyChannelName(provider, channel.channelName || channel.sourceName || channel.channelId),";
-  const newSourceChannel = "      channel: humanChannelLabel(provider, channel.channelName || channel.displayName || channel.sourceName || channel.channelId || 'Unknown channel'),";
+  const newSourceChannel = "      channel: humanChannelLabel(provider, channel.channelName || channel.displayName || channel.channelId || channel.sourceName || 'Unknown channel'),";
   if (!source.includes(newSourceChannel)) {
     if (source.includes(richSourceChannel)) source = source.replace(richSourceChannel, newSourceChannel);
     else if (source.includes(oldRichSourceChannel)) source = source.replace(oldRichSourceChannel, newSourceChannel);

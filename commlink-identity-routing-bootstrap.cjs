@@ -23,12 +23,7 @@ function installCommlinkIdentityRoutingBootstrap() {
     : path.join(__dirname, 'public', 'commlink', 'commlink.css');
 
   let html = fs.readFileSync(htmlPath, 'utf8');
-  html = replaceRequired(
-    html,
-    '<span>Canonical SPMT messaging workspace</span>',
-    '<span>SPMT-owned Commlink workspace</span>',
-    'ownership banner',
-  );
+  html = replaceRequired(html, '<span>Canonical SPMT messaging workspace</span>', '<span>SPMT-owned Commlink workspace</span>', 'ownership banner');
   html = replaceRequired(
     html,
     '<span class="account-avatar">MT</span>\n        <span><strong id="account-title">Mountain Crew</strong><small id="account-xp">Loading account XP…</small><small id="sync-summary">Checking SPMT sync…</small></span>',
@@ -44,12 +39,7 @@ function installCommlinkIdentityRoutingBootstrap() {
   fs.writeFileSync(htmlPath, html, 'utf8');
 
   let source = fs.readFileSync(jsPath, 'utf8');
-  source = replaceRequired(
-    source,
-    '  accountXp: null,\n  workspaceEditor: null,',
-    '  accountXp: null,\n  accountIdentity: null,\n  workspaceEditor: null,',
-    'identity state',
-  );
+  source = replaceRequired(source, '  accountXp: null,\n  workspaceEditor: null,', '  accountXp: null,\n  accountIdentity: null,\n  workspaceEditor: null,', 'identity state');
 
   const identityHelpers = [
     'function accountInitials(user) {',
@@ -145,30 +135,30 @@ function installCommlinkIdentityRoutingBootstrap() {
   }
 
   const sourceIdLine = "    sourceId: String(item.sourceId || `${provider}:${item.channelId || 'unknown'}`),";
-  if (source.includes(sourceIdLine)) {
-    source = source.replace(sourceIdLine, '    sourceId: canonicalCommlinkSourceId(provider, item),');
-  }
+  if (source.includes(sourceIdLine)) source = source.replace(sourceIdLine, '    sourceId: canonicalCommlinkSourceId(provider, item),');
 
-  const baseSourceChannel = "      channel: String(channel.channelName || channel.sourceName || channel.channelId),";
-  const richSourceChannel = "      channel: friendlyChannelName(provider, channel.channelName || channel.displayName || channel.sourceName || 'Unknown channel'),";
-  const oldRichSourceChannel = "      channel: friendlyChannelName(provider, channel.channelName || channel.sourceName || channel.channelId),";
   const newSourceChannel = "      channel: humanChannelLabel(provider, channel.channelName || channel.displayName || channel.channelId || channel.sourceName || 'Unknown channel'),";
   if (!source.includes(newSourceChannel)) {
-    if (source.includes(richSourceChannel)) source = source.replace(richSourceChannel, newSourceChannel);
-    else if (source.includes(oldRichSourceChannel)) source = source.replace(oldRichSourceChannel, newSourceChannel);
-    else if (source.includes(baseSourceChannel)) source = source.replace(baseSourceChannel, newSourceChannel);
-    else throw new Error('Commlink identity/routing bootstrap could not find source channel label');
+    const sourceChannelPatterns = [
+      "      channel: friendlyChannelName(provider, channel.channelName || channel.displayName || channel.sourceName || 'Unknown channel'),",
+      "      channel: friendlyChannelName(provider, channel.channelName || channel.sourceName || channel.channelId),",
+      "      channel: String(channel.channelName || channel.sourceName || channel.channelId),",
+    ];
+    const matched = sourceChannelPatterns.find((candidate) => source.includes(candidate));
+    if (matched) {
+      source = source.replace(matched, newSourceChannel);
+    } else {
+      const genericFriendlyChannel = /      channel: friendlyChannelName\(provider, channel\.channelName \|\| [^\n]+\),/;
+      if (!genericFriendlyChannel.test(source)) throw new Error('Commlink identity/routing bootstrap could not find source channel label');
+      source = source.replace(genericFriendlyChannel, newSourceChannel);
+    }
   }
 
   const channelIdLine = "      id: String(channel.sourceId || `${provider}:${channel.channelId || 'unknown'}`),";
-  if (source.includes(channelIdLine)) {
-    source = source.replace(channelIdLine, '      id: canonicalCommlinkSourceId(provider, channel),');
-  }
+  if (source.includes(channelIdLine)) source = source.replace(channelIdLine, '      id: canonicalCommlinkSourceId(provider, channel),');
 
   const eventSourceIdLine = "    const sourceId = String(item.sourceId || `${provider}:${item.channelId || 'unknown'}`);";
-  if (source.includes(eventSourceIdLine)) {
-    source = source.replace(eventSourceIdLine, '    const sourceId = canonicalCommlinkSourceId(provider, item);');
-  }
+  if (source.includes(eventSourceIdLine)) source = source.replace(eventSourceIdLine, '    const sourceId = canonicalCommlinkSourceId(provider, item);');
 
   const destinationReplacement = [
     '  const selectedBeforeRefresh = [...state.selectedDestinations];',
@@ -189,12 +179,7 @@ function installCommlinkIdentityRoutingBootstrap() {
     'destination persistence across feed refresh',
   );
 
-  source = replaceRequired(
-    source,
-    'loadWorkspaceProfile();\nloadAccountXp();',
-    'loadWorkspaceProfile();\nloadCommlinkIdentity();\nloadAccountXp();',
-    'identity startup load',
-  );
+  source = replaceRequired(source, 'loadWorkspaceProfile();\nloadAccountXp();', 'loadWorkspaceProfile();\nloadCommlinkIdentity();\nloadAccountXp();', 'identity startup load');
 
   const settingsListener = "  $('#settings-button').addEventListener('click', () => $('#settings-drawer').classList.remove('hidden'));";
   const accountListener = [

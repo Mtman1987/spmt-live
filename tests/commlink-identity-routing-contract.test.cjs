@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
@@ -35,6 +36,57 @@ test('Commlink identity bootstrap keeps Discord channels specific and distinct',
   assert.match(bootstrap, /canonicalCommlinkSourceId\(provider, item\)/);
   assert.doesNotMatch(bootstrap, /return 'Discord channel'/);
   assert.match(bootstrap, /channel\.channelName/);
+});
+
+test('identity routing transforms the real post-source-controls Commlink assets and remains idempotent', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'spmt-commlink-identity-'));
+  const tempJs = path.join(tempRoot, 'commlink.js');
+  const tempCss = path.join(tempRoot, 'commlink.css');
+  const tempHtml = path.join(tempRoot, 'index.html');
+  fs.copyFileSync(path.join(root, 'public/commlink/commlink.js'), tempJs);
+  fs.copyFileSync(path.join(root, 'public/commlink/commlink.css'), tempCss);
+  fs.copyFileSync(path.join(root, 'public/commlink/index.html'), tempHtml);
+
+  const previousJs = process.env.SPMT_COMMLINK_JS_PATH;
+  const previousCss = process.env.SPMT_COMMLINK_CSS_PATH;
+  const previousHtml = process.env.SPMT_COMMLINK_INDEX_PATH;
+  process.env.SPMT_COMMLINK_JS_PATH = tempJs;
+  process.env.SPMT_COMMLINK_CSS_PATH = tempCss;
+  process.env.SPMT_COMMLINK_INDEX_PATH = tempHtml;
+
+  try {
+    const { installCommlinkRichChatBootstrap } = require('../commlink-rich-chat-bootstrap.cjs');
+    const { installCommlinkSourceControlsBootstrap } = require('../commlink-source-controls-bootstrap.cjs');
+    const { installCommlinkIdentityRoutingBootstrap } = require('../commlink-identity-routing-bootstrap.cjs');
+    installCommlinkRichChatBootstrap();
+    installCommlinkSourceControlsBootstrap();
+    installCommlinkIdentityRoutingBootstrap();
+
+    const onceJs = fs.readFileSync(tempJs, 'utf8');
+    const onceCss = fs.readFileSync(tempCss, 'utf8');
+    const onceHtml = fs.readFileSync(tempHtml, 'utf8');
+    installCommlinkIdentityRoutingBootstrap();
+
+    assert.equal(fs.readFileSync(tempJs, 'utf8'), onceJs);
+    assert.equal(fs.readFileSync(tempCss, 'utf8'), onceCss);
+    assert.equal(fs.readFileSync(tempHtml, 'utf8'), onceHtml);
+    assert.match(onceHtml, /SPMT-owned Commlink workspace/);
+    assert.match(onceHtml, /account-auth-status/);
+    assert.match(onceJs, /loadCommlinkIdentity\(\)/);
+    assert.match(onceJs, /sourceId: canonicalCommlinkSourceId\(provider, item\)/);
+    assert.match(onceJs, /id: canonicalCommlinkSourceId\(provider, channel\)/);
+    assert.match(onceJs, /const sourceId = canonicalCommlinkSourceId\(provider, item\)/);
+    assert.doesNotMatch(onceJs, /return 'Discord channel'/);
+    assert.doesNotThrow(() => new Function(onceJs), 'final Commlink JavaScript should parse');
+  } finally {
+    if (previousJs === undefined) delete process.env.SPMT_COMMLINK_JS_PATH;
+    else process.env.SPMT_COMMLINK_JS_PATH = previousJs;
+    if (previousCss === undefined) delete process.env.SPMT_COMMLINK_CSS_PATH;
+    else process.env.SPMT_COMMLINK_CSS_PATH = previousCss;
+    if (previousHtml === undefined) delete process.env.SPMT_COMMLINK_INDEX_PATH;
+    else process.env.SPMT_COMMLINK_INDEX_PATH = previousHtml;
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
 });
 
 test('production startup installs and packages the Commlink identity routing bootstrap', () => {

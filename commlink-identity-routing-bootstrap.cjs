@@ -108,15 +108,6 @@ function installCommlinkIdentityRoutingBootstrap() {
     'discovery identity ownership',
   );
 
-  const baseChannelLine = "    channel: String(item.channelName || item.sourceName || item.channelId || 'unknown'),";
-  const richChannelLine = "    channel: friendlyChannelName(provider, item.channelName || item.sourceName || 'Unknown channel'),";
-  const newChannelLine = "    channel: humanChannelLabel(provider, item.channelName || item.sourceName || item.channelId || 'Unknown channel'),";
-  if (!source.includes(newChannelLine)) {
-    if (source.includes(richChannelLine)) source = source.replace(richChannelLine, newChannelLine);
-    else if (source.includes(baseChannelLine)) source = source.replace(baseChannelLine, newChannelLine);
-    else throw new Error('Commlink identity/routing bootstrap could not find message channel label');
-  }
-
   if (!source.includes('function humanChannelLabel(')) {
     const marker = 'function canonicalProvider(item) {';
     const helper = [
@@ -128,9 +119,32 @@ function installCommlinkIdentityRoutingBootstrap() {
       "  return raw.startsWith('#') ? raw : '#' + raw;",
       '}',
       '',
+      'function canonicalCommlinkSourceId(provider, item) {',
+      "  const rawChannelId = String(item?.channelId || '').trim();",
+      "  if (provider === 'discord') {",
+      "    const channelId = rawChannelId.replace(/^discord:/i, '');",
+      "    return 'discord:' + (channelId || 'unknown');",
+      '  }',
+      "  return String(item?.sourceId || (provider + ':' + (rawChannelId || 'unknown')));",
+      '}',
+      '',
     ].join('\n');
     if (!source.includes(marker)) throw new Error('Commlink identity/routing bootstrap could not find provider helper marker');
     source = source.replace(marker, helper + marker);
+  }
+
+  const baseChannelLine = "    channel: String(item.channelName || item.sourceName || item.channelId || 'unknown'),";
+  const richChannelLine = "    channel: friendlyChannelName(provider, item.channelName || item.sourceName || 'Unknown channel'),";
+  const newChannelLine = "    channel: humanChannelLabel(provider, item.channelName || item.sourceName || item.channelId || 'Unknown channel'),";
+  if (!source.includes(newChannelLine)) {
+    if (source.includes(richChannelLine)) source = source.replace(richChannelLine, newChannelLine);
+    else if (source.includes(baseChannelLine)) source = source.replace(baseChannelLine, newChannelLine);
+    else throw new Error('Commlink identity/routing bootstrap could not find message channel label');
+  }
+
+  const sourceIdLine = "    sourceId: String(item.sourceId || `${provider}:${item.channelId || 'unknown'}`),";
+  if (source.includes(sourceIdLine)) {
+    source = source.replace(sourceIdLine, '    sourceId: canonicalCommlinkSourceId(provider, item),');
   }
 
   const baseSourceChannel = "      channel: String(channel.channelName || channel.sourceName || channel.channelId),";
@@ -142,6 +156,16 @@ function installCommlinkIdentityRoutingBootstrap() {
     else if (source.includes(oldRichSourceChannel)) source = source.replace(oldRichSourceChannel, newSourceChannel);
     else if (source.includes(baseSourceChannel)) source = source.replace(baseSourceChannel, newSourceChannel);
     else throw new Error('Commlink identity/routing bootstrap could not find source channel label');
+  }
+
+  const channelIdLine = "      id: String(channel.sourceId || `${provider}:${channel.channelId || 'unknown'}`),";
+  if (source.includes(channelIdLine)) {
+    source = source.replace(channelIdLine, '      id: canonicalCommlinkSourceId(provider, channel),');
+  }
+
+  const eventSourceIdLine = "    const sourceId = String(item.sourceId || `${provider}:${item.channelId || 'unknown'}`);";
+  if (source.includes(eventSourceIdLine)) {
+    source = source.replace(eventSourceIdLine, '    const sourceId = canonicalCommlinkSourceId(provider, item);');
   }
 
   const destinationReplacement = [

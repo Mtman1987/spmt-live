@@ -27,8 +27,12 @@ test('Commlink identity bootstrap preserves selected destinations across live so
   assert.match(bootstrap, /rememberSpaceDestinations\(\)/);
 });
 
-test('Commlink identity bootstrap keeps Discord channel labels specific', () => {
+test('Commlink identity bootstrap keeps Discord channels specific and distinct', () => {
   assert.match(bootstrap, /function humanChannelLabel/);
+  assert.match(bootstrap, /function canonicalCommlinkSourceId/);
+  assert.match(bootstrap, /replace\(\/\^discord:\/i, ''\)/);
+  assert.match(bootstrap, /canonicalCommlinkSourceId\(provider, channel\)/);
+  assert.match(bootstrap, /canonicalCommlinkSourceId\(provider, item\)/);
   assert.doesNotMatch(bootstrap, /return 'Discord channel'/);
   assert.match(bootstrap, /channel\.channelName/);
 });

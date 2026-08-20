@@ -77,6 +77,7 @@ test('identity routing transforms the real post-source-controls Commlink assets 
     assert.match(onceJs, /id: canonicalCommlinkSourceId\(provider, channel\)/);
     assert.match(onceJs, /const sourceId = canonicalCommlinkSourceId\(provider, item\)/);
     assert.doesNotMatch(onceJs, /return 'Discord channel'/);
+    assert.doesNotMatch(onceJs, /account-title'\)\.textContent = complete \? `Mountain Crew/);
     assert.doesNotThrow(() => new Function(onceJs), 'final Commlink JavaScript should parse');
   } finally {
     if (previousJs === undefined) delete process.env.SPMT_COMMLINK_JS_PATH;

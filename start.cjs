@@ -30,6 +30,7 @@ function ensureWorkspaceShellBootstrap() {
     '/shared/companion-installer-ui.js',
     '/shared/overlay-bay-shell-nav.js',
     '/shared/account-recovery-ui.js',
+    '/shared/black-hole-easter-egg.js',
   ]);
 
   const sharedIndexPath = process.env.SPMT_SHARED_INDEX_PATH
@@ -56,6 +57,7 @@ require('./commlink-rich-chat-bootstrap.cjs').installCommlinkRichChatBootstrap()
 require('./commlink-source-controls-bootstrap.cjs').installCommlinkSourceControlsBootstrap();
 require('./commlink-identity-routing-bootstrap.cjs').installCommlinkIdentityRoutingBootstrap();
 require('./commlink-production-bootstrap.cjs').installCommlinkProductionBootstrap();
+require('./commlink-easter-egg-relocation-bootstrap.cjs').installCommlinkEasterEggRelocationBootstrap();
 require('./commlink-diagnostic-bootstrap.cjs').installCommlinkDiagnosticBootstrap();
 require('./presence-bootstrap.cjs').installPresenceBootstrap();
 require('./oauth-authorize-recovery-bootstrap.cjs').installOauthAuthorizeRecoveryBootstrap();

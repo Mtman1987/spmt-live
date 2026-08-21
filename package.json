@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "patch:canonical-service-scopes": "node scripts/patch-canonical-service-scopes.mjs",
-    "patch:runtime-contracts": "npm run patch:canonical-service-scopes && node scripts/patch-lost-signal-persistence-confirmation.mjs && node scripts/patch-black-hole-easter-egg-reliability.mjs && node scripts/patch-commlink-spmt-session-auth.mjs && node scripts/patch-commlink-black-hole-physics.mjs",
+    "patch:runtime-contracts": "npm run patch:canonical-service-scopes && node scripts/patch-lost-signal-persistence-confirmation.mjs && node scripts/patch-black-hole-easter-egg-reliability.mjs && node scripts/patch-commlink-spmt-session-auth.mjs",
     "predev": "npm run patch:runtime-contracts",
     "dev": "tsx watch server.ts",
     "pretypecheck": "npm run patch:runtime-contracts",
@@ -50,14 +50,14 @@
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/cookie-parser": "^1.4.7",
-    "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.9",
-    "@types/node": "^22.14.0",
+    "@types/cookie-parser": "^7.0.0",
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.3.0",
     "@types/uuid": "^10.0.0",
-    "@types/ws": "^8.5.10",
-    "esbuild": "^0.25.0",
-    "tsx": "^4.21.0",
-    "typescript": "~5.8.2"
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.25.9",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
   }
 }

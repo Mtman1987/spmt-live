@@ -125,9 +125,17 @@ function installCommlinkIdentityRoutingBootstrap() {
     source = source.replace(marker, helper + marker);
   }
 
+  const legacyGenericDiscordLabel = 'Discord' + ' channel';
+  const legacyFriendlyChannelName = [
+    'function friendlyChannelName(provider, value) {',
+    "  const raw = String(value || 'unknown');",
+    "  if (provider === 'discord' && /^discord:\\d+$/.test(raw)) return '" + legacyGenericDiscordLabel + "';",
+    '  return raw;',
+    '}',
+  ].join('\n');
   source = replaceRequired(
     source,
-    "function friendlyChannelName(provider, value) {\n  const raw = String(value || 'unknown');\n  if (provider === 'discord' && /^discord:\\d+$/.test(raw)) return 'Discord channel';\n  return raw;\n}",
+    legacyFriendlyChannelName,
     'function friendlyChannelName(provider, value) {\n  return humanChannelLabel(provider, value);\n}',
     'legacy generic Discord channel label',
   );

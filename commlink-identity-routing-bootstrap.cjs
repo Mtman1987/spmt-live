@@ -182,19 +182,6 @@ function installCommlinkIdentityRoutingBootstrap() {
     'event-backed channel label',
   );
 
-  source = replaceRequired(
-    source,
-    "    const sources = $('[data-space-source]:checked').map((input) => input.dataset.spaceSource);",
-    "    const sources = $$('[data-space-source]:checked').map((input) => input.dataset.spaceSource);",
-    'ChatSpace selected source collection',
-  );
-  source = replaceRequired(
-    source,
-    "    const presentationCategories = $('[data-presentation-category]:checked').map((input) => input.dataset.presentationCategory);",
-    "    const presentationCategories = $$('[data-presentation-category]:checked').map((input) => input.dataset.presentationCategory);",
-    'ChatSpace selected presentation category collection',
-  );
-
   const destinationReplacement = [
     '  const selectedBeforeRefresh = [...state.selectedDestinations];',
     '  state.sources = unique;',

@@ -20,7 +20,7 @@
     "smoke:suite": "node scripts/operations/suite-smoke.mjs",
     "test:identity-reconciliation": "tsx --test tests/identity-reconciliation.test.ts",
     "pretest:startup-theme": "npm run patch:runtime-contracts",
-    "test:startup-theme": "node --test tests/startup-theme-bootstrap.test.cjs tests/production-bootstrap-packaging-contract.test.cjs tests/ecosystem-docs.test.cjs tests/companion-bootstrap-contract.test.cjs tests/session-stale-while-revalidate.test.cjs tests/commlink-feed-projection-contract.test.cjs tests/commlink-source-controls-contract.test.cjs tests/commlink-diagnostic-feed-contract.test.cjs tests/black-hole-easter-egg-contract.test.cjs tests/commlink-black-hole-puzzle-contract.test.cjs tests/commlink-session-auth-contract.test.cjs tests/lost-signal-game-contract.test.cjs",
+    "test:startup-theme": "node --test tests/startup-theme-bootstrap.test.cjs tests/production-bootstrap-packaging-contract.test.cjs tests/ecosystem-docs.test.cjs tests/companion-bootstrap-contract.test.cjs tests/session-stale-while-revalidate.test.cjs tests/commlink-feed-projection-contract.test.cjs tests/commlink-source-controls-contract.test.cjs tests/commlink-identity-routing-contract.test.cjs tests/commlink-diagnostic-feed-contract.test.cjs tests/black-hole-easter-egg-contract.test.cjs tests/commlink-black-hole-puzzle-contract.test.cjs tests/commlink-session-auth-contract.test.cjs tests/lost-signal-game-contract.test.cjs",
     "test:presence": "node --test tests/presence-contract.test.cjs",
     "test:account-recovery": "node --test tests/account-recovery-contract.test.cjs tests/verified-identity-reconciliation-bootstrap.test.cjs",
     "test:overlay-bay": "node --test tests/overlay-bay-v2-contract.test.cjs tests/overlay-bay-import-source-contract.test.cjs",
@@ -50,7 +50,7 @@
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/cookie-parser": "^1.4.8",
+    "@types/cookie-parser": "^1.4.7",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.14.0",

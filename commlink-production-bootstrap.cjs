@@ -113,6 +113,12 @@ function installCommlinkProductionBootstrap() {
     );
   }
 
+  // A later/older source-control pass can leave a harmless demoMode reference
+  // after the fixture declarations themselves are gone. Production has no demo
+  // switch: force any residual guard to false so repeated bootstrap passes are
+  // deterministic and cannot resurrect preview behavior or throw at runtime.
+  source = source.replace(/\bdemoMode\b/g, 'false');
+
   source = replaceRequired(
     source,
     "  $('#simulate-send').textContent = state.feedMode === 'real' ? (state.replyToMessageId ? 'Send source-locked reply' : 'Send deliberately') : 'Simulate send';\n  $('#simulate-send').dataset.receiptMode = '';\n  $('#send-safety-note').innerHTML = state.feedMode === 'real'\n    ? '<span>✓</span> Every destination receives its own idempotent request and receipt. Partial failure never appears as a complete send.'\n    : '<span>✓</span> Synthetic preview mode never contacts a provider.';",

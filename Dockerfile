@@ -32,6 +32,7 @@ COPY commlink-rich-chat-bootstrap.cjs ./commlink-rich-chat-bootstrap.cjs
 COPY commlink-source-controls-bootstrap.cjs ./commlink-source-controls-bootstrap.cjs
 COPY commlink-identity-routing-bootstrap.cjs ./commlink-identity-routing-bootstrap.cjs
 COPY commlink-production-bootstrap.cjs ./commlink-production-bootstrap.cjs
+COPY commlink-easter-egg-relocation-bootstrap.cjs ./commlink-easter-egg-relocation-bootstrap.cjs
 COPY commlink-diagnostic-bootstrap.cjs ./commlink-diagnostic-bootstrap.cjs
 COPY cloud-xbox-bootstrap.cjs ./cloud-xbox-bootstrap.cjs
 COPY tenant-overlay-events-bootstrap.cjs ./tenant-overlay-events-bootstrap.cjs

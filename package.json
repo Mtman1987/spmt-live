@@ -16,7 +16,7 @@
     "sdk:package": "npm run sdk:build && node scripts/package-sdk.mjs",
     "prestart": "npm run patch:runtime-contracts && npm run build",
     "start": "node scripts/start.mjs",
-    "smoke": "node scripts/smoke.mjs",
+    "smoke": "node scripts/patch-commlink-smoke-contract.mjs && node scripts/smoke.mjs",
     "smoke:suite": "node scripts/operations/suite-smoke.mjs",
     "test:identity-reconciliation": "tsx --test tests/identity-reconciliation.test.ts",
     "pretest:startup-theme": "npm run patch:runtime-contracts",

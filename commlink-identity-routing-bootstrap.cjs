@@ -125,6 +125,13 @@ function installCommlinkIdentityRoutingBootstrap() {
     source = source.replace(marker, helper + marker);
   }
 
+  source = replaceRequired(
+    source,
+    "function friendlyChannelName(provider, value) {\n  const raw = String(value || 'unknown');\n  if (provider === 'discord' && /^discord:\\d+$/.test(raw)) return 'Discord channel';\n  return raw;\n}",
+    'function friendlyChannelName(provider, value) {\n  return humanChannelLabel(provider, value);\n}',
+    'legacy generic Discord channel label',
+  );
+
   const baseChannelLine = "    channel: String(item.channelName || item.sourceName || item.channelId || 'unknown'),";
   const richChannelLine = "    channel: friendlyChannelName(provider, item.channelName || item.sourceName || 'Unknown channel'),";
   const newChannelLine = "    channel: humanChannelLabel(provider, item.channelName || item.channelId || item.sourceName || 'Unknown channel'),";
@@ -159,6 +166,26 @@ function installCommlinkIdentityRoutingBootstrap() {
 
   const eventSourceIdLine = "    const sourceId = String(item.sourceId || `${provider}:${item.channelId || 'unknown'}`);";
   if (source.includes(eventSourceIdLine)) source = source.replace(eventSourceIdLine, '    const sourceId = canonicalCommlinkSourceId(provider, item);');
+
+  source = replaceRequired(
+    source,
+    "      channel: friendlyChannelName(provider, item.channelName || item.sourceName || 'Unknown channel'),",
+    "      channel: humanChannelLabel(provider, item.channelName || item.channelId || item.sourceName || 'Unknown channel'),",
+    'event-backed channel label',
+  );
+
+  source = replaceRequired(
+    source,
+    "    const sources = $('[data-space-source]:checked').map((input) => input.dataset.spaceSource);",
+    "    const sources = $$('[data-space-source]:checked').map((input) => input.dataset.spaceSource);",
+    'ChatSpace selected source collection',
+  );
+  source = replaceRequired(
+    source,
+    "    const presentationCategories = $('[data-presentation-category]:checked').map((input) => input.dataset.presentationCategory);",
+    "    const presentationCategories = $$('[data-presentation-category]:checked').map((input) => input.dataset.presentationCategory);",
+    'ChatSpace selected presentation category collection',
+  );
 
   const destinationReplacement = [
     '  const selectedBeforeRefresh = [...state.selectedDestinations];',

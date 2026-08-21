@@ -58,7 +58,7 @@ test('canonical Commlink rich chat renderer is idempotent on real Commlink asset
     assert.equal(twiceCss, onceCss);
     assert.equal((onceJs.match(/function renderProviderChatText\(/g) || []).length, 1);
     assert.equal((onceCss.match(/\.inline-chat-emote\s*\{/g) || []).length, 1);
-    assert.match(onceJs, /friendlyChannelName\(provider, channel\.channelName/);
+    assert.match(onceJs, /(?:friendlyChannelName|humanChannelLabel)\(provider, channel\.channelName/);
     assert.match(onceJs, /message\.discord\?\.embeds/);
   } finally {
     if (previousJs === undefined) delete process.env.SPMT_COMMLINK_JS_PATH;

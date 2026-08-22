@@ -31,6 +31,18 @@ test('production installs and ships the easter egg entitlement route', () => {
   assert.match(dockerfile, /CMD \["node", "start\.cjs"\]/);
 });
 
+test('owner test grant persists all three real egg completion flags without replacing egg payloads', () => {
+  assert.match(bootstrap, /SPMT_EASTER_EGG_TEST_USERNAMES \|\| 'mtman1987'/);
+  assert.match(bootstrap, /user\.is_admin !== 1/);
+  assert.match(bootstrap, /\['rocket', 'blackHole', 'signal'\]/);
+  assert.match(bootstrap, /\.\.\.existing,/);
+  assert.match(bootstrap, /completed: true/);
+  assert.match(bootstrap, /ownerTestGrant: true/);
+  assert.match(bootstrap, /UPDATE app_state_records/);
+  assert.match(bootstrap, /INSERT INTO app_state_records/);
+  assert.match(bootstrap, /title: allThree \? 'Voidwalker' : null/);
+});
+
 test('legacy entitlement key remains compatibility-only with bounded telemetry', () => {
   assert.match(bootstrap, /LEGACY_AUTH_USED migration=AUTH-SW-003/);
   assert.match(bootstrap, /caller=unverified/);

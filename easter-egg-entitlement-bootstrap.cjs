@@ -7,6 +7,12 @@ const path = require('node:path');
 const APP_ID = 'spacemountain-live';
 const NAMESPACE = 'easter-eggs';
 const LEGACY_AUTH_LOG_INTERVAL_MS = 60_000;
+const OWNER_TEST_USERNAMES = new Set(
+  String(process.env.SPMT_EASTER_EGG_TEST_USERNAMES || 'mtman1987')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean),
+);
 let entitlementDb = null;
 let lastLegacyAuthLogAt = 0;
 
@@ -56,13 +62,76 @@ function normalizeProvider(value) {
   return provider === 'discord' || provider === 'twitch' ? provider : '';
 }
 
+function ensureOwnerTestGrant(db, user) {
+  if (!user?.id || user.is_admin !== 1) return;
+  const names = [user.username, user.twitch_username, user.discord_username]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+  if (!names.some((name) => OWNER_TEST_USERNAMES.has(name))) return;
+
+  const row = db.prepare(`
+    SELECT data_json, revision
+    FROM app_state_records
+    WHERE user_id = ? AND app_id = ? AND namespace = ?
+    LIMIT 1
+  `).get(user.id, APP_ID, NAMESPACE);
+
+  let data = {};
+  try {
+    data = row?.data_json ? JSON.parse(row.data_json) : {};
+  } catch {
+    data = {};
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) data = {};
+  if (!data.eggs || typeof data.eggs !== 'object' || Array.isArray(data.eggs)) data.eggs = {};
+
+  const eggNames = ['rocket', 'blackHole', 'signal'];
+  if (eggNames.every((eggName) => data.eggs?.[eggName]?.completed === true)) return;
+
+  const grantedAt = new Date().toISOString();
+  for (const eggName of eggNames) {
+    const existing = data.eggs[eggName] && typeof data.eggs[eggName] === 'object'
+      ? data.eggs[eggName]
+      : {};
+    data.eggs[eggName] = {
+      ...existing,
+      completed: true,
+      ownerTestGrant: true,
+      ownerTestGrantedAt: existing.ownerTestGrantedAt || grantedAt,
+    };
+  }
+
+  if (row) {
+    db.prepare(`
+      UPDATE app_state_records
+      SET data_json = ?, revision = ?, updated_at = ?
+      WHERE user_id = ? AND app_id = ? AND namespace = ?
+    `).run(JSON.stringify(data), Math.max(1, Number(row.revision || 1)) + 1, grantedAt, user.id, APP_ID, NAMESPACE);
+  } else {
+    db.prepare(`
+      INSERT INTO app_state_records
+        (user_id, app_id, namespace, schema_version, revision, data_json, created_at, updated_at)
+      VALUES (?, ?, ?, 1, 1, ?, ?, ?)
+    `).run(user.id, APP_ID, NAMESPACE, JSON.stringify(data), grantedAt, grantedAt);
+  }
+
+  console.log('[EasterEggEntitlement] owner test grant persisted', { userId: user.id, eggs: eggNames });
+}
+
 function readEggs(provider, providerUserId) {
   const column = provider === 'discord' ? 'discord_id' : 'twitch_id';
   const db = openDb();
-  const user = db.prepare(`SELECT id FROM users WHERE ${column} = ? LIMIT 1`).get(providerUserId);
+  const user = db.prepare(`
+    SELECT id, username, twitch_username, discord_username, is_admin
+    FROM users
+    WHERE ${column} = ?
+    LIMIT 1
+  `).get(providerUserId);
   if (!user?.id) {
     return { knownIdentity: false, eggs: { rocket: false, blackHole: false, signal: false }, title: null };
   }
+
+  ensureOwnerTestGrant(db, user);
 
   const row = db.prepare(`
     SELECT data_json

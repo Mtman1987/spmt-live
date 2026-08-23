@@ -193,6 +193,12 @@ type EcosystemAppRecord = {
   distribution?: 'web' | 'windows-desktop';
   downloadUrl?: string;
   signed?: boolean;
+  manifestVersion?: 'spmt.app-manifest/v1';
+  launchUrl?: string;
+  capabilities?: string[];
+  surfaces?: string[];
+  integration?: Record<string, 'native' | 'connected' | 'declared' | 'unavailable' | 'not-applicable'>;
+  registrySource?: 'first-party' | 'approved-partner';
 };
 
 const COMPANION_DOWNLOAD_URL = 'https://spmt.live/downloads/companion/windows';
@@ -810,8 +816,89 @@ function approvedPartnerApps(): EcosystemAppRecord[] {
     }));
 }
 
+const FIRST_PARTY_REGISTRY_METADATA: Record<string, {
+  healthUrl?: string;
+  capabilities: string[];
+  surfaces: string[];
+  integration: NonNullable<EcosystemAppRecord['integration']>;
+}> = {
+  'spacemountain-live': {
+    healthUrl: 'https://spacemountain.live/api/health',
+    capabilities: ['command-bridge', 'shipyard', 'commlink', 'athena-ui', 'workspace', 'universal-overlay', 'app-docking'],
+    surfaces: ['dashboard', 'apps', 'messages', 'settings', 'desktop-overlay'],
+    integration: { identity: 'native', events: 'connected', commlink: 'native', athena: 'connected', workspace: 'native', sdk: 'connected' },
+  },
+  'discord-stream-hub': {
+    healthUrl: 'https://discord-stream-hub-new.fly.dev/api/health',
+    capabilities: ['discord-community', 'shoutouts', 'calendar', 'moderation', 'signal', 'clips', 'messages'],
+    surfaces: ['dashboard', 'messages'],
+    integration: { identity: 'connected', events: 'connected', commlink: 'connected', athena: 'connected', workspace: 'connected', sdk: 'connected' },
+  },
+  streamweaver: {
+    healthUrl: 'https://streamweaver-new.fly.dev/api/health',
+    capabilities: ['automation', 'commands', 'ai-runtime', 'tts', 'shared-chat', 'overlays', 'pokemon', 'signal', 'companion'],
+    surfaces: ['dashboard', 'commands', 'chat', 'overlays', 'settings'],
+    integration: { identity: 'connected', events: 'connected', commlink: 'native', athena: 'native', workspace: 'connected', sdk: 'connected' },
+  },
+  companion: {
+    capabilities: ['paired-device', 'universal-overlay', 'obs-control', 'audio-control', 'reviewed-workflows'],
+    surfaces: ['windows-desktop'],
+    integration: { identity: 'connected', events: 'declared', commlink: 'connected', athena: 'connected', workspace: 'connected', sdk: 'connected' },
+  },
+  'chat-tag': {
+    healthUrl: 'https://chat-tag-new.fly.dev/api/health',
+    capabilities: ['chat-tag', 'chat-bingo', 'quackverse', 'cards', 'collectibles', 'crowns', 'rewards', 'game-overlays'],
+    surfaces: ['games', 'leaderboard', 'messages', 'overlay', 'settings'],
+    integration: { identity: 'connected', events: 'connected', commlink: 'connected', athena: 'declared', workspace: 'connected', sdk: 'connected' },
+  },
+  hearmeout: {
+    healthUrl: 'https://hearmeout-main.fly.dev/api/health',
+    capabilities: ['voice-rooms', 'watch-parties', 'music', 'media-sessions', 'discord-activity', 'obs-media'],
+    surfaces: ['rooms', 'watch', 'messages', 'activity', 'overlay'],
+    integration: { identity: 'connected', events: 'connected', commlink: 'connected', athena: 'declared', workspace: 'connected', sdk: 'connected' },
+  },
+  mountainview: {
+    healthUrl: 'https://mtman-machine-rotator.fly.dev/healthz',
+    capabilities: ['voice-routing', 'device-bridge', 'camera-vision', 'media-control', 'operator-tools'],
+    surfaces: ['mountainview'],
+    integration: { identity: 'connected', events: 'declared', commlink: 'declared', athena: 'connected', workspace: 'not-applicable', sdk: 'connected' },
+  },
+};
+
+function partnerIntegrationState(permissions: string[]): NonNullable<EcosystemAppRecord['integration']> {
+  const scopes = new Set(permissions);
+  return {
+    identity: scopes.has('identity:read') ? 'declared' : 'unavailable',
+    events: scopes.has('events:write') ? 'declared' : 'unavailable',
+    commlink: scopes.has('messages:read') || scopes.has('messages:write') ? 'declared' : 'unavailable',
+    athena: scopes.has('athena:read') || scopes.has('athena:write') ? 'declared' : 'unavailable',
+    workspace: scopes.has('workspace:read') || scopes.has('workspace:write') ? 'declared' : 'unavailable',
+    sdk: 'declared',
+  };
+}
+
+function registryApp(app: EcosystemAppRecord, firstParty: boolean): EcosystemAppRecord {
+  const metadata = firstParty ? FIRST_PARTY_REGISTRY_METADATA[app.id] : undefined;
+  const permissions = app.permissions?.length ? app.permissions : appPermissionsFor(app.id);
+  return {
+    ...app,
+    manifestVersion: 'spmt.app-manifest/v1',
+    launchUrl: app.url,
+    healthUrl: app.healthUrl || metadata?.healthUrl,
+    capabilities: metadata?.capabilities || permissions,
+    surfaces: metadata?.surfaces || [],
+    integration: metadata?.integration || partnerIntegrationState(permissions),
+    registrySource: firstParty ? 'first-party' : 'approved-partner',
+    official: firstParty ? true : Boolean(app.official),
+    permissions,
+  };
+}
+
 function ecosystemApps() {
-  return [...SUITE_APPS, ...approvedPartnerApps()];
+  return [
+    ...SUITE_APPS.map((app) => registryApp(app, true)),
+    ...approvedPartnerApps().map((app) => registryApp(app, false)),
+  ];
 }
 
 function buildAppsForUser(userId?: string) {
@@ -2090,7 +2177,18 @@ app.post('/api/platform/identity/onboard', authenticatePlatformKey('identity:wri
 });
 
 app.get('/api/platform/apps/public', authenticatePlatformKey('apps:read'), (req: any, res) => {
-  res.json({ key: req.platformKey, apps: buildAppsForUser(req.platformKey.userId) });
+  res.json({
+    schemaVersion: 'spmt.app-registry/v1',
+    registry: {
+      owner: 'spmt',
+      source: 'dynamic',
+      buildSha: BUILD_SHA,
+      supportsApprovedApps: true,
+      manifestVersion: 'spmt.app-manifest/v1',
+    },
+    key: req.platformKey,
+    apps: buildAppsForUser(req.platformKey.userId),
+  });
 });
 
 app.post('/api/platform/apps/submit', authenticatePlatformKey('apps:write'), (req: any, res) => {
@@ -2309,7 +2407,17 @@ app.get('/api/apps', (req, res) => {
       userId = payload.id;
     } catch {}
   }
-  res.json({ apps: buildAppsForUser(userId) });
+  res.json({
+    schemaVersion: 'spmt.app-registry/v1',
+    registry: {
+      owner: 'spmt',
+      source: 'dynamic',
+      buildSha: BUILD_SHA,
+      supportsApprovedApps: true,
+      manifestVersion: 'spmt.app-manifest/v1',
+    },
+    apps: buildAppsForUser(userId),
+  });
 });
 
 app.get('/downloads/companion/windows', (_req, res) => {

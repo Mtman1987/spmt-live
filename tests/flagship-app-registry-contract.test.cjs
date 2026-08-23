@@ -18,16 +18,17 @@ test('declares every flagship app and its runtime health contract', () => {
     ['spacemountain-live', 'https://spacemountain.live/api/health'],
     ['discord-stream-hub', 'https://discord-stream-hub-new.fly.dev/api/health'],
     ['streamweaver', 'https://streamweaver-new.fly.dev/api/health'],
-    ['companion', 'https://spmt.live/api/health'],
     ['chat-tag', 'https://chat-tag-new.fly.dev/api/health'],
     ['hearmeout', 'https://hearmeout-main.fly.dev/api/health'],
     ['mountainview', 'https://mtman-machine-rotator.fly.dev/api/health'],
   ];
 
   for (const [id, healthUrl] of expected) {
-    assert.ok(source.includes(`'${id}'`), `missing flagship app ${id}`);
+    assert.ok(source.includes(`'${id}'`) || source.includes(`${id}: {`), `missing flagship app ${id}`);
     assert.ok(source.includes(`healthUrl: '${healthUrl}'`), `missing health URL for ${id}`);
   }
+
+  assert.match(source, /companion:\s*\{[\s\S]*?surfaces:\s*\['windows-desktop'\]/);
 });
 
 test('keeps legacy consumers compatible while adding manifest provenance', () => {

@@ -21,6 +21,7 @@
     "test:identity-reconciliation": "tsx --test tests/identity-reconciliation.test.ts",
     "pretest:startup-theme": "npm run patch:runtime-contracts",
     "test:startup-theme": "node --test tests/startup-theme-bootstrap.test.cjs tests/production-bootstrap-packaging-contract.test.cjs tests/ecosystem-docs.test.cjs tests/companion-bootstrap-contract.test.cjs tests/session-stale-while-revalidate.test.cjs tests/commlink-feed-projection-contract.test.cjs tests/commlink-source-controls-contract.test.cjs tests/commlink-identity-routing-contract.test.cjs tests/commlink-production-contract.test.cjs tests/commlink-diagnostic-feed-contract.test.cjs tests/black-hole-easter-egg-contract.test.cjs tests/commlink-black-hole-puzzle-contract.test.cjs tests/commlink-session-auth-contract.test.cjs tests/lost-signal-game-contract.test.cjs",
+    "test:app-registry": "node --test tests/flagship-app-registry-contract.test.cjs",
     "test:presence": "node --test tests/presence-contract.test.cjs",
     "test:account-recovery": "node --test tests/account-recovery-contract.test.cjs tests/verified-identity-reconciliation-bootstrap.test.cjs",
     "test:overlay-bay": "node --test tests/overlay-bay-v2-contract.test.cjs tests/overlay-bay-import-source-contract.test.cjs",
@@ -33,7 +34,7 @@
     "test:athena-command": "node --test tests/athena-command-auth-contract.test.cjs",
     "test:xp-balance-migration": "tsx --test tests/xp-balance-migration.test.ts",
     "backup:verify-restore": "node scripts/operations/verify-restored-volume.mjs",
-    "test": "npm run typecheck && npm run build && npm run test:startup-theme && npm run test:presence && npm run test:account-recovery && npm run test:overlay-bay && npm run test:tenant-overlay && npm run test:cloud-xbox && npm run test:xbox-worker-resilience && npm run test:platform-oauth && npm run test:service-oauth && npm run test:oauth-flow && npm run test:athena-command && npm run sdk:package && npm run smoke",
+    "test": "npm run typecheck && npm run build && npm run test:startup-theme && npm run test:app-registry && npm run test:presence && npm run test:account-recovery && npm run test:overlay-bay && npm run test:tenant-overlay && npm run test:cloud-xbox && npm run test:xbox-worker-resilience && npm run test:platform-oauth && npm run test:service-oauth && npm run test:oauth-flow && npm run test:athena-command && npm run sdk:package && npm run smoke",
     "test:xp-gamble-settlement": "tsx --test tests/xp-gamble-settlement.test.ts"
   },
   "dependencies": {

@@ -20,7 +20,7 @@ test('declares every flagship app and its runtime health contract', () => {
     ['streamweaver', 'https://streamweaver-new.fly.dev/api/health'],
     ['chat-tag', 'https://chat-tag-new.fly.dev/api/health'],
     ['hearmeout', 'https://hearmeout-main.fly.dev/api/health'],
-    ['mountainview', 'https://mtman-machine-rotator.fly.dev/api/health'],
+    ['mountainview', 'https://mtman-machine-rotator.fly.dev/healthz'],
   ];
 
   for (const [id, healthUrl] of expected) {

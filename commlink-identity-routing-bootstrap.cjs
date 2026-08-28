@@ -24,12 +24,17 @@ function installCommlinkIdentityRoutingBootstrap() {
 
   let html = fs.readFileSync(htmlPath, 'utf8');
   html = replaceRequired(html, '<span>Canonical SPMT messaging workspace</span>', '<span>SPMT-owned Commlink workspace</span>', 'ownership banner');
-  html = replaceRequired(
-    html,
-    '<span class="account-avatar">MT</span>\n        <span><strong id="account-title">Mountain Crew</strong><small id="account-xp">Loading account XP…</small><small id="sync-summary">Checking SPMT sync…</small></span>',
-    '<span class="account-avatar" id="account-avatar">?</span>\n        <span><strong id="account-title">SPMT account</strong><small id="account-auth-status">Checking SPMT identity…</small><small id="account-provider-status">Provider identities are separate from your SPMT account.</small><small id="account-xp">Loading account XP…</small><small id="sync-summary">Checking SPMT sync…</small></span>',
-    'account identity card',
-  );
+  const legacyAccountCard = '<span class="account-avatar">MT</span>\n        <span><strong id="account-title">Mountain Crew</strong><small id="account-xp">Loading account XP…</small><small id="sync-summary">Checking SPMT sync…</small></span>';
+  const identityAccountCard = '<span class="account-avatar" id="account-avatar">?</span>\n        <span><strong id="account-title">SPMT account</strong><small id="account-auth-status">Checking SPMT identity…</small><small id="account-provider-status">Provider identities are separate from your SPMT account.</small><small id="account-xp">Loading account XP…</small><small id="sync-summary">Checking SPMT sync…</small></span>';
+  const accountIdentityAlreadyApplied = [
+    'id="account-avatar"',
+    'id="account-title"',
+    'id="account-auth-status"',
+    'id="account-provider-status"',
+  ].every((marker) => html.includes(marker));
+  if (!accountIdentityAlreadyApplied) {
+    html = replaceRequired(html, legacyAccountCard, identityAccountCard, 'account identity card');
+  }
   html = replaceRequired(
     html,
     '<button class="avatar-action" type="button" aria-label="Account menu">MT</button>',

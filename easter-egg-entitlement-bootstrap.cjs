@@ -38,7 +38,7 @@ function serviceAuthorized(req, requiredScope = 'entitlements:read') {
     if (requiredScope === 'entitlements:read') {
       return payload?.client_id === 'streamweaver' && scopes.includes('entitlements:read');
     }
-    return payload?.client_id === 'discord-stream-hub' && scopes.includes('entitlements:write');
+    return payload?.client_id === 'discord-stream-hub' && scopes.includes('identity:write');
   } catch {
     return false;
   }
@@ -217,7 +217,7 @@ function installRoutes(app, express) {
 
   app.post('/api/internal/easter-eggs/signal/claim', jsonBody, (req, res) => {
     res.set('cache-control', 'no-store');
-    if (!serviceAuthorized(req, 'entitlements:write')) return res.status(401).json({ error: 'Unauthorized' });
+    if (!serviceAuthorized(req, 'identity:write')) return res.status(401).json({ error: 'Unauthorized' });
     const discordUserId = String(req.body?.discordUserId || '').trim().slice(0, 128);
     if (!discordUserId) return res.status(400).json({ error: 'discordUserId is required' });
     try {

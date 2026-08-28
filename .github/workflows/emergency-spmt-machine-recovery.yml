@@ -8,31 +8,33 @@ permissions:
   contents: read
 
 jobs:
-  recover:
-    name: Inspect and start SPMT app machine
+  diagnose:
+    name: Inspect destroyed SPMT app machine
     runs-on: ubuntu-latest
     steps:
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Inspect machine before recovery
+      - name: Inspect destroyed machine as JSON
         continue-on-error: true
-        run: timeout 20s flyctl machine status 48ee053be53478 --app spmt-live
+        run: timeout 20s flyctl machine status 48ee053be53478 --app spmt-live --json
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      - name: Start app process machine
+      - name: List current machines
         continue-on-error: true
-        run: timeout 45s flyctl machine start 48ee053be53478 --app spmt-live
+        run: timeout 20s flyctl machines list --app spmt-live --json
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      - name: Inspect machine after recovery
+      - name: List release history
         continue-on-error: true
-        run: timeout 20s flyctl machine status 48ee053be53478 --app spmt-live
+        run: timeout 20s flyctl releases --app spmt-live --json
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      - name: Probe SPMT health
+      - name: Capture destroyed instance logs
         continue-on-error: true
-        run: curl --fail-with-body --show-error --max-time 15 https://spmt.live/api/health
-      - name: Capture recent machine logs
+        run: timeout 20s flyctl logs --app spmt-live --instance 48ee053be53478 --no-tail
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Inspect persistent volume
         continue-on-error: true
-        run: timeout 20s flyctl logs --app spmt-live --no-tail
+        run: timeout 20s flyctl volume show vol_vde2p30e6xo8d0k4 --app spmt-live
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

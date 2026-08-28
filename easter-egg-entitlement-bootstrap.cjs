@@ -27,16 +27,18 @@ function openDb() {
   return entitlementDb;
 }
 
-function serviceAuthorized(req) {
+function serviceAuthorized(req, requiredScope = 'entitlements:read') {
   const bearer = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || '';
   const jwtSecret = String(process.env.JWT_SECRET || '').trim();
   if (!bearer || !jwtSecret) return false;
   try {
     const payload = jwt.verify(bearer, jwtSecret);
     const scopes = Array.isArray(payload?.scopes) ? payload.scopes.map(String) : [];
-    return payload?.client_id === 'streamweaver'
-      && payload?.token_use === 'client_credentials'
-      && scopes.includes('entitlements:read');
+    if (!(payload.token_use === 'client_credentials')) return false;
+    if (requiredScope === 'entitlements:read') {
+      return payload?.client_id === 'streamweaver' && scopes.includes('entitlements:read');
+    }
+    return payload?.client_id === 'discord-stream-hub' && scopes.includes('entitlements:write');
   } catch {
     return false;
   }
@@ -162,6 +164,36 @@ function readEggs(provider, providerUserId) {
   };
 }
 
+function claimSignalEgg(providerUserId, metadata = {}) {
+  const db = openDb();
+  const user = db.prepare(`SELECT id, username FROM users WHERE discord_id = ? LIMIT 1`).get(providerUserId);
+  if (!user?.id) return { knownIdentity: false, claimed: false };
+  const now = new Date().toISOString();
+  const row = db.prepare(`SELECT data_json, revision, created_at FROM app_state_records WHERE user_id = ? AND app_id = ? AND namespace = ? LIMIT 1`).get(user.id, APP_ID, NAMESPACE);
+  let data = {};
+  try { data = row?.data_json ? JSON.parse(row.data_json) : {}; } catch { data = {}; }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) data = {};
+  if (!data.eggs || typeof data.eggs !== 'object' || Array.isArray(data.eggs)) data.eggs = {};
+  const alreadyClaimed = data.eggs?.signal?.completed === true;
+  data.eggs.signal = {
+    ...(data.eggs.signal && typeof data.eggs.signal === 'object' ? data.eggs.signal : {}),
+    completed: true,
+    completedAt: data.eggs?.signal?.completedAt || now,
+    source: 'discord-signal-drop',
+    discordGuildId: String(metadata.guildId || '').slice(0, 128) || undefined,
+    discordChannelId: String(metadata.channelId || '').slice(0, 128) || undefined,
+    discordMessageId: String(metadata.messageId || '').slice(0, 128) || undefined,
+  };
+  if (row) {
+    db.prepare(`UPDATE app_state_records SET data_json = ?, revision = ?, updated_at = ? WHERE user_id = ? AND app_id = ? AND namespace = ?`)
+      .run(JSON.stringify(data), Math.max(1, Number(row.revision || 1)) + 1, now, user.id, APP_ID, NAMESPACE);
+  } else {
+    db.prepare(`INSERT INTO app_state_records (user_id, app_id, namespace, schema_version, revision, data_json, created_at, updated_at) VALUES (?, ?, ?, 1, 1, ?, ?, ?)`)
+      .run(user.id, APP_ID, NAMESPACE, JSON.stringify(data), now, now);
+  }
+  return { knownIdentity: true, claimed: !alreadyClaimed, alreadyClaimed, userId: user.id, username: user.username };
+}
+
 function installRoutes(app, express) {
   if (app.__spmtEasterEggEntitlementInstalled) return;
   app.__spmtEasterEggEntitlementInstalled = true;
@@ -180,6 +212,21 @@ function installRoutes(app, express) {
     } catch (error) {
       console.warn('[EasterEggEntitlement] lookup failed', error);
       return res.status(503).json({ error: 'Entitlement lookup unavailable' });
+    }
+  });
+
+  app.post('/api/internal/easter-eggs/signal/claim', jsonBody, (req, res) => {
+    res.set('cache-control', 'no-store');
+    if (!serviceAuthorized(req, 'entitlements:write')) return res.status(401).json({ error: 'Unauthorized' });
+    const discordUserId = String(req.body?.discordUserId || '').trim().slice(0, 128);
+    if (!discordUserId) return res.status(400).json({ error: 'discordUserId is required' });
+    try {
+      const result = claimSignalEgg(discordUserId, req.body || {});
+      if (!result.knownIdentity) return res.status(404).json({ error: 'Discord identity not found' });
+      return res.json({ ok: true, ...result, eggs: readEggs('discord', discordUserId).eggs });
+    } catch (error) {
+      console.warn('[EasterEggEntitlement] Signal claim failed', error);
+      return res.status(503).json({ error: 'Signal claim unavailable' });
     }
   });
 }

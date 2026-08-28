@@ -8,6 +8,21 @@ const serverPath = path.join(root, 'server.ts');
 
 function replaceRequired(source, before, after, label) {
   if (source.includes(after)) return source;
+  // Other runtime-contract patches can add credentials to this fetch before
+  // this patch runs. Treat that semantically equivalent form as complete so
+  // repeated prebuilds remain idempotent.
+  if (label === 'workspace PUT credentials') {
+    const functionStart = source.indexOf('async function saveCommlinkWorkspace(create = false)');
+    const functionEnd = functionStart < 0 ? -1 : source.indexOf('\nasync function ', functionStart + 1);
+    const functionSource = functionStart < 0
+      ? ''
+      : source.slice(functionStart, functionEnd < 0 ? source.length : functionEnd);
+    if (
+      functionSource.includes("fetch('/api/app-state/cosmo-commlink/workspace'")
+      && functionSource.includes("method: 'PUT'")
+      && functionSource.includes("credentials: 'include'")
+    ) return source;
+  }
   if (!source.includes(before)) throw new Error(`Commlink SPMT auth patch marker missing: ${label}`);
   return source.replace(before, after);
 }

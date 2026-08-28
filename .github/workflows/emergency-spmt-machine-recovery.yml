@@ -1,0 +1,38 @@
+name: Emergency SPMT machine recovery
+
+on:
+  push:
+    branches: [ops/recover-spmt-machine]
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    name: Inspect and start SPMT app machine
+    runs-on: ubuntu-latest
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Inspect machine before recovery
+        continue-on-error: true
+        run: timeout 20s flyctl machine status 48ee053be53478 --app spmt-live
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Start app process machine
+        continue-on-error: true
+        run: timeout 45s flyctl machine start 48ee053be53478 --app spmt-live
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Inspect machine after recovery
+        continue-on-error: true
+        run: timeout 20s flyctl machine status 48ee053be53478 --app spmt-live
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Probe SPMT health
+        continue-on-error: true
+        run: curl --fail-with-body --show-error --max-time 15 https://spmt.live/api/health
+      - name: Capture recent machine logs
+        continue-on-error: true
+        run: timeout 20s flyctl logs --app spmt-live --no-tail
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

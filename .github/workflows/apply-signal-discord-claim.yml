@@ -1,0 +1,144 @@
+name: Apply Signal Discord identity claim
+on:
+  push:
+    branches: [fix/signal-discord-identity-claim]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/signal-discord-identity-claim
+      - name: Patch SPMT Signal claim endpoint
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('easter-egg-entitlement-bootstrap.cjs')
+          s = p.read_text()
+          s = s.replace("const path = require('node:path');", "const path = require('node:path');\nconst crypto = require('node:crypto');")
+          marker = "function readEggs(provider, providerUserId) {"
+          helper = r'''
+function cleanProviderUsername(value, providerUserId) {
+  const cleaned = String(value || '').trim().replace(/^@+/, '').replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80);
+  return cleaned || `discord_${providerUserId}`;
+}
+
+function ensureProviderOwnedUser(provider, providerUserId, providerUsername, displayName, avatarUrl) {
+  const db = openDb();
+  const idColumn = provider === 'discord' ? 'discord_id' : 'twitch_id';
+  const usernameColumn = provider === 'discord' ? 'discord_username' : 'twitch_username';
+  let user = db.prepare(`SELECT id, username FROM users WHERE ${idColumn} = ? LIMIT 1`).get(providerUserId);
+  if (user?.id) return { ...user, created: false };
+
+  const id = crypto.randomUUID();
+  const providerName = cleanProviderUsername(providerUsername, providerUserId);
+  let username = providerName;
+  let suffix = 0;
+  while (db.prepare('SELECT 1 FROM users WHERE username = ? LIMIT 1').get(username)) {
+    suffix += 1;
+    username = `${providerName.slice(0, Math.max(1, 72 - String(suffix).length))}_${suffix}`;
+  }
+  const emailHash = crypto.createHash('sha256').update(`${provider}:${providerUserId}`).digest('hex').slice(0, 24);
+  const email = `import-${provider}-${emailHash}@spmt.live`;
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO users (id, username, email, display_name, password_hash, ${usernameColumn}, ${idColumn}, avatar_url, created_at)
+    VALUES (?, ?, ?, ?, 'SYSTEM_NO_LOGIN', ?, ?, ?, ?)
+  `).run(
+    id,
+    username,
+    email,
+    String(displayName || providerUsername || username).trim().slice(0, 120) || username,
+    String(providerUsername || username).trim().slice(0, 80) || username,
+    providerUserId,
+    String(avatarUrl || '').trim().slice(0, 2048) || null,
+    now,
+  );
+  return { id, username, created: true };
+}
+
+function claimEgg(provider, providerUserId, providerUsername, displayName, avatarUrl, eggName) {
+  const allowedEggs = new Set(['rocket', 'blackHole', 'signal']);
+  if (!allowedEggs.has(eggName)) throw new Error('Unsupported egg');
+  const db = openDb();
+  const user = ensureProviderOwnedUser(provider, providerUserId, providerUsername, displayName, avatarUrl);
+  const row = db.prepare(`
+    SELECT data_json, revision
+    FROM app_state_records
+    WHERE user_id = ? AND app_id = ? AND namespace = ?
+    LIMIT 1
+  `).get(user.id, APP_ID, NAMESPACE);
+  let data = {};
+  try { data = row?.data_json ? JSON.parse(row.data_json) : {}; } catch { data = {}; }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) data = {};
+  if (!data.eggs || typeof data.eggs !== 'object' || Array.isArray(data.eggs)) data.eggs = {};
+  const existing = data.eggs[eggName] && typeof data.eggs[eggName] === 'object' ? data.eggs[eggName] : {};
+  const alreadyCompleted = existing.completed === true;
+  const now = new Date().toISOString();
+  data.eggs[eggName] = {
+    ...existing,
+    completed: true,
+    completedAt: existing.completedAt || now,
+    provider,
+    providerUserId,
+    source: 'platform-identity',
+  };
+  if (row) {
+    db.prepare(`UPDATE app_state_records SET data_json = ?, revision = ?, updated_at = ? WHERE user_id = ? AND app_id = ? AND namespace = ?`)
+      .run(JSON.stringify(data), Math.max(1, Number(row.revision || 1)) + (alreadyCompleted ? 0 : 1), now, user.id, APP_ID, NAMESPACE);
+  } else {
+    db.prepare(`INSERT INTO app_state_records (user_id, app_id, namespace, schema_version, revision, data_json, created_at, updated_at) VALUES (?, ?, ?, 1, 1, ?, ?, ?)`)
+      .run(user.id, APP_ID, NAMESPACE, JSON.stringify(data), now, now);
+  }
+  return { userId: user.id, username: user.username, created: user.created, alreadyCompleted };
+}
+
+'''
+          if helper.strip() not in s:
+              if marker not in s:
+                  raise SystemExit('readEggs marker not found')
+              s = s.replace(marker, helper + marker)
+
+          route_marker = "  app.post('/api/internal/easter-eggs/entitlement', jsonBody, (req, res) => {"
+          claim_route = r'''  app.post('/api/internal/easter-eggs/claim', jsonBody, (req, res) => {
+    res.set('cache-control', 'no-store');
+    if (!systemAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
+    const provider = normalizeProvider(req.body?.provider);
+    const providerUserId = String(req.body?.providerUserId || '').trim().slice(0, 128);
+    const egg = String(req.body?.egg || '').trim();
+    if (!provider || !providerUserId || !egg) {
+      return res.status(400).json({ error: 'provider, providerUserId, and egg are required' });
+    }
+    try {
+      const claim = claimEgg(
+        provider,
+        providerUserId,
+        String(req.body?.providerUsername || '').trim(),
+        String(req.body?.displayName || '').trim(),
+        String(req.body?.avatarUrl || '').trim(),
+        egg,
+      );
+      return res.json({ ok: true, egg, ...claim });
+    } catch (error) {
+      console.warn('[EasterEggEntitlement] claim failed', error);
+      return res.status(503).json({ error: 'Easter egg claim unavailable' });
+    }
+  });
+
+'''
+          if claim_route.strip() not in s:
+              if route_marker not in s:
+                  raise SystemExit('entitlement route marker not found')
+              s = s.replace(route_marker, claim_route + route_marker)
+          p.write_text(s)
+          PY
+          rm -f .github/workflows/apply-signal-discord-claim.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add easter-egg-entitlement-bootstrap.cjs .github/workflows/apply-signal-discord-claim.yml
+          git commit -m "fix: claim Signal egg by authenticated platform identity"
+          git push origin HEAD:fix/signal-discord-identity-claim

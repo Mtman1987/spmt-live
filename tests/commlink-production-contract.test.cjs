@@ -53,6 +53,7 @@ test('production Commlink transformation is idempotent on the real post-routing 
     const onceJs = fs.readFileSync(tempJs, 'utf8');
     const onceCss = fs.readFileSync(tempCss, 'utf8');
     const onceHtml = fs.readFileSync(tempHtml, 'utf8');
+    assert.doesNotThrow(() => installCommlinkIdentityRoutingBootstrap());
     installCommlinkProductionBootstrap();
 
     assert.equal(fs.readFileSync(tempJs, 'utf8'), onceJs);

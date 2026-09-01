@@ -10,11 +10,13 @@ if (!process.env.SPMT_CODEX_SERVICE_SECRET && process.env.SPMT_API_KEY) {
 function ensureScripts(filePath, scripts) {
   let html = fs.readFileSync(filePath, 'utf8');
   if (!html.includes('</body>')) throw new Error(`SPMT shell bootstrap could not find </body> in ${filePath}`);
+  let changed = false;
   for (const script of scripts) {
     if (html.includes(script)) continue;
     html = html.replace('</body>', `  <script src="${script}" defer></script>\n</body>`);
+    changed = true;
   }
-  fs.writeFileSync(filePath, html, 'utf8');
+  if (changed) fs.writeFileSync(filePath, html, 'utf8');
 }
 
 function ensureWorkspaceShellBootstrap() {
@@ -48,23 +50,57 @@ function ensureWorkspaceShellBootstrap() {
   ensureScripts(tenantOutputPath, ['/shared/tenant-text-runtime.js']);
 }
 
-ensureWorkspaceShellBootstrap();
+// These operations rewrite the immutable application bundle or static assets.
+// They are intentionally executed once while the Docker image is being built.
+// Running them on every process restart made a successful first patch remove
+// the marker required by the next restart, which could trap the Fly machine in
+// a permanent crash loop.
+function prepareRuntimeFiles() {
+  ensureWorkspaceShellBootstrap();
+  require('./verified-identity-reconciliation-bootstrap.cjs').patchProductionServerBundle();
+  require('./commlink-rich-chat-bootstrap.cjs').installCommlinkRichChatBootstrap();
+  require('./commlink-source-controls-bootstrap.cjs').installCommlinkSourceControlsBootstrap();
+  require('./commlink-identity-routing-bootstrap.cjs').installCommlinkIdentityRoutingBootstrap();
+  require('./commlink-production-bootstrap.cjs').installCommlinkProductionBootstrap();
+  console.log('[SPMT] Runtime files prepared for restart-safe launch.');
+}
 
-require('./verified-identity-reconciliation-bootstrap.cjs').patchProductionServerBundle();
-require('./commlink-feed-projection-bootstrap.cjs').installCommlinkFeedProjectionBootstrap();
-require('./commlink-rich-chat-bootstrap.cjs').installCommlinkRichChatBootstrap();
-require('./commlink-source-controls-bootstrap.cjs').installCommlinkSourceControlsBootstrap();
-require('./commlink-identity-routing-bootstrap.cjs').installCommlinkIdentityRoutingBootstrap();
-require('./commlink-production-bootstrap.cjs').installCommlinkProductionBootstrap();
-require('./commlink-diagnostic-bootstrap.cjs').installCommlinkDiagnosticBootstrap();
-require('./presence-bootstrap.cjs').installPresenceBootstrap();
-require('./oauth-authorize-recovery-bootstrap.cjs').installOauthAuthorizeRecoveryBootstrap();
-require('./account-recovery-bootstrap.cjs').installAccountRecoveryBootstrap();
-require('./admin-recovery-bootstrap.cjs').installAdminRecoveryBootstrap();
-require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
-require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
-require('./easter-egg-entitlement-bootstrap.cjs').installEasterEggEntitlementBootstrap();
-require('./tenant-overlay-events-bootstrap.cjs').installTenantOverlayEventsBootstrap();
-require('./tenant-overlay-bootstrap.cjs').installTenantOverlayBootstrap();
+// These bootstraps install process-local Express hooks/routes or runtime data
+// services. A new Node process must install them on every start, but they do not
+// rewrite the shipped server bundle or Commlink application files.
+function installProcessBootstraps() {
+  require('./commlink-feed-projection-bootstrap.cjs').installCommlinkFeedProjectionBootstrap();
+  require('./commlink-diagnostic-bootstrap.cjs').installCommlinkDiagnosticBootstrap();
+  require('./presence-bootstrap.cjs').installPresenceBootstrap();
+  require('./oauth-authorize-recovery-bootstrap.cjs').installOauthAuthorizeRecoveryBootstrap();
+  require('./account-recovery-bootstrap.cjs').installAccountRecoveryBootstrap();
+  require('./admin-recovery-bootstrap.cjs').installAdminRecoveryBootstrap();
+  require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
+  require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
+  require('./easter-egg-entitlement-bootstrap.cjs').installEasterEggEntitlementBootstrap();
+  require('./tenant-overlay-events-bootstrap.cjs').installTenantOverlayEventsBootstrap();
+  require('./tenant-overlay-bootstrap.cjs').installTenantOverlayBootstrap();
+}
 
-require('./dist/server.cjs');
+function main() {
+  const prepareOnly = process.env.SPMT_PREPARE_RUNTIME === '1';
+  const imagePrepared = process.env.SPMT_RUNTIME_PREPARED === '1';
+
+  // Local/dev and older images retain a compatibility fallback. Production
+  // images built by the current Dockerfile set SPMT_RUNTIME_PREPARED=1, so a
+  // Fly restart never mutates application code or static assets.
+  if (prepareOnly || !imagePrepared) prepareRuntimeFiles();
+  if (prepareOnly) return;
+
+  installProcessBootstraps();
+  require('./dist/server.cjs');
+}
+
+if (require.main === module) main();
+
+module.exports = {
+  ensureWorkspaceShellBootstrap,
+  prepareRuntimeFiles,
+  installProcessBootstraps,
+  main,
+};

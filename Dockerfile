@@ -41,10 +41,17 @@ COPY xbox-worker-guard.cjs ./xbox-worker-guard.cjs
 COPY athena-command-bootstrap.cjs ./athena-command-bootstrap.cjs
 COPY easter-egg-entitlement-bootstrap.cjs ./easter-egg-entitlement-bootstrap.cjs
 COPY presence-bootstrap.cjs ./presence-bootstrap.cjs
+
+# Prepare every code/static-file mutation once while the image filesystem is
+# fresh. Runtime process restarts only reinstall process-local routes/hooks and
+# never try to patch an already-patched bundle.
+RUN SPMT_PREPARE_RUNTIME=1 NODE_ENV=production node start.cjs
+
 ENV NODE_ENV=production
 ENV DATABASE_PATH=/data/spmt.db
 ENV BUILD_SHA=$BUILD_SHA
 ENV CHROMIUM_PATH=/usr/bin/chromium
 ENV CLOUD_XBOX_PROFILE_ROOT=/var/lib/spmt-xbox/profiles
+ENV SPMT_RUNTIME_PREPARED=1
 EXPOSE 3000 3003
 CMD ["node", "start.cjs"]

@@ -8,7 +8,7 @@ RUN npm run build
 RUN node scripts/docs-bundle.mjs
 
 FROM node:20-slim
-RUN apt-get update && apt-get install -y python3 make g++ chromium fonts-liberation && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y python3 make g++ chromium fonts-liberation && rm -rf /var/lib/lists/*
 WORKDIR /app
 ARG BUILD_SHA=unknown
 ARG GITHUB_SHA=unknown
@@ -23,6 +23,7 @@ COPY --from=build /app/docs ./docs
 COPY --from=build /app/spec ./public/spec
 COPY scripts/operations ./scripts/operations
 COPY start.cjs ./start.cjs
+COPY auth-shell-stability-bootstrap.cjs ./auth-shell-stability-bootstrap.cjs
 COPY verified-identity-reconciliation-bootstrap.cjs ./verified-identity-reconciliation-bootstrap.cjs
 COPY oauth-authorize-recovery-bootstrap.cjs ./oauth-authorize-recovery-bootstrap.cjs
 COPY account-recovery-bootstrap.cjs ./account-recovery-bootstrap.cjs
@@ -32,6 +33,7 @@ COPY commlink-rich-chat-bootstrap.cjs ./commlink-rich-chat-bootstrap.cjs
 COPY commlink-source-controls-bootstrap.cjs ./commlink-source-controls-bootstrap.cjs
 COPY commlink-identity-routing-bootstrap.cjs ./commlink-identity-routing-bootstrap.cjs
 COPY commlink-production-bootstrap.cjs ./commlink-production-bootstrap.cjs
+COPY commlink-auth-recovery-bootstrap.cjs ./commlink-auth-recovery-bootstrap.cjs
 COPY commlink-diagnostic-bootstrap.cjs ./commlink-diagnostic-bootstrap.cjs
 COPY cloud-xbox-bootstrap.cjs ./cloud-xbox-bootstrap.cjs
 COPY tenant-overlay-events-bootstrap.cjs ./tenant-overlay-events-bootstrap.cjs

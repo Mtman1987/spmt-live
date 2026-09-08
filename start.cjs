@@ -77,6 +77,7 @@ function prepareRuntimeFiles() {
   require('./commlink-source-controls-bootstrap.cjs').installCommlinkSourceControlsBootstrap();
   require('./commlink-identity-routing-bootstrap.cjs').installCommlinkIdentityRoutingBootstrap();
   require('./commlink-production-bootstrap.cjs').installCommlinkProductionBootstrap();
+  require('./commlink-auth-recovery-bootstrap.cjs').patchCommlinkAuthRecovery();
   console.log('[SPMT] Runtime files prepared for restart-safe launch.');
 }
 

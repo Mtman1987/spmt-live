@@ -19,10 +19,24 @@ function ensureScripts(filePath, scripts) {
   if (changed) fs.writeFileSync(filePath, html, 'utf8');
 }
 
+function ensureScriptBefore(filePath, script, beforeScript) {
+  let html = fs.readFileSync(filePath, 'utf8');
+  if (html.includes(script)) return;
+  const marker = `<script src="${beforeScript}"></script>`;
+  const deferredMarker = `<script src="${beforeScript}" defer></script>`;
+  const tag = `<script src="${script}"></script>`;
+  if (html.includes(marker)) html = html.replace(marker, `${tag}\n  ${marker}`);
+  else if (html.includes(deferredMarker)) html = html.replace(deferredMarker, `${tag}\n  ${deferredMarker}`);
+  else if (html.includes('</body>')) html = html.replace('</body>', `  ${tag}\n</body>`);
+  else throw new Error(`SPMT shell bootstrap could not insert ${script} in ${filePath}`);
+  fs.writeFileSync(filePath, html, 'utf8');
+}
+
 function ensureWorkspaceShellBootstrap() {
   const publicIndexPath = process.env.SPMT_PUBLIC_INDEX_PATH
     ? path.resolve(process.env.SPMT_PUBLIC_INDEX_PATH)
     : path.join(__dirname, 'public', 'index.html');
+  ensureScriptBefore(publicIndexPath, '/shared/auth-performance-guard.js', '/shared/session-cache.js');
   ensureScripts(publicIndexPath, [
     '/shared/session-cache.js',
     '/shared/shell-theme.js',

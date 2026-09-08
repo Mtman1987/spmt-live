@@ -28,6 +28,36 @@ function patchCommlinkAuthRecovery() {
 
   let source = fs.readFileSync(jsPath, 'utf8');
 
+  // The account shell historically stores the current SPMT bearer in the same-origin
+  // localStorage while newer sessions also carry an HttpOnly cookie. During migration,
+  // either can be the valid session. Commlink must accept both or a user can be visibly
+  // signed in to SPMT while the embedded Commlink incorrectly loops back to Sign in.
+  const cookieOnlyAuthHelper = [
+    'function commlinkAuthHeaders(extra = {}) {',
+    '  // Commlink is same-origin with SPMT. The HttpOnly SPMT session cookie is',
+    '  // authoritative; localStorage is not a second authentication system.',
+    '  return { ...extra };',
+    '}',
+  ].join('\n');
+  const legacyAuthHelper = [
+    'function commlinkAuthHeaders(extra = {}) {',
+    "  const token = localStorage.getItem('spmt_token');",
+    '  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;',
+    '}',
+  ].join('\n');
+  const bridgedAuthHelper = [
+    'function commlinkAuthHeaders(extra = {}) {',
+    "  let token = '';",
+    "  try { token = String(localStorage.getItem('spmt_token') || '').trim(); } catch {}",
+    '  // credentials: include still sends the HttpOnly cookie. The bearer is only a',
+    '  // compatibility bridge for existing SPMT sessions until every client has a cookie.',
+    '  return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };',
+    '}',
+  ].join('\n');
+  if (source.includes(cookieOnlyAuthHelper)) source = source.replace(cookieOnlyAuthHelper, bridgedAuthHelper);
+  else if (source.includes(legacyAuthHelper)) source = source.replace(legacyAuthHelper, bridgedAuthHelper);
+  else if (!source.includes(bridgedAuthHelper)) throw new Error('Commlink auth recovery could not bridge the existing SPMT session');
+
   const oldIdentityFetch = "    const response = await fetch('/api/me', { headers: commlinkAuthHeaders(), credentials: 'include' });";
   const boundedIdentityFetch = "    const response = await fetch('/api/me', { headers: commlinkAuthHeaders(), credentials: 'include', signal: typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(5000) : undefined });";
   if (source.includes(oldIdentityFetch)) source = source.replace(oldIdentityFetch, boundedIdentityFetch);
@@ -37,14 +67,15 @@ function patchCommlinkAuthRecovery() {
   const recoveredHandler = [
     'async function handleAccountSessionAction(event) {',
     "  const action = $('#account-session-action');",
-    '  // Signed-out users must always retain a native href so auth works even if',
-    '  // account/session JavaScript or an embedded shell is partially degraded.',
+    '  // Signed-out users retain a native href as a last-resort account route.',
+    '  // A valid account-shell bearer is accepted directly, so this link is not',
+    '  // used as a fake sign-in loop when the SPMT account is already authenticated.',
     '  if (!state.accountIdentity) return;',
     '  event?.preventDefault();',
     "  if (action) { action.setAttribute('aria-busy', 'true'); action.style.pointerEvents = 'none'; }",
     '  try {',
-    "    const response = await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });",
-    "    if (!response.ok) throw new Error('Sign out returned ' + response.status);",
+    "    const response = await fetch('/api/auth/logout', { method: 'POST', headers: commlinkAuthHeaders(), credentials: 'include' });",
+    "    if (!response.ok && response.status !== 401 && response.status !== 403) throw new Error('Sign out returned ' + response.status);",
     "    try { localStorage.removeItem('spmt_token'); } catch {}",
     "    navigateCommlinkAccount('/?view=account');",
     '  } catch (error) {',
@@ -59,6 +90,11 @@ function patchCommlinkAuthRecovery() {
     source = source.replace(handlerPattern, recoveredHandler);
   } else if (!source.includes('async function handleAccountSessionAction(event) {')) {
     throw new Error('Commlink auth recovery could not find the account session handler');
+  } else {
+    source = source.replace(
+      "    const response = await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });",
+      "    const response = await fetch('/api/auth/logout', { method: 'POST', headers: commlinkAuthHeaders(), credentials: 'include' });",
+    );
   }
 
   const oldSessionRender = [
@@ -83,6 +119,9 @@ function patchCommlinkAuthRecovery() {
   if (!source.includes("sessionAction.setAttribute('href', '/?view=account')")) {
     throw new Error('Commlink auth recovery could not preserve native sign-in navigation');
   }
+  if (!source.includes("Authorization: `Bearer ${token}`")) {
+    throw new Error('Commlink auth recovery did not preserve the existing SPMT bearer bridge');
+  }
 
   fs.writeFileSync(jsPath, source, 'utf8');
 
@@ -92,7 +131,7 @@ function patchCommlinkAuthRecovery() {
     fs.writeFileSync(cssPath, css, 'utf8');
   }
 
-  console.log('[SPMT] Commlink auth recovery applied.');
+  console.log('[SPMT] Commlink auth recovery applied with cookie + bearer session bridge.');
 }
 
 module.exports = { patchCommlinkAuthRecovery };

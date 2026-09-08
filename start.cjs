@@ -71,6 +71,7 @@ function ensureWorkspaceShellBootstrap() {
 // a permanent crash loop.
 function prepareRuntimeFiles() {
   ensureWorkspaceShellBootstrap();
+  require('./auth-shell-stability-bootstrap.cjs').patchAuthShellStability();
   require('./verified-identity-reconciliation-bootstrap.cjs').patchProductionServerBundle();
   require('./commlink-rich-chat-bootstrap.cjs').installCommlinkRichChatBootstrap();
   require('./commlink-source-controls-bootstrap.cjs').installCommlinkSourceControlsBootstrap();

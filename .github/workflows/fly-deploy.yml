@@ -97,6 +97,8 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       - name: Validate production contracts
         run: npm ci && npm test
+      - name: Restore committed source after mutation-based contract tests
+        run: git reset --hard "$GITHUB_SHA"
       - name: Deploy to Fly.io
         run: flyctl deploy . --remote-only --config fly.toml --build-arg BUILD_SHA=${GITHUB_SHA} --build-arg GITHUB_SHA=${GITHUB_SHA} --build-arg GH_SHA=${GITHUB_SHA} --yes
         env:

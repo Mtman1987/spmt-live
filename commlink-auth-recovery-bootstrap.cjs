@@ -63,7 +63,10 @@ function patchCommlinkAuthRecovery() {
   if (source.includes(oldIdentityFetch)) source = source.replace(oldIdentityFetch, boundedIdentityFetch);
   if (!source.includes("AbortSignal.timeout(5000)")) throw new Error('Commlink auth recovery could not bound the SPMT identity lookup');
 
-  const handlerPattern = /async function handleAccountSessionAction\(\) \{[\s\S]*?\n\}\n\nfunction renderAccountIdentity\(\) \{/;
+  // The production bootstrap currently emits the two functions with a single
+  // newline, while older images emitted a blank line. Accept both layouts so
+  // the image-preparation pass can actually apply the auth recovery patch.
+  const handlerPattern = /async function handleAccountSessionAction\(\) \{[\s\S]*?\n\}\n+function renderAccountIdentity\(\) \{/;
   const recoveredHandler = [
     'async function handleAccountSessionAction(event) {',
     "  const action = $('#account-session-action');",

@@ -261,7 +261,7 @@ try {
   const commlink = await commlinkResponse.text();
   assert.equal(commlinkResponse.status, 200);
   assert.match(commlink, /Cosmo Commlink/);
-  assert.match(commlink, /Canonical SPMT messaging workspace/);
+  assert.match(commlink, /SPMT-owned Commlink workspace/);
   assert.match(commlink, /Production dock/);
   assert.match(commlink, /Smart staging/);
   assert.match(commlink, /Stream Deck · Companion · MIDI/);
@@ -927,7 +927,7 @@ try {
   assert.equal(completedDiscoveriesResponse.status, 200);
   assert.equal(completedDiscoveries.discoveredCount, 3);
   assert.equal(completedDiscoveries.complete, true);
-  assert.equal(completedDiscoveries.reward.title, 'Lord Puzzler');
+  assert.equal(completedDiscoveries.reward.title, 'Voidwalker');
   assert.equal(completedDiscoveries.reward.chatbotPersonality.id, 'count-puzzle');
   assert.equal(completedDiscoveries.discoveries.every((item) => item.discovered), true);
 
@@ -937,8 +937,30 @@ try {
   const discoveryNotifications = await discoveryNotificationsResponse.json();
   assert.equal(discoveryNotificationsResponse.status, 200);
   assert.equal(discoveryNotifications.notifications.filter((item) => (
-    item.title === 'Lord Puzzler unlocked' && item.source_app === 'cosmo-commlink' && item.link_url === '/commlink/'
+    item.title === 'Voidwalker unlocked' && item.source_app === 'cosmo-commlink' && item.link_url === '/commlink/'
   )).length, 1);
+
+  // A receipt is account-bound and retries cannot duplicate the title reward.
+  const winnerId = registration.user.id;
+  const mismatch = await fetch(`${baseUrl}/api/easter-eggs/rocket/complete`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+    body: JSON.stringify({ userId: secondRegistration.user.id }),
+  });
+  assert.equal(mismatch.status, 409);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const rocketReceipt = await fetch(`${baseUrl}/api/easter-eggs/rocket/complete`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${registration.token}` },
+      body: JSON.stringify({ userId: winnerId }),
+    });
+    assert.equal(rocketReceipt.status, 200);
+    const receipt = await rocketReceipt.json();
+    assert.equal(receipt.data.eggs.rocket.completed, true);
+    assert.equal(receipt.title, 'Voidwalker');
+  }
+  const notificationsAfterRetry = await (await fetch(`${baseUrl}/api/notifications`, {
+    headers: { Authorization: `Bearer ${registration.token}` },
+  })).json();
+  assert.equal(notificationsAfterRetry.notifications.filter((item) => item.title === 'Voidwalker unlocked').length, 1);
 
   const isolatedDiscoveriesResponse = await fetch(`${baseUrl}/api/discoveries`, {
     headers: { Authorization: `Bearer ${secondRegistration.token}` },

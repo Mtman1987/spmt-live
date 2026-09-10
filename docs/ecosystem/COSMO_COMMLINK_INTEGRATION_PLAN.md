@@ -1,5 +1,8 @@
 # Cosmo Commlink Integration Plan
 
+> Reward update (2026-09-10): the current canonical title is Voidwalker. See [Easter egg rewards](EASTER_EGG_REWARDS.md) for the shared record and compatibility mapping. The original Lord Puzzler design below is historical.
+
+
 Updated: 2026-07-30
 
 Status: canonical, comprehensive UI/UX-first integration plan; Passes 1 through

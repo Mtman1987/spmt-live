@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const commlinkPath = path.join(root, 'public', 'commlink', 'commlink.js');
-const serverPath = path.join(root, 'server.ts');
 
 function replaceRequired(source, before, after, label) {
   if (source.includes(after)) return source;
@@ -147,38 +146,4 @@ if (commlink.includes("localStorage.getItem('spmt_token')")) {
 }
 if (commlink !== originalCommlink) fs.writeFileSync(commlinkPath, commlink, 'utf8');
 
-let server = fs.readFileSync(serverPath, 'utf8').replace(/\r\n/g, '\n');
-const originalServer = server;
-
-if (!server.includes('function syncCanonicalCommlinkBlackHole(userId: string)')) {
-  const anchor = 'function syncBattleArenaDiscovery(userId: string) {';
-  const index = server.indexOf(anchor);
-  if (index < 0) throw new Error('SPMT discovery bridge marker missing');
-  const helper = `function syncCanonicalCommlinkBlackHole(userId: string) {\n  const discovery = db.prepare(\`\n    SELECT discovered_at FROM user_discoveries\n    WHERE user_id = ? AND discovery_id = 'cosmo-black-hole'\n    LIMIT 1\n  \`).get(userId) as any;\n  if (!discovery) return { changed: false, reason: 'not-discovered' };\n\n  const current = db.prepare(\`\n    SELECT schema_version, revision, data_json, created_at FROM app_state_records\n    WHERE user_id = ? AND app_id = 'spacemountain-live' AND namespace = 'easter-eggs'\n  \`).get(userId) as any;\n  let data: Record<string, any> = {};\n  try {\n    const parsed = JSON.parse(String(current?.data_json || '{}'));\n    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) data = parsed;\n  } catch {}\n  const eggs = data.eggs && typeof data.eggs === 'object' && !Array.isArray(data.eggs) ? { ...data.eggs } : {};\n  const existing = eggs.blackHole && typeof eggs.blackHole === 'object' && !Array.isArray(eggs.blackHole) ? eggs.blackHole : {};\n  if (existing.completed === true) return { changed: false, reason: 'already-complete' };\n\n  const now = new Date().toISOString();\n  eggs.blackHole = {\n    ...existing,\n    completed: true,\n    discoveredAt: existing.discoveredAt || discovery.discovered_at || now,\n    source: existing.source || 'spmt-live-commlink',\n  };\n  const nextData = { ...data, eggs };\n  const revision = current ? Number(current.revision) + 1 : 1;\n  const schemaVersion = Math.max(1, Number(current?.schema_version || 1));\n  db.prepare(\`\n    INSERT INTO app_state_records (user_id, app_id, namespace, schema_version, revision, data_json, created_at, updated_at)\n    VALUES (?, 'spacemountain-live', 'easter-eggs', ?, ?, ?, ?, ?)\n    ON CONFLICT(user_id, app_id, namespace) DO UPDATE SET\n      schema_version = excluded.schema_version, revision = excluded.revision,\n      data_json = excluded.data_json, updated_at = excluded.updated_at\n  \`).run(userId, schemaVersion, revision, JSON.stringify(nextData), current?.created_at || now, now);\n  return { changed: true, reason: 'bridged', revision };\n}\n\n`;
-  server = server.slice(0, index) + helper + server.slice(index);
-}
-
-server = replaceRequired(
-  server,
-  `app.get('/api/discoveries', authenticate, (req: any, res) => {\n  const arenaSync = syncBattleArenaDiscovery(req.user.id);\n  const status = userDiscoveryStatus(req.user.id);`,
-  `app.get('/api/discoveries', authenticate, (req: any, res) => {\n  const arenaSync = syncBattleArenaDiscovery(req.user.id);\n  syncCanonicalCommlinkBlackHole(req.user.id);\n  const status = userDiscoveryStatus(req.user.id);`,
-  'discovery GET canonical bridge',
-);
-server = replaceRequired(
-  server,
-  `  const recorded = recordUserDiscovery(req.user.id, discoveryId, {\n    surface: String(req.body?.surface || 'commlink').slice(0, 80),\n    clientVersion: String(req.body?.clientVersion || 'unknown').slice(0, 80),\n  });\n  const status = userDiscoveryStatus(req.user.id);`,
-  `  const recorded = recordUserDiscovery(req.user.id, discoveryId, {\n    surface: String(req.body?.surface || 'commlink').slice(0, 80),\n    clientVersion: String(req.body?.clientVersion || 'unknown').slice(0, 80),\n  });\n  if (discoveryId === 'cosmo-black-hole') syncCanonicalCommlinkBlackHole(req.user.id);\n  const status = userDiscoveryStatus(req.user.id);`,
-  'discovery POST canonical bridge',
-);
-
-for (const marker of [
-  'function syncCanonicalCommlinkBlackHole(userId: string)',
-  "discovery_id = 'cosmo-black-hole'",
-  "namespace = 'easter-eggs'",
-  "source: existing.source || 'spmt-live-commlink'",
-]) {
-  if (!server.includes(marker)) throw new Error(`Canonical Commlink Black Hole marker missing: ${marker}`);
-}
-if (server !== originalServer) fs.writeFileSync(serverPath, server, 'utf8');
-
-console.log('Commlink now trusts the canonical SPMT session and bridges Black Hole discovery to the canonical Easter egg record.');
+console.log('Commlink uses the SPMT session. Discovery reconciliation is implemented in easter-egg-state.cjs.');

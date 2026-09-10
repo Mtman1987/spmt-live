@@ -34,8 +34,9 @@
     "test:athena-command": "node --test tests/athena-command-auth-contract.test.cjs",
     "test:xp-balance-migration": "tsx --test tests/xp-balance-migration.test.ts",
     "backup:verify-restore": "node scripts/operations/verify-restored-volume.mjs",
-    "test": "npm run typecheck && npm run build && npm run test:startup-theme && npm run test:app-registry && npm run test:presence && npm run test:account-recovery && npm run test:overlay-bay && npm run test:tenant-overlay && npm run test:cloud-xbox && npm run test:xbox-worker-resilience && npm run test:platform-oauth && npm run test:service-oauth && npm run test:oauth-flow && npm run test:athena-command && npm run sdk:package && npm run smoke",
-    "test:xp-gamble-settlement": "tsx --test tests/xp-gamble-settlement.test.ts"
+    "test": "npm run typecheck && npm run build && npm run test:startup-theme && npm run test:app-registry && npm run test:presence && npm run test:account-recovery && npm run test:overlay-bay && npm run test:tenant-overlay && npm run test:cloud-xbox && npm run test:xbox-worker-resilience && npm run test:platform-oauth && npm run test:service-oauth && npm run test:easter-eggs && npm run test:oauth-flow && npm run test:athena-command && npm run sdk:package && npm run smoke",
+    "test:xp-gamble-settlement": "tsx --test tests/xp-gamble-settlement.test.ts",
+    "test:easter-eggs": "node --test tests/easter-egg-state.test.cjs tests/easter-egg-discord-auth.test.cjs"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

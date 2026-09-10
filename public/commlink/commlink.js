@@ -1556,6 +1556,16 @@ async function loadDiscoveries() {
   }
 }
 
+// A completion may happen in another SPMT tab or an embedded puzzle.
+let discoveryRefreshTimer = null;
+function refreshDiscoveriesSoon() {
+  window.clearTimeout(discoveryRefreshTimer);
+  discoveryRefreshTimer = window.setTimeout(() => { void loadDiscoveries(); }, 250);
+}
+window.addEventListener('focus', refreshDiscoveriesSoon);
+window.addEventListener('spmt:easter-egg-complete', refreshDiscoveriesSoon);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshDiscoveriesSoon(); });
+
 async function recordDiscovery(discoveryId) {
   const token = localStorage.getItem('spmt_token');
   if (!token) {

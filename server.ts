@@ -16,6 +16,7 @@ import {
 import { migrateLegacyXpBalance } from './xp-balance-migration.js';
 import { settleGambleWallet } from './xp-gamble-settlement.js';
 import { SHARED_SURFACES, SHARED_SURFACE_MODES, sharedSurface } from './shared-surfaces.js';
+import { discoveryStatus, reconcileEasterEggs, mergeEasterEggData, LEGACY_EGGS, EGG_DEFINITIONS } from './easter-egg-state.cjs';
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -3797,6 +3798,8 @@ app.get('/api/app-state/:appId/:namespace', authenticate, (req: any, res) => {
   try {
     const appId = validateRecordSlug(req.params.appId, 'appId');
     const namespace = validateRecordSlug(req.params.namespace, 'namespace');
+    if (appId === 'spacemountain-live' && namespace === 'easter-eggs') reconcileEasterEggs(db, req.user.id);
+    res.setHeader('Cache-Control', 'no-store');
     const row = db.prepare(`
       SELECT schema_version, revision, data_json, created_at, updated_at
       FROM app_state_records WHERE user_id = ? AND app_id = ? AND namespace = ?
@@ -3813,14 +3816,17 @@ app.put('/api/app-state/:appId/:namespace', authenticate, (req: any, res) => {
   try {
     const appId = validateRecordSlug(req.params.appId, 'appId');
     const namespace = validateRecordSlug(req.params.namespace, 'namespace');
-    const data = req.body?.data ?? req.body;
+    let data = req.body?.data ?? req.body;
     assertPublicAppState(data);
-    const current = db.prepare('SELECT revision, created_at FROM app_state_records WHERE user_id = ? AND app_id = ? AND namespace = ?')
+    const current = db.prepare('SELECT revision, created_at, data_json FROM app_state_records WHERE user_id = ? AND app_id = ? AND namespace = ?')
       .get(req.user.id, appId, namespace) as any;
     const expected = Number(req.headers['if-match']?.match(/(\d+)"?$/)?.[1] || req.body?.revision || 0);
     if (current && (!expected || expected !== current.revision)) {
       res.setHeader('ETag', appStateEtag(appId, namespace, current.revision));
       return res.status(409).json({ error: 'App state changed on another device', revision: current.revision });
+    }
+    if (appId === 'spacemountain-live' && namespace === 'easter-eggs') {
+      data = mergeEasterEggData(current ? JSON.parse(current.data_json) : {}, data);
     }
     const now = new Date().toISOString();
     const revision = current ? current.revision + 1 : 1;
@@ -3832,6 +3838,12 @@ app.put('/api/app-state/:appId/:namespace', authenticate, (req: any, res) => {
         schema_version = excluded.schema_version, revision = excluded.revision,
         data_json = excluded.data_json, updated_at = excluded.updated_at
     `).run(req.user.id, appId, namespace, schemaVersion, revision, JSON.stringify(data), current?.created_at || now, now);
+    if (appId === 'spacemountain-live' && namespace === 'easter-eggs') {
+      const state = reconcileEasterEggs(db, req.user.id);
+      res.setHeader('ETag', appStateEtag(appId, namespace, state.revision));
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json(state);
+    }
     res.setHeader('ETag', appStateEtag(appId, namespace, revision));
     res.json({ appId, namespace, schemaVersion, revision, data, createdAt: current?.created_at || now, updatedAt: now });
   } catch (error: any) {
@@ -3839,116 +3851,39 @@ app.put('/api/app-state/:appId/:namespace', authenticate, (req: any, res) => {
   }
 });
 
-const DISCOVERY_DEFINITIONS = {
-  'battle-arena': {
-    title: 'The Hidden Battle Arena',
-    sourceApp: 'spacemountain-live',
-  },
-  'cosmo-black-hole': {
-    title: 'The Cosmo Black Hole',
-    sourceApp: 'cosmo-commlink',
-  },
-  'commlink-constellation': {
-    title: 'The Commlink Constellation',
-    sourceApp: 'cosmo-commlink',
-  },
-} as const;
-
-const DISCOVERY_REWARD = {
-  title: 'Lord Puzzler',
-  chatbotPersonality: {
-    id: 'count-puzzle',
-    name: 'Count Puzzle',
-    basePersonality: 'A mysterious gothic puzzle-smith and useful stowaway who speaks in riddles, rhymes, and cosmic metaphors. Direct answers are dreadfully dull, but every riddle must remain ultimately helpful.',
-    tone: 'Theatrical, cryptic, slightly paranoid',
-    responseStyle: 'Riddle-forward, gothic, playful, and helpful',
-  },
-};
-
-function recordUserDiscovery(
-  userId: string,
-  discoveryId: keyof typeof DISCOVERY_DEFINITIONS,
-  metadata: Record<string, unknown> = {},
-) {
-  const definition = DISCOVERY_DEFINITIONS[discoveryId];
-  const now = new Date().toISOString();
-  const result = db.prepare(`
-    INSERT OR IGNORE INTO user_discoveries (
-      user_id, discovery_id, source_app, metadata_json, discovered_at
-    ) VALUES (?, ?, ?, ?, ?)
-  `).run(userId, discoveryId, definition.sourceApp, JSON.stringify(metadata), now);
-  return { created: result.changes > 0, discoveredAt: now };
-}
-
-function syncBattleArenaDiscovery(userId: string) {
-  const arenaState = db.prepare(`
-    SELECT 1
-    FROM app_state_records
-    WHERE user_id = ? AND app_id = 'spacemountain-live' AND namespace = 'arena'
-    LIMIT 1
-  `).get(userId);
-  if (arenaState) {
-    return recordUserDiscovery(userId, 'battle-arena', { evidence: 'account-arena-state' });
-  }
-  return { created: false, discoveredAt: null };
-}
-
-function userDiscoveryStatus(userId: string) {
-  const rows = db.prepare(`
-    SELECT discovery_id, source_app, discovered_at
-    FROM user_discoveries
-    WHERE user_id = ?
-    ORDER BY datetime(discovered_at), discovery_id
-  `).all(userId) as Array<{ discovery_id: string; source_app: string; discovered_at: string }>;
-  const discoveredById = new Map(rows.map((row) => [row.discovery_id, row]));
-  const discoveries = Object.entries(DISCOVERY_DEFINITIONS).map(([id, definition]) => {
-    const row = discoveredById.get(id);
-    return row
-      ? { id, title: definition.title, sourceApp: row.source_app, discovered: true, discoveredAt: row.discovered_at }
-      : { id: null, title: 'Undiscovered signal', sourceApp: null, discovered: false, discoveredAt: null };
-  });
-  const discoveredCount = discoveries.filter((item) => item.discovered).length;
-  const complete = discoveredCount === Object.keys(DISCOVERY_DEFINITIONS).length;
-  return {
-    schemaVersion: 1,
-    discoveredCount,
-    total: Object.keys(DISCOVERY_DEFINITIONS).length,
-    complete,
-    discoveries,
-    reward: complete ? DISCOVERY_REWARD : null,
-  };
-}
-
-function notifyDiscoveryReward(userId: string, status: ReturnType<typeof userDiscoveryStatus>) {
-  if (!status.complete) return;
-  createNotification(
-    userId,
-    `${DISCOVERY_REWARD.title} unlocked`,
-    `${DISCOVERY_REWARD.chatbotPersonality.name} has appeared in your Commlink collection.`,
-    { type: 'achievement', sourceApp: 'cosmo-commlink', linkUrl: '/commlink/' },
-  );
-}
-
+// Both the account UI and the machine entitlement use the same reconciled eggs.
 app.get('/api/discoveries', authenticate, (req: any, res) => {
-  const arenaSync = syncBattleArenaDiscovery(req.user.id);
-  const status = userDiscoveryStatus(req.user.id);
-  if (arenaSync.created) notifyDiscoveryReward(req.user.id, status);
-  res.json(status);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(discoveryStatus(db, req.user.id));
 });
 
+// Retain the original puzzle URLs as compatible aliases. Historical rows are
+// reconciled on reads, so already-earned discoveries never require a replay.
 app.post('/api/discoveries/:discoveryId', authenticate, (req: any, res) => {
-  const discoveryId = String(req.params.discoveryId || '') as keyof typeof DISCOVERY_DEFINITIONS;
+  const discoveryId = String(req.params.discoveryId || '');
   if (!['cosmo-black-hole', 'commlink-constellation'].includes(discoveryId)) {
     return res.status(404).json({ error: 'Discovery not found' });
   }
-  const arenaSync = syncBattleArenaDiscovery(req.user.id);
-  const recorded = recordUserDiscovery(req.user.id, discoveryId, {
-    surface: String(req.body?.surface || 'commlink').slice(0, 80),
-    clientVersion: String(req.body?.clientVersion || 'unknown').slice(0, 80),
-  });
-  const status = userDiscoveryStatus(req.user.id);
-  if (recorded.created || arenaSync.created) notifyDiscoveryReward(req.user.id, status);
-  return res.status(recorded.created ? 201 : 200).json({ created: recorded.created, ...status });
+  const definition = EGG_DEFINITIONS[LEGACY_EGGS[discoveryId]];
+  const result = db.prepare(`INSERT OR IGNORE INTO user_discoveries
+    (user_id, discovery_id, source_app, metadata_json, discovered_at) VALUES (?, ?, ?, ?, ?)`)
+    .run(req.user.id, discoveryId, definition.sourceApp, JSON.stringify({
+      surface: String(req.body?.surface || 'commlink').slice(0, 80),
+      clientVersion: String(req.body?.clientVersion || 'unknown').slice(0, 80),
+    }), new Date().toISOString());
+  const created = result.changes > 0;
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(created ? 201 : 200).json({ created, ...discoveryStatus(db, req.user.id) });
+});
+
+app.post('/api/easter-eggs/rocket/complete', authenticate, (req: any, res) => {
+  // A queued browser receipt may only be replayed for its original account.
+  if (!req.body?.userId || req.body.userId !== req.user.id) {
+    return res.status(409).json({ error: 'Rocket discovery belongs to a different account', code: 'identity_mismatch' });
+  }
+  const state = reconcileEasterEggs(db, req.user.id, { egg: 'rocket', metadata: { source: 'spacemountain-live-portal' } });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(state);
 });
 
 type CommlinkFeedItem = {

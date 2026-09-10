@@ -42,6 +42,7 @@ COPY xbox-worker.cjs ./xbox-worker.cjs
 COPY xbox-worker-guard.cjs ./xbox-worker-guard.cjs
 COPY athena-command-bootstrap.cjs ./athena-command-bootstrap.cjs
 COPY easter-egg-entitlement-bootstrap.cjs ./easter-egg-entitlement-bootstrap.cjs
+COPY easter-egg-state.cjs ./easter-egg-state.cjs
 COPY presence-bootstrap.cjs ./presence-bootstrap.cjs
 
 # Prepare every code/static-file mutation once while the image filesystem is

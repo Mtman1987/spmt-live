@@ -68,6 +68,8 @@ test('machine-only entitlement derives Voidwalker from the three canonical egg f
   assert.match(source, /app_state_records/);
   assert.match(source, /spacemountain-live/);
   assert.match(source, /blackHole/);
-  assert.match(source, /eggs\.rocket\s*&&\s*eggs\.blackHole\s*&&\s*eggs\.signal/);
-  assert.match(source, /Voidwalker/);
+  assert.match(source, /reconcileEasterEggs\(db, user.id\)/);
+  const shared = read('easter-egg-state.cjs');
+  assert.match(shared, /eggs\.rocket\s*&&\s*eggs\.blackHole\s*&&\s*eggs\.signal/);
+  assert.match(shared, /Voidwalker/);
 });

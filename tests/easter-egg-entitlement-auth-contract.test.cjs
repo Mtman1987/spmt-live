@@ -28,11 +28,12 @@ test('StreamWeaver entitlement service scope is applied consistently', () => {
 test('production installs and ships the easter egg entitlement route', () => {
   assert.match(productionStart, /easter-egg-entitlement-bootstrap\.cjs'\)\.installEasterEggEntitlementBootstrap\(\)/);
   assert.match(dockerfile, /COPY easter-egg-entitlement-bootstrap\.cjs \.\/easter-egg-entitlement-bootstrap\.cjs/);
+  assert.match(dockerfile, /COPY easter-egg-state\.cjs \.\/easter-egg-state\.cjs/);
   assert.match(dockerfile, /CMD \["node", "start\.cjs"\]/);
 });
 
-test('owner test grant persists all three real egg completion flags without replacing egg payloads', () => {
-  assert.match(bootstrap, /SPMT_EASTER_EGG_TEST_USERNAMES \|\| 'mtman1987'/);
+test('explicitly configured owner test grant persists all three real egg completion flags without replacing egg payloads', () => {
+  assert.match(bootstrap, /SPMT_EASTER_EGG_TEST_USERNAMES \|\| ''/);
   assert.match(bootstrap, /user\.is_admin !== 1/);
   assert.match(bootstrap, /\['rocket', 'blackHole', 'signal'\]/);
   assert.match(bootstrap, /\.\.\.existing,/);
@@ -40,7 +41,7 @@ test('owner test grant persists all three real egg completion flags without repl
   assert.match(bootstrap, /ownerTestGrant: true/);
   assert.match(bootstrap, /UPDATE app_state_records/);
   assert.match(bootstrap, /INSERT INTO app_state_records/);
-  assert.match(bootstrap, /title: allThree \? 'Voidwalker' : null/);
+  assert.match(bootstrap, /reconcileEasterEggs\(db, user.id\)/);
 });
 
 test('legacy entitlement key remains compatibility-only with bounded telemetry', () => {

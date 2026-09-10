@@ -3,12 +3,13 @@
 const Database = require('better-sqlite3');
 const jwt = require('jsonwebtoken');
 const path = require('node:path');
+const { reconcileEasterEggs, claimDiscordRewards, acknowledgeDiscordReward } = require('./easter-egg-state.cjs');
 
 const APP_ID = 'spacemountain-live';
 const NAMESPACE = 'easter-eggs';
 const LEGACY_AUTH_LOG_INTERVAL_MS = 60_000;
 const OWNER_TEST_USERNAMES = new Set(
-  String(process.env.SPMT_EASTER_EGG_TEST_USERNAMES || 'mtman1987')
+  String(process.env.SPMT_EASTER_EGG_TEST_USERNAMES || '')
     .split(',')
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean),
@@ -135,69 +136,51 @@ function readEggs(provider, providerUserId) {
 
   ensureOwnerTestGrant(db, user);
 
-  const row = db.prepare(`
-    SELECT data_json
-    FROM app_state_records
-    WHERE user_id = ? AND app_id = ? AND namespace = ?
-    LIMIT 1
-  `).get(user.id, APP_ID, NAMESPACE);
-
-  let data = {};
-  try {
-    data = row?.data_json ? JSON.parse(row.data_json) : {};
-  } catch {
-    data = {};
-  }
-  const sourceEggs = data && typeof data === 'object' && data.eggs && typeof data.eggs === 'object'
-    ? data.eggs
-    : {};
-  const eggs = {
-    rocket: sourceEggs?.rocket?.completed === true,
-    blackHole: sourceEggs?.blackHole?.completed === true,
-    signal: sourceEggs?.signal?.completed === true,
-  };
-  const allThree = eggs.rocket && eggs.blackHole && eggs.signal;
-  return {
-    knownIdentity: true,
-    eggs,
-    title: allThree ? 'Voidwalker' : null,
-  };
+  const state = reconcileEasterEggs(db, user.id);
+  return { knownIdentity: true, eggs: state.eggs, title: state.title };
 }
 
 function claimSignalEgg(providerUserId, metadata = {}) {
   const db = openDb();
   const user = db.prepare(`SELECT id, username FROM users WHERE discord_id = ? LIMIT 1`).get(providerUserId);
   if (!user?.id) return { knownIdentity: false, claimed: false };
-  const now = new Date().toISOString();
-  const row = db.prepare(`SELECT data_json, revision, created_at FROM app_state_records WHERE user_id = ? AND app_id = ? AND namespace = ? LIMIT 1`).get(user.id, APP_ID, NAMESPACE);
-  let data = {};
-  try { data = row?.data_json ? JSON.parse(row.data_json) : {}; } catch { data = {}; }
-  if (!data || typeof data !== 'object' || Array.isArray(data)) data = {};
-  if (!data.eggs || typeof data.eggs !== 'object' || Array.isArray(data.eggs)) data.eggs = {};
-  const alreadyClaimed = data.eggs?.signal?.completed === true;
-  data.eggs.signal = {
-    ...(data.eggs.signal && typeof data.eggs.signal === 'object' ? data.eggs.signal : {}),
-    completed: true,
-    completedAt: data.eggs?.signal?.completedAt || now,
+  const before = reconcileEasterEggs(db, user.id);
+  reconcileEasterEggs(db, user.id, { egg: 'signal', metadata: {
     source: 'discord-signal-drop',
-    discordGuildId: String(metadata.guildId || '').slice(0, 128) || undefined,
-    discordChannelId: String(metadata.channelId || '').slice(0, 128) || undefined,
-    discordMessageId: String(metadata.messageId || '').slice(0, 128) || undefined,
-  };
-  if (row) {
-    db.prepare(`UPDATE app_state_records SET data_json = ?, revision = ?, updated_at = ? WHERE user_id = ? AND app_id = ? AND namespace = ?`)
-      .run(JSON.stringify(data), Math.max(1, Number(row.revision || 1)) + 1, now, user.id, APP_ID, NAMESPACE);
-  } else {
-    db.prepare(`INSERT INTO app_state_records (user_id, app_id, namespace, schema_version, revision, data_json, created_at, updated_at) VALUES (?, ?, ?, 1, 1, ?, ?, ?)`)
-      .run(user.id, APP_ID, NAMESPACE, JSON.stringify(data), now, now);
-  }
-  return { knownIdentity: true, claimed: !alreadyClaimed, alreadyClaimed, userId: user.id, username: user.username };
+    discordGuildId: String(metadata.guildId || '').slice(0, 128),
+    discordChannelId: String(metadata.channelId || '').slice(0, 128),
+    discordMessageId: String(metadata.messageId || '').slice(0, 128),
+  } });
+  return { knownIdentity: true, claimed: !before.eggs.signal, alreadyClaimed: before.eggs.signal, userId: user.id, username: user.username };
 }
 
 function installRoutes(app, express) {
   if (app.__spmtEasterEggEntitlementInstalled) return;
   app.__spmtEasterEggEntitlementInstalled = true;
   const jsonBody = express.json({ limit: '4kb' });
+
+  app.post('/api/internal/easter-eggs/discord-rewards/claim', jsonBody, (req, res) => {
+    res.set('cache-control', 'no-store');
+    if (!serviceAuthorized(req, 'identity:write')) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      return res.json({ ok: true, jobs: claimDiscordRewards(openDb(), req.body?.limit) });
+    } catch (error) {
+      console.warn('[EasterEggEntitlement] Discord reward queue unavailable', error);
+      return res.status(503).json({ error: 'Discord reward queue unavailable' });
+    }
+  });
+
+  app.post('/api/internal/easter-eggs/discord-rewards/ack', jsonBody, (req, res) => {
+    res.set('cache-control', 'no-store');
+    if (!serviceAuthorized(req, 'identity:write')) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      const acknowledged = acknowledgeDiscordReward(openDb(), req.body || {});
+      return res.status(acknowledged ? 200 : 409).json({ ok: acknowledged });
+    } catch (error) {
+      console.warn('[EasterEggEntitlement] Discord reward acknowledgement unavailable', error);
+      return res.status(503).json({ error: 'Discord reward acknowledgement unavailable' });
+    }
+  });
 
   app.post('/api/internal/easter-eggs/entitlement', jsonBody, (req, res) => {
     res.set('cache-control', 'no-store');

@@ -15,13 +15,10 @@ test('Commlink uses the same-origin SPMT session instead of a localStorage login
   assert.match(commlink, /fetch\('\/api\/app-state\/cosmo-commlink\/workspace',[\s\S]*credentials: 'include'/);
 });
 
-test('Commlink Black Hole discovery bridges to the canonical Easter egg state', () => {
-  assert.match(server, /function syncCanonicalCommlinkBlackHole\(userId: string\)/);
-  assert.match(server, /discovery_id = 'cosmo-black-hole'/);
-  assert.match(server, /app_id = 'spacemountain-live' AND namespace = 'easter-eggs'/);
-  assert.match(server, /completed: true/);
-  assert.match(server, /source: existing\.source \|\| 'spmt-live-commlink'/);
-  assert.match(server, /if \(discoveryId === 'cosmo-black-hole'\) syncCanonicalCommlinkBlackHole\(req\.user\.id\)/);
+test('Commlink discovery status reads the shared canonical Easter egg store', () => {
+  assert.match(server, /discoveryStatus\(db, req.user.id\)/);
+  assert.match(server, /easter-egg-state\.cjs/);
+  assert.doesNotMatch(server, /const DISCOVERY_REWARD/);
 });
 
 test('Commlink session auth patch is part of every runtime contract pass', () => {

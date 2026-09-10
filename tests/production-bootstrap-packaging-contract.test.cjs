@@ -29,3 +29,8 @@ test('every top-level production bootstrap required by start.cjs is packaged in 
     );
   }
 });
+
+test('image preparation skips the legacy identity rewrite when the safe gate is already compiled', () => {
+  assert.match(startSource, /serverBundle\.includes\(identityReconciliation\.CONFLICT_GATE\)/);
+  assert.match(startSource, /serverBundle\.includes\(identityReconciliation\.SAFE_RECONCILIATION_GATE\)/);
+});

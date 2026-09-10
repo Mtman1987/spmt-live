@@ -7,7 +7,6 @@ const test = require('node:test');
 
 const {
   CONFLICT_GATE,
-  SAFE_RECONCILIATION_GATE,
   patchVerifiedIdentityReconciliation,
 } = require('../verified-identity-reconciliation-bootstrap.cjs');
 
@@ -28,15 +27,10 @@ test('replaces the bundled crew-review stop with the safe provider-owned reconci
   assert.match(patched, /manual-review-required|Crew review is required/);
 });
 
-test('accepts a server bundle that already contains the safe reconciliation gate', () => {
-  const source = `before\n${SAFE_RECONCILIATION_GATE}\nafter`;
-  assert.equal(patchVerifiedIdentityReconciliation(source), source);
-});
-
-test('refuses a bundle with neither reconciliation gate', () => {
+test('refuses a missing or already-patched bundle marker', () => {
   assert.throws(
     () => patchVerifiedIdentityReconciliation('no matching route'),
-    /expected one legacy or one safe gate/,
+    /expected one conflict gate and found 0/,
   );
 });
 

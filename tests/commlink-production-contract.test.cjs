@@ -67,6 +67,9 @@ test('production Commlink transformation is idempotent on the real post-routing 
     assert.match(onceJs, /async function simulateSend\(\) \{\n  return dispatchComposer\(\);\n\}/);
     assert.match(onceJs, /\/api\/auth\/logout/);
     assert.match(onceJs, /Signed into SPMT as/);
+    assert.match(onceJs, /const commlinkParams = new URLSearchParams\(window\.location\.search\);/);
+    assert.match(onceJs, /const launchParams = commlinkParams;/);
+    assert.match(onceJs, /loadCommlinkIdentity\(\);/);
     assert.doesNotMatch(onceJs, /const demoMode/);
     assert.doesNotMatch(onceJs, /const defaultSources/);
     assert.doesNotMatch(onceJs, /PixelRanger/);

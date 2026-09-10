@@ -34,10 +34,12 @@ test('refuses a missing or already-patched bundle marker', () => {
   );
 });
 
-test('production entry patches reconciliation before loading the server bundle', () => {
+test('production entry validates reconciliation before loading the server bundle', () => {
   const start = fs.readFileSync(path.join(root, 'start.cjs'), 'utf8');
-  const patchIndex = start.indexOf("require('./verified-identity-reconciliation-bootstrap.cjs').patchProductionServerBundle()");
+  const patchIndex = start.indexOf('const identityReconciliation = require');
   const serverIndex = start.indexOf("require('./dist/server.cjs')");
   assert.ok(patchIndex >= 0);
   assert.ok(serverIndex > patchIndex);
+  assert.match(start, /identityReconciliation\.patchProductionServerBundle\(\)/);
+  assert.match(start, /SAFE_RECONCILIATION_GATE/);
 });

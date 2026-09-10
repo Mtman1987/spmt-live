@@ -72,7 +72,18 @@ function ensureWorkspaceShellBootstrap() {
 function prepareRuntimeFiles() {
   ensureWorkspaceShellBootstrap();
   require('./auth-shell-stability-bootstrap.cjs').patchAuthShellStability();
-  require('./verified-identity-reconciliation-bootstrap.cjs').patchProductionServerBundle();
+  const identityReconciliation = require('./verified-identity-reconciliation-bootstrap.cjs');
+  const serverBundlePath = process.env.SPMT_SERVER_BUNDLE_PATH
+    ? path.resolve(process.env.SPMT_SERVER_BUNDLE_PATH)
+    : path.join(__dirname, 'dist', 'server.cjs');
+  const serverBundle = fs.readFileSync(serverBundlePath, 'utf8');
+  // New builds compile the safe gate directly from server.ts. Only older
+  // bundles still need the compatibility rewrite.
+  if (serverBundle.includes(identityReconciliation.CONFLICT_GATE)) {
+    identityReconciliation.patchProductionServerBundle();
+  } else if (!serverBundle.includes(identityReconciliation.SAFE_RECONCILIATION_GATE)) {
+    throw new Error('SPMT identity reconciliation gate is missing from the production bundle');
+  }
   require('./commlink-rich-chat-bootstrap.cjs').installCommlinkRichChatBootstrap();
   require('./commlink-source-controls-bootstrap.cjs').installCommlinkSourceControlsBootstrap();
   require('./commlink-identity-routing-bootstrap.cjs').installCommlinkIdentityRoutingBootstrap();

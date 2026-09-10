@@ -56,7 +56,7 @@ function installCommlinkProductionBootstrap() {
   if (source.includes("const commlinkParams = new URLSearchParams(window.location.search);")) {
     source = source.replace(
       "const commlinkParams = new URLSearchParams(window.location.search);\nconst demoMode = commlinkParams.get('demo') === '1';\n",
-      '',
+      "const commlinkParams = new URLSearchParams(window.location.search);\n",
     );
   }
 

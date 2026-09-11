@@ -2989,8 +2989,10 @@ app.post('/api/user/link', authenticate, async (req: any, res) => {
   const sameDiscordUsername = cleanDiscord
     && String(existingLinks?.discord_username || '').trim().toLowerCase() === cleanDiscord.toLowerCase();
   const discordId = resolvedDiscordId
-    || (discordVerification === 'unavailable' && sameDiscordUsername ? String(existingLinks?.discord_id || '') || null : null);
-  if (discordId && discordVerification === 'unavailable') discordVerification = 'retained';
+    || (sameDiscordUsername ? String(existingLinks?.discord_id || '') || null : null);
+  // Guild membership search is not the authority for an already linked account.
+  // Leaving the guild or a partial search result must not erase that identity.
+  if (discordId && !resolvedDiscordId) discordVerification = 'retained';
 
   let twitchId: string | null = null;
   const cleanTwitch = (twitchUsername || '').trim().toLowerCase();

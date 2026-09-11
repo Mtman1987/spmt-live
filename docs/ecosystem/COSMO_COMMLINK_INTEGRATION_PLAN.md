@@ -15,6 +15,27 @@ Owners:
 - StreamWeaver remains the high-volume live-chat, bot, AI conversation, TTS, overlay, and workflow runtime.
 - Each ecosystem app retains authority over its domain actions and app state.
 
+## September 11 usability correction
+
+Chat visibility uses a searchable platform accordion. Discord chats are grouped
+by server and category. Show/hide preferences remain account-owned workspace
+state and never choose recipients. The normal composer asks for one exact chat;
+combined “All Twitch” and “All Discord” reading lanes are not destinations.
+Ordinary @mentions remain message text. Review captures the exact message and
+recipient so a polling refresh cannot redirect a pending send.
+
+Registered StreamWeaver streamers appear as individual public Twitch chats,
+including channels absent from the current user's replay. StreamWeaver owns
+that directory and projects only public native Twitch chat; private tenant
+state and enrichment stay isolated. Commlink uses the sender's existing account
+and receipt path. It does not create another bot connection or add a Bot Share
+permission gate. Public chat access does not grant moderator actions.
+
+Personal inbox labels distinguish SPMT messages from infrastructure. Personal
+compose verifies one exact SPMT username through the existing account lookup and
+uses the existing messaging API. Uncertain personal delivery is not retried
+automatically because that legacy API does not provide idempotency.
+
 ## Outcome
 
 Create one signed-in messaging workspace at the planned

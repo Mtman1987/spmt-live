@@ -4683,7 +4683,9 @@ app.get('/api/commlink/feed', authenticate, async (req: any, res) => {
       ...(Array.isArray(streamweaver?.channels) ? streamweaver.channels.map((channel: any) => ({
         ...channel,
         readOnly: !(COMMLINK_EGRESS_CAPABILITIES[channel.platform]?.compose),
-        capabilities: COMMLINK_EGRESS_CAPABILITIES[channel.platform] || COMMLINK_EGRESS_CAPABILITIES.spmt,
+        capabilities: channel.publicCommunityChat === true
+          ? { compose: true, reply: false, timeout: false, delete: false }
+          : COMMLINK_EGRESS_CAPABILITIES[channel.platform] || COMMLINK_EGRESS_CAPABILITIES.spmt,
       })) : []),
       ...localChannels,
     ],

@@ -5,6 +5,38 @@
   const MAX_SPEED = 13;
   const PASSIVE_DRAG = 0.999;
   const ACTIVE_DRAG = 0.994;
+  const DISCOVERY_COOLDOWN_MS = 30 * 60 * 1000;
+  const DISCOVERY_STORAGE_KEY = 'spmt:commlink-anomaly-chance:v1';
+  let discoveryChecks = 0;
+  let lastAutomaticOrManualStart = 0;
+  let lastTypingAt = 0;
+  let discoveryTimer = null;
+  let closeButton = null;
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(DISCOVERY_STORAGE_KEY) || '{}');
+    discoveryChecks = Number.isFinite(saved.checks) ? Math.max(0, saved.checks) : 0;
+    lastAutomaticOrManualStart = Number.isFinite(saved.lastStart) ? Math.max(0, saved.lastStart) : 0;
+  } catch { /* The in-memory cooldown remains available. */ }
+
+  function saveDiscoveryChance() {
+    try { sessionStorage.setItem(DISCOVERY_STORAGE_KEY, JSON.stringify({ checks: discoveryChecks, lastStart: lastAutomaticOrManualStart })); } catch {}
+  }
+
+  function scheduleDiscoveryChance() {
+    window.clearTimeout(discoveryTimer);
+    discoveryTimer = window.setTimeout(() => {
+      const now = Date.now();
+      const editing = document.activeElement?.matches('input, textarea, [contenteditable="true"], [role="textbox"]');
+      const visible = !document.hidden && runtime.logo?.getClientRects().length > 0;
+      if (visible && !editing && now - lastTypingAt >= 15_000 && !runtime.active && !runtime.completing
+        && (!lastAutomaticOrManualStart || now - lastAutomaticOrManualStart >= DISCOVERY_COOLDOWN_MS)) {
+        discoveryChecks += 1;
+        saveDiscoveryChance();
+        if (discoveryChecks >= 10 || Math.random() < .15) startPuzzle();
+      }
+      scheduleDiscoveryChance();
+    }, 60_000);
+  }
 
   const ARTIFACTS = [
     {
@@ -243,6 +275,7 @@
     runtime.active = false;
     runtime.completing = false;
     runtime.startedAt = 0;
+    if (closeButton) closeButton.hidden = true;
     runtime.logo.classList.remove('cosmo-black-hole-active', 'cosmo-hole-kick');
     document.body.classList.remove('commlink-black-hole-active');
     restoreArtifacts();
@@ -281,6 +314,10 @@
   function startPuzzle() {
     if (runtime.active || runtime.completing) return;
     runtime.active = true;
+    discoveryChecks = 0;
+    lastAutomaticOrManualStart = Date.now();
+    saveDiscoveryChance();
+    if (closeButton) closeButton.hidden = false;
     runtime.startedAt = performance.now();
     restoreArtifacts();
     runtime.logo.classList.add('cosmo-black-hole-active');
@@ -352,6 +389,23 @@
     injectStyles();
     runtime.layer = createArtifactLayer();
     if (!runtime.layer) return;
+
+    closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.textContent = 'Close anomaly · Esc';
+    closeButton.hidden = true;
+    Object.assign(closeButton.style, {
+      position: 'fixed', bottom: '18px', right: '18px', zIndex: '97',
+      padding: '8px 12px', borderRadius: '12px', border: '1px solid #a78bfa',
+      background: '#0c1026', color: '#f6f0ff', cursor: 'pointer',
+    });
+    closeButton.addEventListener('click', () => { if (runtime.active && !runtime.completing) finishPuzzle(); });
+    document.body.appendChild(closeButton);
+    document.addEventListener('keydown', (event) => {
+      if (event.target?.matches?.('input, textarea, [contenteditable="true"], [role="textbox"]')) lastTypingAt = Date.now();
+      if (event.key === 'Escape' && runtime.active && !runtime.completing) finishPuzzle();
+    });
+    scheduleDiscoveryChance();
 
     const legacyModal = document.getElementById('black-hole-game');
     legacyModal?.setAttribute('aria-hidden', 'true');

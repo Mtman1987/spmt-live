@@ -34,6 +34,7 @@ COPY commlink-source-controls-bootstrap.cjs ./commlink-source-controls-bootstrap
 COPY commlink-identity-routing-bootstrap.cjs ./commlink-identity-routing-bootstrap.cjs
 COPY commlink-production-bootstrap.cjs ./commlink-production-bootstrap.cjs
 COPY commlink-auth-recovery-bootstrap.cjs ./commlink-auth-recovery-bootstrap.cjs
+COPY commlink-chat-navigation-bootstrap.cjs ./commlink-chat-navigation-bootstrap.cjs
 COPY commlink-diagnostic-bootstrap.cjs ./commlink-diagnostic-bootstrap.cjs
 COPY cloud-xbox-bootstrap.cjs ./cloud-xbox-bootstrap.cjs
 COPY tenant-overlay-events-bootstrap.cjs ./tenant-overlay-events-bootstrap.cjs

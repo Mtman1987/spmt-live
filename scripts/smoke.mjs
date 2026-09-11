@@ -466,7 +466,16 @@ try {
       client_secret: streamweaverClientSecret,
     }),
   });
-  assert.equal(reusedRefreshResponse.status, 400);
+  assert.equal(reusedRefreshResponse.status, 200, 'parallel refresh receives the same successor during the overlap');
+  assert.equal((await reusedRefreshResponse.json()).refresh_token, refreshed.refresh_token);
+  const refreshDb = new Database(databasePath);
+  refreshDb.prepare('UPDATE oauth_refresh_tokens SET revoked_at = ? WHERE revoked_at IS NOT NULL').run(new Date(Date.now() - 61000).toISOString());
+  refreshDb.close();
+  const staleRefreshResponse = await fetch(`${baseUrl}/api/oauth/token`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: embedExchange.refresh_token, client_id: 'streamweaver', client_secret: streamweaverClientSecret }),
+  });
+  assert.equal(staleRefreshResponse.status, 400, 'old refresh is rejected outside the bounded overlap');
 
   const pairResponse = await fetch(`${baseUrl}/api/companion/devices/pair`, {
     method: 'POST',

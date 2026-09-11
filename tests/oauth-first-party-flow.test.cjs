@@ -198,6 +198,17 @@ test('all first-party apps complete SPMT authorization code flow on the canonica
     assert.equal(userinfoResponse.status, 200, `${client.id} userinfo failed: ${JSON.stringify(userinfo)}\n${output()}`);
     assert.equal(userinfo?.username, username, `${client.id} userinfo must preserve the canonical SPMT identity`);
 
+    const refreshes = await Promise.all(Array.from({ length: 5 }, async () => {
+      const response = await fetch(`${baseUrl}/api/oauth/token`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: client.id, client_secret: client.secret }),
+      });
+      assert.equal(response.status, 200, `${client.id} concurrent refresh must succeed`);
+      return response.json();
+    }));
+    assert.equal(new Set(refreshes.map(value => value.refresh_token)).size, 1);
+    for (const refreshed of refreshes) assert.equal(refreshed.user.id, userinfo.id);
+
     const replayResponse = await fetch(`${baseUrl}/api/oauth/token`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },

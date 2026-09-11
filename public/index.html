@@ -539,9 +539,11 @@
     </div>
   </div>
 
+  <script src="/shared/session-renewal.js"></script>
   <script src="/shared/session-cache.js"></script>
   <script>
     let authToken = localStorage.getItem('spmt_token') || null;
+    window.addEventListener('spmt-session-refreshed', (event) => { authToken = event.detail.token; });
     let currentUser = null;
     let apps = [];
     let providerGrants = [];

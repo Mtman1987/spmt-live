@@ -1,3 +1,4 @@
+import { rotateOauthRefreshToken } from './oauth-refresh';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import bcrypt from 'bcrypt';
@@ -3267,13 +3268,9 @@ app.post('/api/oauth/token', (req, res) => {
   }
 
   if (grant_type === 'refresh_token' || refresh_token) {
-    const refreshHash = hashSecret(String(refresh_token || ''));
-    const stored = db.prepare(`
-      SELECT * FROM oauth_refresh_tokens
-      WHERE token_hash = ? AND client_id = ? AND revoked_at IS NULL
-    `).get(refreshHash, client_id) as any;
-    if (!stored) return res.status(400).json({ error: 'Invalid refresh token' });
-    if (new Date(stored.expires_at) <= new Date()) return res.status(400).json({ error: 'Refresh token expired' });
+    const rotation = rotateOauthRefreshToken(db, String(refresh_token || ''), String(client_id), JWT_SECRET, OAUTH_REFRESH_TOKEN_SECONDS);
+    if (!rotation) return res.status(400).json({ error: 'Invalid or expired refresh token' });
+    const stored = rotation.stored;
 
     const user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(stored.user_id) as any;
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -3281,15 +3278,13 @@ app.post('/api/oauth/token', (req, res) => {
     const scopes = String(client_id) === 'spacemountain-live'
       ? storedScopes.filter((value) => value !== 'xp:write')
       : storedScopes;
-    const rotatedRefreshToken = issueOauthRefreshToken(user.id, client_id, scopes);
-    db.prepare('UPDATE oauth_refresh_tokens SET revoked_at = ?, rotated_to_hash = ? WHERE token_hash = ?')
-      .run(new Date().toISOString(), hashSecret(rotatedRefreshToken), refreshHash);
+    const rotatedRefreshToken = rotation.token;
     return res.json({
       access_token: issueOauthAccessToken(user, client_id, scopes),
       refresh_token: rotatedRefreshToken,
       token_type: 'Bearer',
       expires_in: OAUTH_ACCESS_TOKEN_SECONDS,
-      refresh_expires_in: OAUTH_REFRESH_TOKEN_SECONDS,
+      refresh_expires_in: Math.max(1, Math.floor((Date.parse(stored.expires_at) - Date.now()) / 1000)),
       scopes,
       user: serializeUser(user),
     });

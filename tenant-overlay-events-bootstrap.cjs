@@ -11,6 +11,8 @@ const TENANT_ROOT = path.resolve(process.env.SPMT_TENANT_SCENE_ROOT || (process.
 const DATABASE_PATH = process.env.DATABASE_PATH || (process.env.NODE_ENV === 'production' || process.env.FLY_APP_NAME ? '/data/spmt.db' : path.join(process.cwd(), 'spmt.db'));
 const MAX_EVENTS = 120;
 const MAX_EVENT_BYTES = 24_000;
+const SYSTEM_TENANT = 'spacemountainlive';
+const SYSTEM_USER_ID = 'system:spacemountainlive';
 let readDb = null;
 
 function tenantSlug(value) {
@@ -58,7 +60,11 @@ function lookupUserById(userId) {
 }
 
 function lookupUserByTenant(tenant) {
-  try { return openReadDb().prepare('SELECT id, username FROM users WHERE lower(username) = ? LIMIT 1').get(tenant) || null; } catch { return null; }
+  try {
+    const row = openReadDb().prepare('SELECT id, username FROM users WHERE lower(username) = ? LIMIT 1').get(tenant) || null;
+    if (row) return row;
+  } catch {}
+  return tenant === SYSTEM_TENANT ? { id: SYSTEM_USER_ID, username: SYSTEM_TENANT } : null;
 }
 
 function resolveAuthenticatedUser(req) {

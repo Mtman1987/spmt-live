@@ -14,6 +14,8 @@ const WORKER_URL = String(process.env.CLOUD_XBOX_WORKER_URL || 'http://xbox.proc
 const WORKER_SECRET = String(process.env.CLOUD_XBOX_WORKER_SECRET || process.env.JWT_SECRET || '').trim();
 const PUBLIC_RELAY_SECONDS = 10 * 60;
 const MAX_LAYOUT_BYTES = 160_000;
+const SYSTEM_TENANT = 'spacemountainlive';
+const SYSTEM_USER_ID = 'system:spacemountainlive';
 
 let readDb = null;
 
@@ -80,10 +82,10 @@ function lookupUserById(userId) {
 
 function lookupUserByTenant(tenant) {
   try {
-    return openReadDb().prepare('SELECT id, username FROM users WHERE lower(username) = ? LIMIT 1').get(tenant) || null;
-  } catch {
-    return null;
-  }
+    const row = openReadDb().prepare('SELECT id, username FROM users WHERE lower(username) = ? LIMIT 1').get(tenant) || null;
+    if (row) return row;
+  } catch {}
+  return tenant === SYSTEM_TENANT ? { id: SYSTEM_USER_ID, username: SYSTEM_TENANT } : null;
 }
 
 function resolveAuthenticatedUser(req) {
@@ -135,6 +137,150 @@ function emptyLayout() {
   };
 }
 
+function systemLoungeLayout() {
+  const streamweaver = 'https://streamweaver-new.fly.dev';
+  const nebula = 'https://chat-tag-new.fly.dev';
+  const hmo = 'https://hearmeout-main.fly.dev';
+  const dsh = 'https://discord-stream-hub-new.fly.dev';
+  const tenant = SYSTEM_TENANT;
+  const widgets = [
+    {
+      id: 'community-lounge-live-spotlight',
+      title: 'DSH Live Community Spotlight',
+      kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 0,
+      url: `${dsh}/headless/community-spotlight?parent=spmt.live&volume=0.58`,
+      sourceApp: 'DiscordStreamHub', role: 'community-program',
+    },
+    {
+      id: 'community-lounge-hmo-media',
+      title: 'Hear Me Out Media',
+      kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 68, y: 3, width: 300, height: 169, opacity: 1, zIndex: 35,
+      url: `${hmo}/overlay/system-spacemountainlive-lounge?media=auto&clean=1&volume=0.58&muted=0`,
+      sourceApp: 'Hear Me Out', role: 'media-mini-player',
+    },
+    {
+      id: 'community-lounge-parade',
+      title: 'NebulaBay Dancing Parade',
+      kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 16, y: 77, width: 653, height: 120, opacity: 1, zIndex: 55,
+      url: `${nebula}/overlay/game-hub/system-spacemountainlive-parade`,
+      sourceApp: 'NebulaBay', role: 'bottom-lane-effect',
+    },
+    {
+      id: 'community-lounge-nebula-stage',
+      title: 'NebulaBay Game Stage',
+      kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 9, y: 5, width: 787, height: 378, opacity: 1, zIndex: 90,
+      url: `${nebula}/overlay/game-hub/system-spacemountainlive-main`,
+      sourceApp: 'NebulaBay', role: 'game-stage',
+    },
+    {
+      id: 'community-lounge-emoji-rain',
+      title: 'NebulaBay Emoji Rain',
+      kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 220,
+      url: `${nebula}/overlay/game-hub/system-spacemountainlive-rain`,
+      sourceApp: 'NebulaBay', role: 'full-canvas-effect',
+    },
+    {
+      id: 'sw-featured-chat', title: 'Featured Shared Chat', kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 245,
+      url: `${streamweaver}/overlay/shared-chat-featured?tenant=${tenant}`, sourceApp: 'StreamWeaver', role: 'event-layer',
+    },
+    {
+      id: 'sw-social', title: 'Social Overlay', kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 246,
+      url: `${streamweaver}/overlay/social?tenant=${tenant}`, sourceApp: 'StreamWeaver', role: 'event-layer',
+    },
+    {
+      id: 'sw-notification', title: 'Notification', kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 247,
+      url: `${streamweaver}/overlay/notification?tenant=${tenant}`, sourceApp: 'StreamWeaver', role: 'event-layer',
+    },
+    {
+      id: 'sw-partner-checkin', title: 'Partner Check-in', kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 250,
+      url: `${streamweaver}/partner-checkin?tenant=${tenant}`, sourceApp: 'StreamWeaver', role: 'event-layer',
+    },
+    {
+      id: 'sw-gamble', title: 'Gamble', kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 255,
+      url: `${streamweaver}/gamble-overlay?tenant=${tenant}`, sourceApp: 'StreamWeaver', role: 'event-layer',
+    },
+    {
+      id: 'sw-classic-gamble', title: 'Classic Gamble', kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 256,
+      url: `${streamweaver}/classic-gamble-overlay?tenant=${tenant}`, sourceApp: 'StreamWeaver', role: 'event-layer',
+    },
+    {
+      id: 'sw-pokemon', title: 'Pokemon Overlay', kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 260,
+      url: `${streamweaver}/pokemon-overlay?tenant=${tenant}`, sourceApp: 'StreamWeaver', role: 'event-layer',
+    },
+    {
+      id: 'sw-pokemon-collection', title: 'Pokemon Collection', kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 261,
+      url: `${streamweaver}/pokemon-collection-overlay?tenant=${tenant}`, sourceApp: 'StreamWeaver', role: 'event-layer',
+    },
+    {
+      id: 'sw-pokemon-pack', title: 'Pokemon Pack', kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 262,
+      url: `${streamweaver}/pokemon-pack-overlay?tenant=${tenant}`, sourceApp: 'StreamWeaver', role: 'event-layer',
+    },
+    {
+      id: 'sw-pokemon-trade', title: 'Pokemon Trade', kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 263,
+      url: `${streamweaver}/pokemon-trade-overlay?tenant=${tenant}`, sourceApp: 'StreamWeaver', role: 'event-layer',
+    },
+    {
+      id: 'sw-shoutout', title: 'Shoutout Player', kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 270,
+      url: `${streamweaver}/shoutout-player?tenant=${tenant}`, sourceApp: 'StreamWeaver', role: 'event-layer',
+    },
+    {
+      id: 'community-lounge-chat-tag',
+      title: 'Chat Tag',
+      kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 67, y: 72, width: 310, height: 145, opacity: 1, zIndex: 275,
+      url: `${nebula}/overlay/channel/${tenant}?cycle=420&hudOn=45&hudOff=120`,
+      sourceApp: 'NebulaBay', role: 'persistent-chat-tag',
+    },
+    {
+      id: 'community-lounge-stella-tts',
+      title: 'Stella / TTS',
+      kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 280,
+      url: `${streamweaver}/tts-player?tenant=${tenant}`,
+      sourceApp: 'StreamWeaver', role: 'host-avatar-tts',
+    },
+    {
+      id: 'community-lounge-leaderboard',
+      title: 'DSH Community Leaderboard',
+      kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 320,
+      url: `${dsh}/headless/leaderboard/1240832965865635881?mode=overlay&cycle=1800&show=20&serverName=Space%20Mountain&memberName=Mountaineer&memberNamePlural=Mountaineers`,
+      sourceApp: 'DiscordStreamHub', role: 'scheduled-community-leaderboard',
+    },
+    {
+      id: 'community-lounge-brb',
+      title: 'BRB Player',
+      kind: 'embed', visible: true, locked: true, interactive: false,
+      x: 0, y: 0, width: 960, height: 540, opacity: 1, zIndex: 500,
+      url: `${streamweaver}/brb-player?tenant=${tenant}`,
+      sourceApp: 'StreamWeaver', role: 'full-screen-override',
+    },
+  ];
+  return normalizeLayout({
+    schemaVersion: 3,
+    template: 'community-lounge-system-v2',
+    enabled: true,
+    widgets,
+    workflows: [],
+  });
+}
+
 function normalizeLayout(input) {
   const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   return {
@@ -168,7 +314,9 @@ function newTenantRecord(user, legacyPublic = null) {
     tenant: user.username,
     userId: String(user.id),
     outputs: {
-      public: normalizeLayout(legacyPublic || emptyLayout()),
+      public: user.username === SYSTEM_TENANT
+        ? systemLoungeLayout()
+        : normalizeLayout(legacyPublic || emptyLayout()),
       personal: emptyLayout(),
     },
     outputUpdatedAt: { public: now, personal: now },
@@ -192,20 +340,28 @@ function readTenantRecord(user, create = true) {
   if (fs.existsSync(target)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(target, 'utf8'));
-      return {
+      const systemPublic = tenant === SYSTEM_TENANT && parsed?.outputs?.public?.template !== 'community-lounge-system-v2'
+        ? systemLoungeLayout()
+        : null;
+      const record = {
         ...parsed,
         schemaVersion: 1,
         tenant,
         userId: String(user.id),
         outputs: {
-          public: normalizeLayout(parsed?.outputs?.public || legacyLayoutForUser(user.id) || emptyLayout()),
+          public: systemPublic || normalizeLayout(parsed?.outputs?.public || legacyLayoutForUser(user.id) || emptyLayout()),
           personal: normalizeLayout(parsed?.outputs?.personal || emptyLayout()),
         },
         outputUpdatedAt: {
-          public: parsed?.outputUpdatedAt?.public || parsed?.updatedAt || new Date().toISOString(),
+          public: systemPublic ? new Date().toISOString() : (parsed?.outputUpdatedAt?.public || parsed?.updatedAt || new Date().toISOString()),
           personal: parsed?.outputUpdatedAt?.personal || parsed?.updatedAt || new Date().toISOString(),
         },
       };
+      if (systemPublic) {
+        record.updatedAt = new Date().toISOString();
+        writeTenantRecord(record);
+      }
+      return record;
     } catch {
       if (!create) return null;
     }
@@ -467,6 +623,7 @@ module.exports = {
     normalizeWidget,
     normalizeLayout,
     emptyLayout,
+    systemLoungeLayout,
     urlsForTenant,
   },
 };

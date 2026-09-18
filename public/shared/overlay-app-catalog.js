@@ -134,7 +134,7 @@
       widgets.push(loungeEmbed(
         'community-lounge-hmo-media',
         'Hear Me Out Media',
-        `${HEAR_ME_OUT}/overlay/${encodeURIComponent(roomId)}?media=auto&clean=1&volume=0.58`,
+        `${HEAR_ME_OUT}/overlay/${encodeURIComponent(roomId)}?media=auto&clean=1&volume=0.58&muted=0`,
         { x: 68, y: 3, width: 300, height: 169, zIndex: 35, sourceApp: 'Hear Me Out', role: 'media-mini-player' },
       ));
     }

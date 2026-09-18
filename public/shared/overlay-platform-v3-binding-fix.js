@@ -6,7 +6,7 @@
   const currentMode = typeof mode === 'undefined' ? 'panel' : mode;
   if (currentSurface !== 'overlays' || currentMode === 'overlay') return;
 
-  const requestedOutput = typeof params !== 'undefined' && params.get('output') === 'personal' ? 'personal' : 'public';
+  const requestedOutput = typeof params !== 'undefined' && ['personal', 'lounge'].includes(params.get('output')) ? params.get('output') : 'public';
   let initialTenantLoadStarted = false;
 
   function tenantLoad() {

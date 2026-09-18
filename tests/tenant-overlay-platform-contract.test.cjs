@@ -80,7 +80,7 @@ test('Overlay Bay v3 exposes tenant outputs and standardized source controls', (
 
 test('binding guard reloads requested output after legacy first render and removes stale save listener', () => {
   const source = read('public/shared/overlay-platform-v3-binding-fix.js');
-  assert.match(source, /params\.get\('output'\) === 'personal'/);
+  assert.match(source, /\['personal', 'lounge'\]\.includes\(params\.get\('output'\)\)/);
   assert.match(source, /await load\(requestedOutput\)/);
   assert.match(source, /button\.cloneNode\(true\)/);
   assert.match(source, /button\.replaceWith\(replacement\)/);

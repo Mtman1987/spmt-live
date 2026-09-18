@@ -583,6 +583,31 @@ function readTenantRecord(user, create = true) {
           lounge: parsed?.outputUpdatedAt?.lounge || parsed?.outputUpdatedAt?.public || parsed?.updatedAt || new Date().toISOString(),
         },
       };
+      // The private mtman1987 Lounge was originally seeded with the shared
+      // Space Mountain Hear Me Out room. Keep the saved scene intact except
+      // for this tenant identity so media state cannot fall through to the
+      // wrong app room or its shell fallback.
+      if (tenant === 'mtman1987') {
+        let corrected = false;
+        record.outputs.lounge.widgets = (record.outputs.lounge.widgets || []).map((widget) => {
+          if (widget.id === 'community-lounge-hmo-media') {
+            const nextUrl = String(widget.url || '')
+              .replace('/overlay/system-spacemountainlive-lounge', '/overlay/system-mtman1987-lounge')
+              .replace(/([?&])v=[^&]*/g, '$1v=mtman-hmo-1');
+            if (nextUrl === widget.url) return widget;
+            corrected = true;
+            return { ...widget, url: nextUrl };
+          }
+          if (widget.id === 'community-lounge-leaderboard') {
+            const nextUrl = String(widget.url || '').replace(/([?&])v=[^&]*/g, '$1v=dsh-image-1');
+            if (nextUrl === widget.url) return widget;
+            corrected = true;
+            return { ...widget, url: nextUrl };
+          }
+          return widget;
+        });
+        if (corrected) writeTenantRecord(record);
+      }
       if (systemPublic) {
         record.updatedAt = new Date().toISOString();
         writeTenantRecord(record);

@@ -602,7 +602,17 @@ function readTenantRecord(user, create = true) {
           if (widget.id === 'community-lounge-leaderboard') {
             const nextUrl = 'https://discord-stream-hub-new.fly.dev/headless/leaderboard-embed/1240832965865635881?v=dsh-image-v2';
             corrected = true;
-            return { ...widget, id: 'community-lounge-leaderboard-v2', title: 'DSH Community Leaderboard v2', url: nextUrl };
+            return {
+              ...widget,
+              id: 'community-lounge-leaderboard-v2',
+              title: 'DSH Community Leaderboard v2',
+              url: nextUrl,
+              x: 240,
+              y: 135,
+              width: 480,
+              height: 270,
+              opacity: 1,
+            };
           }
           return widget;
         });

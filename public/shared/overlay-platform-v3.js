@@ -9,7 +9,7 @@
   if (currentMode === 'overlay') return; // Never alter legacy/render-only overlay runtimes.
 
   const platformState = {
-    output: typeof params !== 'undefined' && params.get('output') === 'personal' ? 'personal' : 'public',
+    output: typeof params !== 'undefined' && ['personal', 'lounge'].includes(params.get('output')) ? params.get('output') : 'public',
     tenant: '',
     urls: null,
     selectedId: null,
@@ -41,7 +41,7 @@
   }
 
   function outputLabel(output = platformState.output) {
-    return output === 'personal' ? 'Personal' : 'Public';
+    return output === 'personal' ? 'Personal' : output === 'lounge' ? 'Lounge' : 'Public';
   }
 
   function rememberTenant(data) {
@@ -154,15 +154,15 @@
   }
 
   function urlRow(kind, url) {
-    const label = kind === 'personal' ? 'Personal' : 'Public';
+    const label = kind === 'personal' ? 'Personal' : kind === 'lounge' ? 'Lounge' : 'Public';
     const safeUrl = String(url || '');
     return `<div class="obv3-url-row" data-output-url-row="${kind}"><strong>${label}</strong><input readonly value="${escapeHtml(safeUrl)}" aria-label="${label} output URL"><button class="button ghost" type="button" data-copy-output="${kind}">Copy</button><a class="button ghost" href="${escapeHtml(safeUrl || '#')}" target="_blank" rel="noopener">Open</a></div>`;
   }
 
   function outputBarMarkup() {
     return `<section class="obv3-output-bar" data-obv3-output-bar>
-      <div class="obv3-output-tabs" aria-label="Overlay output"><button type="button" class="button ghost ${platformState.output === 'public' ? 'active' : ''}" data-select-output="public">Public</button><button type="button" class="button ghost ${platformState.output === 'personal' ? 'active' : ''}" data-select-output="personal">Personal</button></div>
-      <div class="obv3-url-grid">${urlRow('public', platformState.urls?.public)}${urlRow('personal', platformState.urls?.personal)}</div>
+      <div class="obv3-output-tabs" aria-label="Overlay output"><button type="button" class="button ghost ${platformState.output === 'public' ? 'active' : ''}" data-select-output="public">Public</button><button type="button" class="button ghost ${platformState.output === 'personal' ? 'active' : ''}" data-select-output="personal">Personal</button><button type="button" class="button ghost ${platformState.output === 'lounge' ? 'active' : ''}" data-select-output="lounge">Lounge</button></div>
+      <div class="obv3-url-grid">${urlRow('public', platformState.urls?.public)}${urlRow('personal', platformState.urls?.personal)}${urlRow('lounge', platformState.urls?.lounge)}</div>
     </section>`;
   }
 
@@ -251,7 +251,8 @@
       copyText(platformState.urls?.[kind], row?.querySelector('input'));
     }));
     document.querySelectorAll('[data-select-output]').forEach((button) => button.addEventListener('click', async () => {
-      const next = button.dataset.selectOutput === 'personal' ? 'personal' : 'public';
+      const requested = button.dataset.selectOutput;
+      const next = ['public', 'personal', 'lounge'].includes(requested) ? requested : 'public';
       if (next === platformState.output) return;
       if (state.overlayDirty) {
         setUiStatus(`Save ${outputLabel()} before switching outputs.`, 'error');
@@ -382,7 +383,7 @@
   }
 
   function worktrayUrlCard() {
-    return `<section class="obv3-worktray-urls" data-obv3-worktray-urls><div><strong>Canonical tenant outputs</strong><small>Public is the browser-source program. Personal is the private app/HUD overlay.</small></div><div class="obv3-url-grid">${urlRow('public', platformState.urls?.public)}${urlRow('personal', platformState.urls?.personal)}</div><div class="control-actions"><a class="button ghost" href="/embed/overlays?mode=full&app=${encodeURIComponent(currentHost)}&output=public">Edit Public</a><a class="button ghost" href="/embed/overlays?mode=full&app=${encodeURIComponent(currentHost)}&output=personal">Edit Personal</a></div></section>`;
+    return `<section class="obv3-worktray-urls" data-obv3-worktray-urls><div><strong>Canonical tenant outputs</strong><small>Public, Personal, and Lounge use the same editor and preview; each has its own scene URL.</small></div><div class="obv3-url-grid">${urlRow('public', platformState.urls?.public)}${urlRow('personal', platformState.urls?.personal)}${urlRow('lounge', platformState.urls?.lounge)}</div><div class="control-actions"><a class="button ghost" href="/embed/overlays?mode=full&app=${encodeURIComponent(currentHost)}&output=public">Edit Public</a><a class="button ghost" href="/embed/overlays?mode=full&app=${encodeURIComponent(currentHost)}&output=personal">Edit Personal</a><a class="button ghost" href="/embed/overlays?mode=full&app=${encodeURIComponent(currentHost)}&output=lounge">Edit Lounge</a></div></section>`;
   }
 
   function enhanceWorktray() {

@@ -117,18 +117,18 @@ test('tenant helper produces tenant-first canonical URLs', () => {
   const urls = bootstrap._test.urlsForTenant('mtman1987');
   assert.equal(urls.public, 'https://spmt.live/tenant/mtman1987/public');
   assert.equal(urls.personal, 'https://spmt.live/tenant/mtman1987/personal');
+  assert.equal(urls.lounge, 'https://spmt.live/tenant/mtman1987/lounge');
   assert.equal(bootstrap._test.tenantSlug('Mtman1987'), 'mtman1987');
   assert.equal(bootstrap._test.outputName('personal'), 'personal');
+  assert.equal(bootstrap._test.outputName('lounge'), 'lounge');
   assert.equal(bootstrap._test.outputName('nope'), '');
 });
 
-test('SpaceMountainLive system tenant resolves to a zero-input community lounge layout', () => {
-  const layout = bootstrap._test.systemLoungeLayout();
-  assert.equal(layout.template, 'community-lounge-system-v2');
-  assert.ok(layout.widgets.some((widget) => widget.url === 'https://hearmeout-main.fly.dev/overlay/system-spacemountainlive-lounge?media=auto&clean=1&volume=0.58&muted=0'));
-  assert.ok(layout.widgets.some((widget) => widget.url === 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-main'));
-  assert.ok(layout.widgets.some((widget) => widget.url === 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-rain'));
-  assert.ok(layout.widgets.some((widget) => widget.url.includes('/overlay/channel/spacemountainlive?')));
-  assert.ok(layout.widgets.every((widget) => !String(widget.url || '').includes('{')));
+test('SpaceMountainLive system tenant resolves to an empty transparent alerts-only layout', () => {
+  const layout = bootstrap._test.systemTransparentAlertLayout();
+  assert.equal(layout.template, 'spmt-transparent-alerts-v1');
+  assert.equal(layout.enabled, true);
+  assert.deepEqual(layout.widgets, []);
+  assert.deepEqual(layout.workflows, []);
   assert.equal(bootstrap._test.urlsForTenant('spacemountainlive').public, 'https://spmt.live/tenant/spacemountainlive/public');
 });

@@ -35,7 +35,7 @@
       const wrapEl = document.getElementById('stage-wrap');
       const pathParts = location.pathname.split('/').filter(Boolean);
       const tenant = decodeURIComponent(pathParts[1] || '').toLowerCase();
-      const output = pathParts[2] === 'personal' ? 'personal' : 'public';
+      const output = ['public', 'personal', 'lounge'].includes(pathParts[2]) ? pathParts[2] : 'public';
       const state = {
         layout: contract.emptyLayout(),
         signature: '',
@@ -204,7 +204,7 @@
           const data = await sceneRequest();
           const layout = contract.normalizeLayout(data.layout);
           const signature = JSON.stringify(layout);
-          state.xboxRelayToken = output === 'public' ? String(data.xboxRelayToken || state.xboxRelayToken || '') : '';
+          state.xboxRelayToken = output === 'public' || output === 'lounge' ? String(data.xboxRelayToken || state.xboxRelayToken || '') : '';
           if (signature !== state.signature) {
             state.layout = layout;
             state.signature = signature;

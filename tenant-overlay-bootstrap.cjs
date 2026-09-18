@@ -614,6 +614,13 @@ function readTenantRecord(user, create = true) {
               opacity: 1,
             };
           }
+          if (widget.id === 'community-lounge-leaderboard-v2') {
+            const nextUrl = 'https://discord-stream-hub-new.fly.dev/headless/leaderboard-embed/1240832965865635881?v=dsh-image-v2';
+            const next = { ...widget, url: nextUrl, x: 240, y: 135, width: 480, height: 270, opacity: 1 };
+            if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
+            corrected = true;
+            return next;
+          }
           return widget;
         });
         if (corrected) writeTenantRecord(record);

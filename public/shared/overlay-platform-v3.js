@@ -56,7 +56,7 @@
     if (!response.ok) throw new Error(`${outputLabel(output)} overlay could not be loaded.`);
     const data = await response.json();
     rememberTenant(data);
-    platformState.output = data.output === 'personal' ? 'personal' : 'public';
+    platformState.output = ['public', 'personal', 'lounge'].includes(data.output) ? data.output : 'public';
     state.overlay = contract.normalizeLayout(data.layout);
     state.overlayDirty = false;
     return state.overlay;

@@ -132,3 +132,11 @@ test('SpaceMountainLive system tenant resolves to an empty transparent alerts-on
   assert.deepEqual(layout.workflows, []);
   assert.equal(bootstrap._test.urlsForTenant('spacemountainlive').public, 'https://spmt.live/tenant/spacemountainlive/public');
 });
+
+test('mtman1987 debug Lounge preset contains the complete populated scene', () => {
+  const layout = bootstrap._test.personalLoungeDebugLayout();
+  assert.equal(layout.template, 'community-lounge-system-v2');
+  assert.equal(layout.widgets.length, 20);
+  assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight'));
+  assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));
+});

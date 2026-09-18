@@ -600,11 +600,9 @@ function readTenantRecord(user, create = true) {
             return { ...widget, url: nextUrl };
           }
           if (widget.id === 'community-lounge-leaderboard') {
-            let nextUrl = String(widget.url || '').replace(/([?&])v=[^&]*/g, '$1v=dsh-image-1');
-            if (!/[?&]v=/.test(nextUrl)) nextUrl += `${nextUrl.includes('?') ? '&' : '?'}v=dsh-image-1`;
-            if (nextUrl === widget.url) return widget;
+            const nextUrl = 'https://discord-stream-hub-new.fly.dev/headless/leaderboard-embed/1240832965865635881?v=dsh-image-v2';
             corrected = true;
-            return { ...widget, url: nextUrl };
+            return { ...widget, id: 'community-lounge-leaderboard-v2', title: 'DSH Community Leaderboard v2', url: nextUrl };
           }
           return widget;
         });

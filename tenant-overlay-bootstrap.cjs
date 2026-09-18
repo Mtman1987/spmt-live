@@ -591,15 +591,17 @@ function readTenantRecord(user, create = true) {
         let corrected = false;
         record.outputs.lounge.widgets = (record.outputs.lounge.widgets || []).map((widget) => {
           if (widget.id === 'community-lounge-hmo-media') {
-            const nextUrl = String(widget.url || '')
+            let nextUrl = String(widget.url || '')
               .replace('/overlay/system-spacemountainlive-lounge', '/overlay/system-mtman1987-lounge')
               .replace(/([?&])v=[^&]*/g, '$1v=mtman-hmo-1');
+            if (!/[?&]v=/.test(nextUrl)) nextUrl += `${nextUrl.includes('?') ? '&' : '?'}v=mtman-hmo-1`;
             if (nextUrl === widget.url) return widget;
             corrected = true;
             return { ...widget, url: nextUrl };
           }
           if (widget.id === 'community-lounge-leaderboard') {
-            const nextUrl = String(widget.url || '').replace(/([?&])v=[^&]*/g, '$1v=dsh-image-1');
+            let nextUrl = String(widget.url || '').replace(/([?&])v=[^&]*/g, '$1v=dsh-image-1');
+            if (!/[?&]v=/.test(nextUrl)) nextUrl += `${nextUrl.includes('?') ? '&' : '?'}v=dsh-image-1`;
             if (nextUrl === widget.url) return widget;
             corrected = true;
             return { ...widget, url: nextUrl };

@@ -121,3 +121,14 @@ test('tenant helper produces tenant-first canonical URLs', () => {
   assert.equal(bootstrap._test.outputName('personal'), 'personal');
   assert.equal(bootstrap._test.outputName('nope'), '');
 });
+
+test('SpaceMountainLive system tenant resolves to a zero-input community lounge layout', () => {
+  const layout = bootstrap._test.systemLoungeLayout();
+  assert.equal(layout.template, 'community-lounge-system-v2');
+  assert.ok(layout.widgets.some((widget) => widget.url === 'https://hearmeout-main.fly.dev/overlay/system-spacemountainlive-lounge?media=auto&clean=1&volume=0.58&muted=0'));
+  assert.ok(layout.widgets.some((widget) => widget.url === 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-main'));
+  assert.ok(layout.widgets.some((widget) => widget.url === 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-rain'));
+  assert.ok(layout.widgets.some((widget) => widget.url.includes('/overlay/channel/spacemountainlive?')));
+  assert.ok(layout.widgets.every((widget) => !String(widget.url || '').includes('{')));
+  assert.equal(bootstrap._test.urlsForTenant('spacemountainlive').public, 'https://spmt.live/tenant/spacemountainlive/public');
+});

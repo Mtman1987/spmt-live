@@ -153,3 +153,15 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   );
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));
 });
+
+
+test('saved hidden Lounge layers stay hidden and tenant renderer respects visibility in every mode', () => {
+  const bootstrapSource = read('tenant-overlay-bootstrap.cjs');
+  const outputSource = read('public/tenant-output.html');
+  const sharedSource = read('public/shared/shared.js');
+
+  assert.match(bootstrapSource, /\.\.\.interactiveTest,\s*\.\.\.current,/s);
+  assert.match(outputSource, /const visibleWidgets = allWidgets\.filter\(\(widget\) => widget\.visible !== false\)/);
+  assert.doesNotMatch(outputSource, /testMode \? allWidgets : allWidgets\.filter/);
+  assert.match(sharedSource, /widget\.visible = widget\.visible === false; state\.overlayDirty = true/);
+});

@@ -73,6 +73,9 @@ test('Overlay Bay v3 exposes tenant outputs and standardized source controls', (
     'data-inspector-action="center"',
     'data-inspector-action="front"',
     'data-inspector-action="back"',
+    'data-inspector-interact',
+    'toggleInteraction(widget)',
+    'obv3-interacting',
   ]) assert.ok(source.includes(marker), `missing ${marker}`);
   assert.match(source, /\/api\/tenant-scene\?output=/);
   assert.match(source, /\/api\/tenant-scene\/\$\{platformState\.output\}/);
@@ -149,4 +152,16 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
     'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1',
   );
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));
+});
+
+
+test('saved hidden Lounge layers stay hidden and tenant renderer respects visibility in every mode', () => {
+  const bootstrapSource = read('tenant-overlay-bootstrap.cjs');
+  const outputSource = read('public/tenant-output.html');
+  const sharedSource = read('public/shared/shared.js');
+
+  assert.match(bootstrapSource, /\.\.\.interactiveTest,\s*\.\.\.current,/s);
+  assert.match(outputSource, /const visibleWidgets = allWidgets\.filter\(\(widget\) => widget\.visible !== false\)/);
+  assert.doesNotMatch(outputSource, /testMode \? allWidgets : allWidgets\.filter/);
+  assert.match(sharedSource, /widget\.visible = widget\.visible === false; state\.overlayDirty = true/);
 });

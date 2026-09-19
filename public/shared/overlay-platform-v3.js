@@ -13,6 +13,7 @@
     tenant: '',
     urls: null,
     selectedId: null,
+    interactingId: null,
     baseRender: window.renderOverlays,
     baseEdit: window.editOverlayWidget,
     stageObserver: null,
@@ -181,8 +182,11 @@
     if (!widget) return '<aside class="obv3-inspector" data-obv3-inspector><div class="obv3-empty-inspector">Select or add a source to edit its standardized controls.</div></aside>';
     const media = contract.isMediaKind(widget.kind);
     const opacity = Math.round((Number(widget.opacity) || 0) * 100);
+    const canInteract = widget.kind === 'embed' && Boolean(String(widget.url || '').trim());
+    const interacting = platformState.interactingId === widget.id;
     return `<aside class="obv3-inspector" data-obv3-inspector data-inspector-widget="${escapeHtml(widget.id)}">
-      <div class="obv3-inspector-head"><div><strong>${escapeHtml(widget.title || widget.id)}</strong><small>${escapeHtml(widget.kind)} · layer ${Number(widget.zIndex) || 0}</small></div><button class="button ghost" type="button" data-inspector-edit>Edit</button></div>
+      <div class="obv3-inspector-head"><div><strong>${escapeHtml(widget.title || widget.id)}</strong><small>${escapeHtml(widget.kind)} · layer ${Number(widget.zIndex) || 0}</small></div><div class="control-actions">${canInteract ? `<button class="button ${interacting ? 'primary' : 'ghost'}" type="button" data-inspector-interact>${interacting ? 'Done' : 'Interact'}</button>` : ''}<button class="button ghost" type="button" data-inspector-edit>Edit</button></div></div>
+      ${interacting ? '<div class="obv3-interact-note">Interaction mode is on. Click, type, scroll, or use media controls directly inside this source. Press Done when finished.</div>' : ''}
       <div class="obv3-toggle-row"><label><input type="checkbox" data-inspector-visible ${widget.visible === false ? '' : 'checked'}> Visible</label><label><input type="checkbox" data-inspector-locked ${widget.locked ? 'checked' : ''}> Lock</label></div>
       <div class="obv3-inspector-grid">
         <label class="obv3-control range"><span>Opacity</span><span class="obv3-range-line"><input type="range" min="0" max="100" step="1" value="${opacity}" data-inspector-opacity><output data-inspector-opacity-output>${opacity}%</output></span></label>
@@ -221,6 +225,30 @@
       if (inspector) inspector.outerHTML = inspectorMarkup();
       wireInspector();
     }
+    applyInteractionMode();
+  }
+
+  function applyInteractionMode() {
+    document.querySelectorAll('[data-overlay-widget]').forEach((element) => {
+      const active = Boolean(platformState.interactingId)
+        && element.dataset.overlayWidget === platformState.interactingId;
+      element.classList.toggle('obv3-interacting', active);
+    });
+  }
+
+  function toggleInteraction(widget) {
+    if (!widget || widget.kind !== 'embed' || !String(widget.url || '').trim()) return;
+    platformState.interactingId = platformState.interactingId === widget.id ? null : widget.id;
+    applyInteractionMode();
+    const inspector = document.querySelector('[data-obv3-inspector]');
+    if (inspector) inspector.outerHTML = inspectorMarkup();
+    wireInspector();
+    setUiStatus(
+      platformState.interactingId
+        ? `Interacting with ${widget.title || widget.id}. Click the source directly; press Done when finished.`
+        : `Interaction finished for ${widget.title || widget.id}.`,
+      'ok',
+    );
   }
 
   function updateStageScale() {
@@ -277,6 +305,7 @@
     const widget = selectedWidget();
     const inspector = document.querySelector('[data-obv3-inspector]');
     if (!widget || !inspector) return;
+    inspector.querySelector('[data-inspector-interact]')?.addEventListener('click', () => toggleInteraction(widget));
     inspector.querySelector('[data-inspector-edit]')?.addEventListener('click', () => platformState.baseEdit?.(widget.id));
     inspector.querySelector('[data-inspector-visible]')?.addEventListener('change', (event) => { widget.visible = event.target.checked; markDirty(); renderPlatformOverlay(); });
     inspector.querySelector('[data-inspector-locked]')?.addEventListener('change', (event) => { widget.locked = event.target.checked; markDirty(); renderPlatformOverlay(); });
@@ -362,6 +391,7 @@
       }
       updateStageScale();
       updateSelectionStyles();
+      applyInteractionMode();
       wireOutputBar();
       wireInspector();
       document.querySelectorAll('[data-layer-id]').forEach((row) => row.addEventListener('click', (event) => {

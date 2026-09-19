@@ -60,10 +60,10 @@
 
       const TARGET_VOLUME = 0.58;
 
-      function forcePlay() {
+      function playFromUserGesture() {
         if (!player) return;
         try { player.setVolume(TARGET_VOLUME); } catch {}
-        try { player.setMuted(true); } catch {}
+        try { player.setMuted(false); } catch {}
         try { player.play(); } catch {}
       }
 
@@ -80,10 +80,7 @@
           if (testMode) setStatus('No featured live channel is available right now.');
           return;
         }
-        if (clean === currentLogin && player) {
-          forcePlay();
-          return;
-        }
+        if (clean === currentLogin && player) return;
 
         clear();
         currentLogin = clean;
@@ -94,20 +91,17 @@
         player = new window.Twitch.Player('twitch-player', {
           channel: clean,
           parent: [location.hostname || 'spmt.live'],
-          autoplay: true,
-          muted: true,
+          autoplay: false,
+          muted: false,
           controls: testMode,
           width: '100%',
           height: '100%',
         });
 
         player.addEventListener(window.Twitch.Player.READY, () => {
-          forcePlay();
-          if (testMode) setStatus('Loaded @' + clean + '. If autoplay is blocked, use the Play button.');
           clearFallback();
-          fallbackTimer = setTimeout(() => {
-            playFallback.classList.add('show');
-          }, 1800);
+          playFallback.classList.add('show');
+          if (testMode) setStatus('Loaded @' + clean + '. Press Play when you are ready.');
         });
         player.addEventListener(window.Twitch.Player.PLAY, () => {
           clearFallback();
@@ -130,8 +124,7 @@
       }
 
       playFallback.addEventListener('click', () => {
-        forcePlay();
-        setTimeout(restoreAudio, 150);
+        playFromUserGesture();
         playFallback.classList.remove('show');
       });
 

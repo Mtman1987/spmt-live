@@ -38,6 +38,7 @@ COPY commlink-chat-navigation-bootstrap.cjs ./commlink-chat-navigation-bootstrap
 COPY commlink-diagnostic-bootstrap.cjs ./commlink-diagnostic-bootstrap.cjs
 COPY cloud-xbox-bootstrap.cjs ./cloud-xbox-bootstrap.cjs
 COPY tenant-overlay-events-bootstrap.cjs ./tenant-overlay-events-bootstrap.cjs
+COPY twitch-extension-bootstrap.cjs ./twitch-extension-bootstrap.cjs
 COPY tenant-overlay-bootstrap.cjs ./tenant-overlay-bootstrap.cjs
 COPY xbox-worker.cjs ./xbox-worker.cjs
 COPY xbox-worker-guard.cjs ./xbox-worker-guard.cjs

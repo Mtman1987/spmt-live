@@ -107,6 +107,7 @@ function installProcessBootstraps() {
   require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
   require('./easter-egg-entitlement-bootstrap.cjs').installEasterEggEntitlementBootstrap();
   require('./tenant-overlay-events-bootstrap.cjs').installTenantOverlayEventsBootstrap();
+  require('./twitch-extension-bootstrap.cjs').installTwitchExtensionBootstrap();
   require('./tenant-overlay-bootstrap.cjs').installTenantOverlayBootstrap();
 }
 

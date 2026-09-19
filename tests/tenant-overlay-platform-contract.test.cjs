@@ -139,5 +139,9 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.equal(layout.widgets.length, 21);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-alerts'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight'));
+  assert.equal(
+    layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.url,
+    'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1',
+  );
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));
 });

@@ -186,7 +186,7 @@ function personalLoungeDebugLayout() {
       "height": 540,
       "opacity": 1,
       "zIndex": 0,
-      "url": "https://discord-stream-hub-new.fly.dev/headless/community-spotlight?parent=spmt.live&volume=0.58",
+      "url": "https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1",
       "sourceApp": "DiscordStreamHub",
       "role": "community-program"
     },
@@ -614,6 +614,12 @@ function readTenantRecord(user, create = true) {
       if (tenant === 'mtman1987') {
         let corrected = false;
         record.outputs.lounge.widgets = (record.outputs.lounge.widgets || []).map((widget) => {
+          if (widget.id === 'community-lounge-live-spotlight') {
+            const nextUrl = 'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1';
+            if (widget.url === nextUrl) return widget;
+            corrected = true;
+            return { ...widget, url: nextUrl, title: 'DSH Live Community Spotlight' };
+          }
           if (widget.id === 'community-lounge-hmo-media') {
             let nextUrl = String(widget.url || '')
               .replace('/overlay/system-mtman1987-lounge', '/overlay/system-spacemountainlive-lounge')

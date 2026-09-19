@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SpaceMountain Live Spotlight</title>
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent!important}
+    #root{position:fixed;inset:0;background:transparent}
+    #twitch-player{position:absolute;inset:0;width:100%;height:100%;background:transparent}
+    #play-fallback{position:absolute;inset:0;display:none;place-items:center;background:rgba(0,0,0,.18);border:0;color:#fff;font:700 18px/1 system-ui,sans-serif;cursor:pointer;z-index:2}
+    #play-fallback.show{display:grid}
+  </style>
+</head>
+<body>
+  <div id="root" aria-live="off">
+    <div id="twitch-player"></div>
+    <button id="play-fallback" type="button" aria-label="Play live Twitch stream">Tap to play live stream</button>
+  </div>
+  <script src="https://player.twitch.tv/js/embed/v1.js"></script>
+  <script>
+    (() => {
+      'use strict';
+      const playerHost = document.getElementById('twitch-player');
+      const playFallback = document.getElementById('play-fallback');
+      let currentLogin = '';
+      let stopped = false;
+      let player = null;
+      let fallbackTimer = null;
+
+      function clearFallback() {
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer);
+          fallbackTimer = null;
+        }
+        playFallback.classList.remove('show');
+      }
+
+      function clear() {
+        currentLogin = '';
+        clearFallback();
+        try { player?.pause?.(); } catch {}
+        player = null;
+        playerHost.replaceChildren();
+      }
+
+      function forcePlay() {
+        if (!player) return;
+        try { player.setMuted(true); } catch {}
+        try { player.play(); } catch {}
+      }
+
+      function mount(login) {
+        const clean = String(login || '').trim().toLowerCase();
+        if (!clean) return clear();
+        if (clean === currentLogin && player) {
+          forcePlay();
+          return;
+        }
+
+        clear();
+        currentLogin = clean;
+        if (!window.Twitch?.Player) return;
+
+        player = new window.Twitch.Player('twitch-player', {
+          channel: clean,
+          parent: [location.hostname || 'spmt.live'],
+          autoplay: true,
+          muted: true,
+          controls: false,
+          width: '100%',
+          height: '100%',
+        });
+
+        player.addEventListener(window.Twitch.Player.READY, () => {
+          forcePlay();
+          clearFallback();
+          fallbackTimer = setTimeout(() => {
+            playFallback.classList.add('show');
+          }, 1800);
+        });
+        player.addEventListener(window.Twitch.Player.PLAY, clearFallback);
+        player.addEventListener(window.Twitch.Player.PAUSE, () => playFallback.classList.add('show'));
+        player.addEventListener(window.Twitch.Player.OFFLINE, clear);
+      }
+
+      playFallback.addEventListener('click', () => {
+        forcePlay();
+        playFallback.classList.remove('show');
+      });
+
+      async function refresh() {
+        if (stopped) return;
+        try {
+          const response = await fetch('https://discord-stream-hub-new.fly.dev/api/community-spotlight', {
+            cache: 'no-store',
+            headers: { Accept: 'application/json' },
+          });
+          if (!response.ok) throw new Error('spotlight ' + response.status);
+          const data = await response.json();
+          const login = data?.spotlight?.twitchLogin || data?.spotlight?.user?.twitchLogin || '';
+          mount(login);
+        } catch {
+          clear();
+        }
+      }
+
+      addEventListener('beforeunload', () => { stopped = true; });
+      void refresh();
+      setInterval(refresh, 15000);
+    })();
+  </script>
+</body>
+</html>

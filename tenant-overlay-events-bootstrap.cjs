@@ -186,7 +186,7 @@ function normalizeAlert(input) {
 function normalizeOutputs(input) {
   const values = Array.isArray(input) ? input : [];
   const outputs = [...new Set(values.filter((value) => value === 'public' || value === 'personal' || value === 'lounge'))];
-  return outputs.length ? outputs : ['public', 'personal'];
+  return outputs.length ? outputs : ['public', 'personal', 'lounge'];
 }
 
 function appendEvent(tenant, payload, outputs, source = 'spmt') {

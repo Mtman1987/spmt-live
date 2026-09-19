@@ -21,6 +21,8 @@
     .tenant-alert-kicker{display:block;color:var(--alert-accent);font-size:9px;font-weight:900;letter-spacing:.14em}
     .tenant-alert-card strong{display:block;margin-top:3px;color:#fff;font-size:20px;line-height:1.05}
     .tenant-alert-card p{margin:6px 0 0;color:#c6cede;font-size:11px;line-height:1.35}
+    .tenant-test-marker{position:absolute;inset:0;border:3px dashed #22d3ee;background:rgba(34,211,238,.09);display:flex;align-items:flex-start;justify-content:flex-start;padding:6px;z-index:2147483647;pointer-events:none}
+    .tenant-test-marker span{display:inline-block;max-width:100%;padding:3px 6px;border-radius:5px;background:rgba(0,0,0,.82);color:#fff;font-size:11px;font-weight:900;line-height:1.15;white-space:normal}
   </style>
 </head>
 <body>
@@ -36,6 +38,7 @@
       const pathParts = location.pathname.split('/').filter(Boolean);
       const tenant = decodeURIComponent(pathParts[1] || '').toLowerCase();
       const output = ['public', 'personal', 'lounge'].includes(pathParts[2]) ? pathParts[2] : 'public';
+      const testMode = output === 'lounge' && new URLSearchParams(location.search).get('test') === '1';
       const state = {
         layout: contract.emptyLayout(),
         signature: '',
@@ -45,6 +48,7 @@
         frameBusy: false,
         lastFrameUrl: '',
         alertTimers: new Map(),
+        testStarted: false,
       };
 
       const ALERT_TEMPLATES = {
@@ -153,7 +157,7 @@
           return;
         }
         const allWidgets = layout.widgets || [];
-        const visibleWidgets = allWidgets.filter((widget) => widget.visible !== false);
+        const visibleWidgets = testMode ? allWidgets : allWidgets.filter((widget) => widget.visible !== false);
         const hasSavedAlert = allWidgets.some((widget) => widget.kind === 'alert');
         const savedMarkup = visibleWidgets.map((widget) =>
           `<section class="tenant-widget kind-${escapeHtml(widget.kind)}" data-tenant-widget="${escapeHtml(widget.id)}" style="${widgetStyle(widget)}">${sourceMarkup(widget)}</section>`
@@ -162,6 +166,10 @@
           `<section class="tenant-widget kind-alert default-alert" data-tenant-widget="${DEFAULT_ALERT_WIDGET.id}" style="${widgetStyle(DEFAULT_ALERT_WIDGET)}">${sourceMarkup(DEFAULT_ALERT_WIDGET)}</section>`;
         sceneEl.innerHTML = savedMarkup + fallbackAlertMarkup;
         applyXboxVisibility();
+        if (testMode && !state.testStarted) {
+          state.testStarted = true;
+          setTimeout(runLoungeLayerTest, 80);
+        }
       }
 
       function xboxWidget() {
@@ -279,6 +287,30 @@
         } finally {
           state.frameBusy = false;
         }
+      }
+
+      function runLoungeLayerTest() {
+        const widgets = state.layout.widgets || [];
+        document.querySelectorAll('[data-tenant-widget]').forEach((element) => {
+          const id = element.getAttribute('data-tenant-widget') || '';
+          const widget = widgets.find((item) => item.id === id) || (id === DEFAULT_ALERT_WIDGET.id ? DEFAULT_ALERT_WIDGET : null);
+          const marker = document.createElement('div');
+          marker.className = 'tenant-test-marker';
+          const label = document.createElement('span');
+          label.textContent = widget
+            ? `${widget.title || widget.id} · ${widget.kind || 'source'}${widget.role ? ` · ${widget.role}` : ''}`
+            : id;
+          marker.appendChild(label);
+          element.appendChild(marker);
+        });
+        fireAlert({
+          eventType: 'custom',
+          headline: 'Lounge layer test',
+          message: 'Alerts and every saved Lounge layer are present.',
+        });
+        setTimeout(() => {
+          document.querySelectorAll('.tenant-test-marker').forEach((marker) => marker.remove());
+        }, 10_000);
       }
 
       function fireAlert(rawPayload = {}) {

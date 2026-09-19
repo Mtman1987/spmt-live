@@ -11,12 +11,15 @@
     #twitch-player{position:absolute;inset:0;width:100%;height:100%;background:transparent}
     #play-fallback{position:absolute;inset:0;display:none;place-items:center;background:rgba(0,0,0,.18);border:0;color:#fff;font:700 18px/1 system-ui,sans-serif;cursor:pointer;z-index:2}
     #play-fallback.show{display:grid}
+    #status{position:absolute;left:14px;bottom:14px;z-index:3;display:none;max-width:min(560px,calc(100% - 28px));padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.72);color:#fff;font:600 13px/1.3 system-ui,sans-serif}
+    #status.show{display:block}
   </style>
 </head>
 <body>
   <div id="root" aria-live="off">
     <div id="twitch-player"></div>
     <button id="play-fallback" type="button" aria-label="Play live Twitch stream">Tap to play live stream</button>
+    <div id="status" role="status" aria-live="polite"></div>
   </div>
   <script src="https://player.twitch.tv/js/embed/v1.js"></script>
   <script>
@@ -24,10 +27,19 @@
       'use strict';
       const playerHost = document.getElementById('twitch-player');
       const playFallback = document.getElementById('play-fallback');
+      const statusEl = document.getElementById('status');
+      const params = new URLSearchParams(location.search);
+      const forcedChannel = String(params.get('channel') || '').replace(/^@/, '').trim().toLowerCase();
+      const testMode = params.get('test') === '1' || Boolean(forcedChannel);
       let currentLogin = '';
       let stopped = false;
       let player = null;
       let fallbackTimer = null;
+
+      function setStatus(message) {
+        statusEl.textContent = String(message || '');
+        statusEl.classList.toggle('show', Boolean(message));
+      }
 
       function clearFallback() {
         if (fallbackTimer) {
@@ -40,6 +52,7 @@
       function clear() {
         currentLogin = '';
         clearFallback();
+        if (!testMode) setStatus('');
         try { player?.pause?.(); } catch {}
         player = null;
         playerHost.replaceChildren();
@@ -53,7 +66,11 @@
 
       function mount(login) {
         const clean = String(login || '').trim().toLowerCase();
-        if (!clean) return clear();
+        if (!clean) {
+          clear();
+          if (testMode) setStatus('No featured live channel is available right now.');
+          return;
+        }
         if (clean === currentLogin && player) {
           forcePlay();
           return;
@@ -62,6 +79,8 @@
         clear();
         currentLogin = clean;
         if (!window.Twitch?.Player) return;
+
+        if (testMode) setStatus('Loading @' + clean + '…');
 
         player = new window.Twitch.Player('twitch-player', {
           channel: clean,
@@ -75,14 +94,24 @@
 
         player.addEventListener(window.Twitch.Player.READY, () => {
           forcePlay();
+          if (testMode) setStatus('Loaded @' + clean + '. If autoplay is blocked, use the Play button.');
           clearFallback();
           fallbackTimer = setTimeout(() => {
             playFallback.classList.add('show');
           }, 1800);
         });
-        player.addEventListener(window.Twitch.Player.PLAY, clearFallback);
-        player.addEventListener(window.Twitch.Player.PAUSE, () => playFallback.classList.add('show'));
-        player.addEventListener(window.Twitch.Player.OFFLINE, clear);
+        player.addEventListener(window.Twitch.Player.PLAY, () => {
+          clearFallback();
+          if (testMode) setStatus('Playing @' + clean + '.');
+        });
+        player.addEventListener(window.Twitch.Player.PAUSE, () => {
+          playFallback.classList.add('show');
+          if (testMode) setStatus('Playback paused. Tap Play to resume.');
+        });
+        player.addEventListener(window.Twitch.Player.OFFLINE, () => {
+          clear();
+          if (testMode) setStatus('@' + clean + ' is offline. Use ?channel=ANOTHER_LIVE_CHANNEL&test=1 to test playback.');
+        });
       }
 
       playFallback.addEventListener('click', () => {
@@ -92,6 +121,10 @@
 
       async function refresh() {
         if (stopped) return;
+        if (forcedChannel) {
+          mount(forcedChannel);
+          return;
+        }
         try {
           const response = await fetch('https://discord-stream-hub-new.fly.dev/api/community-spotlight', {
             cache: 'no-store',

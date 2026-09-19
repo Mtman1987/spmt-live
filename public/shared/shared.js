@@ -294,12 +294,12 @@ function overlayWidgetMarkup(widget, index) {
 }
 function wireOverlayManager() {
   document.getElementById('add-overlay-widget').addEventListener('click', () => {
-    const id = `embed-${Date.now()}`; state.overlay.widgets ??= []; state.overlay.widgets.push({ id, title: 'New Embed', kind: 'embed', url: 'about:blank', visible: true, locked: false, interactive: true, x: 8, y: 8, width: 360, height: 220, opacity: 1, zIndex: state.overlay.widgets.length + 1 }); renderOverlays();
+    const id = `embed-${Date.now()}`; state.overlay.widgets ??= []; state.overlay.widgets.push({ id, title: 'New Embed', kind: 'embed', url: 'about:blank', visible: true, locked: false, interactive: true, x: 8, y: 8, width: 360, height: 220, opacity: 1, zIndex: state.overlay.widgets.length + 1 }); state.overlayDirty = true; renderOverlays();
   });
   document.getElementById('save-overlay').addEventListener('click', saveOverlayWorkspace);
   document.getElementById('overlay-enabled').addEventListener('change', (event) => { state.overlay.enabled = event.target.checked; state.overlayDirty = true; document.getElementById('overlay-canvas').classList.toggle('disabled', !event.target.checked); });
-  document.querySelectorAll('[data-toggle-widget]').forEach((button) => button.addEventListener('click', () => { const widget = state.overlay.widgets.find((item) => item.id === button.dataset.toggleWidget); if (widget) widget.visible = widget.visible === false; renderOverlays(); }));
-  document.querySelectorAll('[data-remove-widget]').forEach((button) => button.addEventListener('click', () => { state.overlay.widgets = state.overlay.widgets.filter((item) => item.id !== button.dataset.removeWidget); renderOverlays(); }));
+  document.querySelectorAll('[data-toggle-widget]').forEach((button) => button.addEventListener('click', () => { const widget = state.overlay.widgets.find((item) => item.id === button.dataset.toggleWidget); if (widget) { widget.visible = widget.visible === false; state.overlayDirty = true; } renderOverlays(); }));
+  document.querySelectorAll('[data-remove-widget]').forEach((button) => button.addEventListener('click', () => { state.overlay.widgets = state.overlay.widgets.filter((item) => item.id !== button.dataset.removeWidget); state.overlayDirty = true; renderOverlays(); }));
   document.querySelectorAll('[data-overlay-widget]').forEach((element) => wireOverlayPointer(element));
   document.querySelectorAll('[data-overlay-widget] header').forEach((header) => header.addEventListener('dblclick', () => editOverlayWidget(header.parentElement.dataset.overlayWidget)));
 }
@@ -307,7 +307,7 @@ function editOverlayWidget(id) {
   const widget = state.overlay.widgets.find((item) => item.id === id); if (!widget) return;
   const title = prompt('Overlay title', widget.title || 'Embed'); if (title === null) return;
   const url = prompt('Overlay HTTPS URL', widget.url || ''); if (url === null) return;
-  widget.title = title.trim() || widget.title; widget.url = url.trim() || widget.url; renderOverlays();
+  widget.title = title.trim() || widget.title; widget.url = url.trim() || widget.url; state.overlayDirty = true; renderOverlays();
 }
 function wireOverlayPointer(element) {
   const id = element.dataset.overlayWidget; const widget = state.overlay.widgets.find((item) => item.id === id); if (!widget || widget.locked) return;

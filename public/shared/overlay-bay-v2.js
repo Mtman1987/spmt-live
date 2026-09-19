@@ -375,9 +375,12 @@
   function sourceToolbar() {
     const items = [
       ['xbox', 'Xbox'], ['camera', 'Camera'], ['screen', 'Screen'], ['image', 'Image'],
-      ['embed', 'Web'], ['text', 'Text'], ['alert', 'Alert'],
+      ['embed', 'Web'], ['text', 'Text'], ['alert', 'Alerts'],
     ];
-    return `<div class="obv2-source-toolbar">${items.map(([kind, label]) => `<button type="button" class="button ghost" data-add-source="${kind}">+ ${label}</button>`).join('')}<button type="button" class="button ghost obv2-defaults" id="add-space-defaults">SpaceMountain defaults</button></div>`;
+    const loungeTest = !isOverlayRuntime && new URLSearchParams(location.search).get('output') === 'lounge'
+      ? '<button type="button" class="button primary" id="test-lounge-layers">Test all Lounge layers</button>'
+      : '';
+    return `<div class="obv2-source-toolbar">${items.map(([kind, label]) => `<button type="button" class="button ghost" data-add-source="${kind}">+ ${label}</button>`).join('')}<button type="button" class="button ghost obv2-defaults" id="add-space-defaults">SpaceMountain defaults</button>${loungeTest}</div>`;
   }
 
   function alertTester() {
@@ -403,6 +406,16 @@
   function v2WireOverlayManager() {
     document.querySelectorAll('[data-add-source]').forEach((button) => button.addEventListener('click', () => addWidget(button.dataset.addSource)));
     document.getElementById('add-space-defaults')?.addEventListener('click', addSpaceMountainDefaults);
+    document.getElementById('test-lounge-layers')?.addEventListener('click', () => {
+      const tenant = String(window.spmtTenantOutputs?.tenant || '').trim().toLowerCase();
+      if (!tenant) {
+        setStatus?.('Could not resolve the current Lounge tenant.', 'error');
+        return;
+      }
+      const url = `${location.origin}/tenant/${encodeURIComponent(tenant)}/lounge?test=1`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setStatus?.('Opened a temporary all-layer Lounge test. Debug labels disappear automatically.', 'ok');
+    });
     document.getElementById('save-overlay')?.addEventListener('click', saveOverlayWorkspace);
     document.getElementById('overlay-enabled')?.addEventListener('change', (event) => {
       state.overlay.enabled = event.target.checked;

@@ -14,7 +14,7 @@ test('tenant alert contract normalizes event types and fans out by default', () 
   const alert = events._test.normalizeAlert({ eventType: 'follow', user: 'Tester' });
   assert.equal(alert.eventType, 'follow');
   assert.equal(alert.user, 'Tester');
-  assert.deepEqual(events._test.normalizeOutputs(), ['public', 'personal']);
+  assert.deepEqual(events._test.normalizeOutputs(), ['public', 'personal', 'lounge']);
   assert.deepEqual(events._test.normalizeOutputs(['personal']), ['personal']);
 });
 
@@ -45,8 +45,9 @@ test('canonical renderer polls tenant alert events and Overlay Bay publishes tes
   const publisher = read('public/shared/tenant-overlay-alert-publisher.js');
   assert.match(consumer, /\/api\/tenant\/\$\{encodeURIComponent\(tenant\)\}\/alerts/);
   assert.match(consumer, /window\.spmtOverlayAlert/);
+  assert.match(consumer, /'lounge'/);
   assert.match(publisher, /\/api\/tenant-overlay-alert/);
-  assert.match(publisher, /\['public', 'personal'\]/);
+  assert.match(publisher, /\['public', 'personal', 'lounge'\]/);
   assert.doesNotThrow(() => new vm.Script(consumer));
   assert.doesNotThrow(() => new vm.Script(publisher));
 });

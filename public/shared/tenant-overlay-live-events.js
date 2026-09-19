@@ -2,8 +2,8 @@
   'use strict';
   const parts = location.pathname.split('/').filter(Boolean);
   const tenant = decodeURIComponent(parts[1] || '').toLowerCase();
-  const output = parts[2] === 'personal' ? 'personal' : 'public';
-  if (!tenant || !['public', 'personal'].includes(output)) return;
+  const output = parts[2] === 'personal' ? 'personal' : parts[2] === 'lounge' ? 'lounge' : 'public';
+  if (!tenant || !['public', 'personal', 'lounge'].includes(output)) return;
 
   let cursor = null;
   let busy = false;

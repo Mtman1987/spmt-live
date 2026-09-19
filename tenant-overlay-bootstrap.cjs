@@ -418,7 +418,7 @@ function personalLoungeDebugLayout() {
     },
     {
       "id": "sw-pokemon-pack",
-      "title": "Pokemon Pack",
+      "title": "Card Pack Reveal · Pokemon + Quackverse",
       "kind": "embed",
       "visible": true,
       "locked": true,
@@ -429,9 +429,9 @@ function personalLoungeDebugLayout() {
       "height": 540,
       "opacity": 1,
       "zIndex": 262,
-      "url": "https://streamweaver-new.fly.dev/pokemon-pack-overlay?tenant=spacemountainlive",
+      "url": "https://streamweaver-new.fly.dev/card-pack-overlay?tenant=spacemountainlive",
       "sourceApp": "StreamWeaver",
-      "role": "event-layer"
+      "role": "card-pack-event-layer"
     },
     {
       "id": "sw-pokemon-trade",
@@ -650,6 +650,19 @@ function readTenantRecord(user, create = true) {
             if (nextUrl === widget.url) return widget;
             corrected = true;
             return { ...widget, url: nextUrl };
+          }
+          if (widget.id === 'sw-pokemon-pack') {
+            const nextUrl = 'https://streamweaver-new.fly.dev/card-pack-overlay?tenant=spacemountainlive';
+            const next = {
+              ...widget,
+              title: 'Card Pack Reveal · Pokemon + Quackverse',
+              url: nextUrl,
+              sourceApp: 'StreamWeaver',
+              role: 'card-pack-event-layer',
+            };
+            if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
+            corrected = true;
+            return next;
           }
           if (widget.id === 'community-lounge-leaderboard') {
             const nextUrl = 'https://discord-stream-hub-new.fly.dev/headless/leaderboard-embed/1240832965865635881?v=dsh-image-v2';

@@ -185,7 +185,7 @@ function normalizeAlert(input) {
 
 function normalizeOutputs(input) {
   const values = Array.isArray(input) ? input : [];
-  const outputs = [...new Set(values.filter((value) => value === 'public' || value === 'personal'))];
+  const outputs = [...new Set(values.filter((value) => value === 'public' || value === 'personal' || value === 'lounge'))];
   return outputs.length ? outputs : ['public', 'personal'];
 }
 
@@ -275,7 +275,8 @@ function installRoutes(app, express) {
     const tenant = tenantSlug(req.params.tenant);
     const user = tenant ? lookupUserByTenant(tenant) : null;
     if (!tenant || !user) return safeJson(res, 404, { error: 'Tenant not found' });
-    const output = req.query.output === 'personal' ? 'personal' : 'public';
+    const requestedOutput = String(req.query.output || 'public').toLowerCase();
+    const output = requestedOutput === 'personal' ? 'personal' : requestedOutput === 'lounge' ? 'lounge' : 'public';
     if (output === 'personal' && !canReadPersonal(req, tenant)) return safeJson(res, 401, { error: 'Not authenticated for Personal alerts' });
     const store = readEvents(tenant);
     const hasAfter = req.query.after !== undefined && req.query.after !== null && String(req.query.after) !== '';
@@ -286,7 +287,7 @@ function installRoutes(app, express) {
 
   // Serve the canonical shell before the older sendFile routes so every tenant
   // renderer gets render-key auth and the shared live-event consumer.
-  app.get(['/tenant/:tenant/public', '/tenant/:tenant/personal'], (req, res) => {
+  app.get(['/tenant/:tenant/public', '/tenant/:tenant/personal', '/tenant/:tenant/lounge'], (req, res) => {
     const tenant = tenantSlug(req.params.tenant);
     if (!tenant || !lookupUserByTenant(tenant)) return res.status(404).send('Tenant not found');
     return res.status(200)

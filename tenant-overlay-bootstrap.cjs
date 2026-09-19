@@ -166,6 +166,27 @@ function loungeAlertWidget() {
     replaceable: true,
   };
 }
+
+function loungeInteractiveTwitchTestWidget() {
+  return {
+    id: 'community-lounge-live-spotlight-interactive-test',
+    title: 'Interactive Twitch Test',
+    kind: 'embed',
+    visible: true,
+    locked: true,
+    interactive: true,
+    interactionMode: 'interactive',
+    x: 64,
+    y: 64,
+    width: 330,
+    height: 186,
+    opacity: 1,
+    zIndex: 10,
+    url: 'https://spmt.live/lounge-live-spotlight.html?test=1&v=interactive-lounge-1',
+    sourceApp: 'SPMT',
+    role: 'community-program-interactive-test',
+  };
+}
 function personalLoungeDebugLayout() {
   return {
   "schemaVersion": 3,
@@ -173,6 +194,7 @@ function personalLoungeDebugLayout() {
   "enabled": true,
   "widgets": [
     loungeAlertWidget(),
+    loungeInteractiveTwitchTestWidget(),
     {
       "id": "community-lounge-live-spotlight",
       "title": "DSH Live Community Spotlight",
@@ -657,6 +679,23 @@ function readTenantRecord(user, create = true) {
           record.outputs.lounge.widgets.push(normalizeWidget(loungeAlertWidget(), record.outputs.lounge.widgets.length));
           corrected = true;
         }
+
+        const interactiveTest = loungeInteractiveTwitchTestWidget();
+        const existingInteractiveTestIndex = record.outputs.lounge.widgets.findIndex(
+          (widget) => widget.id === interactiveTest.id,
+        );
+        if (existingInteractiveTestIndex < 0) {
+          record.outputs.lounge.widgets.push(normalizeWidget(interactiveTest, record.outputs.lounge.widgets.length));
+          corrected = true;
+        } else {
+          const current = record.outputs.lounge.widgets[existingInteractiveTestIndex];
+          const next = normalizeWidget({ ...current, ...interactiveTest }, existingInteractiveTestIndex);
+          if (JSON.stringify(next) !== JSON.stringify(current)) {
+            record.outputs.lounge.widgets[existingInteractiveTestIndex] = next;
+            corrected = true;
+          }
+        }
+
         if (corrected) writeTenantRecord(record);
       }
       if (systemPublic) {

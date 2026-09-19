@@ -73,6 +73,9 @@ test('Overlay Bay v3 exposes tenant outputs and standardized source controls', (
     'data-inspector-action="center"',
     'data-inspector-action="front"',
     'data-inspector-action="back"',
+    'data-inspector-interact',
+    'toggleInteraction(widget)',
+    'obv3-interacting',
   ]) assert.ok(source.includes(marker), `missing ${marker}`);
   assert.match(source, /\/api\/tenant-scene\?output=/);
   assert.match(source, /\/api\/tenant-scene\/\$\{platformState\.output\}/);

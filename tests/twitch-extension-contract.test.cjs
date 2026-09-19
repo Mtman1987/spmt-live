@@ -30,3 +30,12 @@ test('Twitch Extension exposes spotlight, follow, requests, help and TTS prompt 
 test('Twitch Extension backend is installed at process startup', () => {
   assert.match(start, /installTwitchExtensionBootstrap/);
 });
+
+
+test('Lounge Twitch test player exposes controls and restores audio after playback', () => {
+  const spotlight = fs.readFileSync('public/lounge-live-spotlight.html', 'utf8');
+  assert.match(spotlight, /controls: testMode/);
+  assert.match(spotlight, /setVolume\(TARGET_VOLUME\)/);
+  assert.match(spotlight, /setMuted\(false\)/);
+  assert.match(spotlight, /Twitch volume controls/);
+});

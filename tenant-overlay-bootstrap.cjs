@@ -143,12 +143,36 @@ function systemTransparentAlertLayout() {
     template: 'spmt-transparent-alerts-v1',
   };
 }
+
+function loungeAlertWidget() {
+  return {
+    id: 'community-lounge-alerts',
+    title: 'SpaceMountain Alerts',
+    kind: 'alert',
+    visible: true,
+    locked: true,
+    interactive: false,
+    x: 23,
+    y: 10,
+    width: 520,
+    height: 220,
+    opacity: 1,
+    zIndex: 290,
+    durationMs: 6500,
+    imageUrl: 'https://spacemountain.live/assets/model-rocket.png',
+    accent: '#f97316',
+    accepts: ['follow', 'sub', 'resub', 'gift', 'raid', 'cheer', 'custom'],
+    role: 'default-alerts',
+    replaceable: true,
+  };
+}
 function personalLoungeDebugLayout() {
   return {
   "schemaVersion": 3,
   "template": "community-lounge-system-v2",
   "enabled": true,
   "widgets": [
+    loungeAlertWidget(),
     {
       "id": "community-lounge-live-spotlight",
       "title": "DSH Live Community Spotlight",
@@ -592,9 +616,9 @@ function readTenantRecord(user, create = true) {
         record.outputs.lounge.widgets = (record.outputs.lounge.widgets || []).map((widget) => {
           if (widget.id === 'community-lounge-hmo-media') {
             let nextUrl = String(widget.url || '')
-              .replace('/overlay/system-spacemountainlive-lounge', '/overlay/system-mtman1987-lounge')
-              .replace(/([?&])v=[^&]*/g, '$1v=mtman-hmo-1');
-            if (!/[?&]v=/.test(nextUrl)) nextUrl += `${nextUrl.includes('?') ? '&' : '?'}v=mtman-hmo-1`;
+              .replace('/overlay/system-mtman1987-lounge', '/overlay/system-spacemountainlive-lounge')
+              .replace(/([?&])v=[^&]*/g, '$1v=mtman-hmo-2');
+            if (!/[?&]v=/.test(nextUrl)) nextUrl += `${nextUrl.includes('?') ? '&' : '?'}v=mtman-hmo-2`;
             if (nextUrl === widget.url) return widget;
             corrected = true;
             return { ...widget, url: nextUrl };
@@ -623,6 +647,10 @@ function readTenantRecord(user, create = true) {
           }
           return widget;
         });
+        if (!record.outputs.lounge.widgets.some((widget) => widget.id === 'community-lounge-alerts' || (widget.kind === 'alert' && widget.role === 'default-alerts'))) {
+          record.outputs.lounge.widgets.push(normalizeWidget(loungeAlertWidget(), record.outputs.lounge.widgets.length));
+          corrected = true;
+        }
         if (corrected) writeTenantRecord(record);
       }
       if (systemPublic) {

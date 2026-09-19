@@ -31,6 +31,11 @@
       const params = new URLSearchParams(location.search);
       const forcedChannel = String(params.get('channel') || '').replace(/^@/, '').trim().toLowerCase();
       const testMode = params.get('test') === '1' || Boolean(forcedChannel);
+      const interactionMode = params.get('interact') === '1' || testMode;
+      const controlBus = typeof BroadcastChannel === 'function'
+        ? new BroadcastChannel('spmt-live-spotlight-control-v1')
+        : null;
+      let applyingRemoteControl = false;
       let currentLogin = '';
       let stopped = false;
       let player = null;
@@ -52,7 +57,7 @@
       function clear() {
         currentLogin = '';
         clearFallback();
-        if (!testMode) setStatus('');
+        if (!interactionMode) setStatus('');
         try { player?.pause?.(); } catch {}
         player = null;
         playerHost.replaceChildren();
@@ -89,21 +94,21 @@
         currentLogin = clean;
         if (!window.Twitch?.Player) return;
 
-        if (testMode) setStatus('Loading @' + clean + '…');
+        if (interactionMode) setStatus('Loading @' + clean + '…');
 
         player = new window.Twitch.Player('twitch-player', {
           channel: clean,
           parent: [location.hostname || 'spmt.live'],
           autoplay: true,
           muted: true,
-          controls: testMode,
+          controls: interactionMode,
           width: '100%',
           height: '100%',
         });
 
         player.addEventListener(window.Twitch.Player.READY, () => {
           forcePlay();
-          if (testMode) setStatus('Loaded @' + clean + '. If autoplay is blocked, use the Play button.');
+          if (interactionMode) setStatus('Loaded @' + clean + '. Use this window to interact while the overlay stays on-screen.');
           clearFallback();
           fallbackTimer = setTimeout(() => {
             playFallback.classList.add('show');
@@ -112,7 +117,8 @@
         player.addEventListener(window.Twitch.Player.PLAY, () => {
           clearFallback();
           restoreAudio();
-          if (testMode) setStatus('Playing @' + clean + ' — use the Twitch volume controls in the player.');
+          publishControl('play');
+          if (interactionMode) setStatus('Playing @' + clean + ' — this play state is also sent to the overlay.');
         });
         player.addEventListener(window.Twitch.Player.PLAYING, () => {
           restoreAudio();
@@ -121,18 +127,51 @@
         });
         player.addEventListener(window.Twitch.Player.PAUSE, () => {
           playFallback.classList.add('show');
-          if (testMode) setStatus('Playback paused. Tap Play to resume.');
+          publishControl('pause');
+          if (interactionMode) setStatus('Playback paused. Tap Play to resume.');
         });
         player.addEventListener(window.Twitch.Player.OFFLINE, () => {
           clear();
-          if (testMode) setStatus('@' + clean + ' is offline. Use ?channel=ANOTHER_LIVE_CHANNEL&test=1 to test playback.');
+          if (interactionMode) setStatus('@' + clean + ' is offline.');
         });
       }
+
+      function publishControl(action) {
+        if (!interactionMode || applyingRemoteControl || !controlBus || !currentLogin) return;
+        try {
+          controlBus.postMessage({
+            type: 'spmt.live-spotlight.control',
+            action,
+            channel: currentLogin,
+          });
+        } catch {}
+      }
+
+      function applyRemoteControl(payload) {
+        if (!payload || payload.type !== 'spmt.live-spotlight.control') return;
+        const channel = String(payload.channel || '').trim().toLowerCase();
+        if (!channel || !currentLogin || channel !== currentLogin) return;
+        applyingRemoteControl = true;
+        try {
+          if (payload.action === 'play') {
+            forcePlay();
+            setTimeout(restoreAudio, 150);
+            playFallback.classList.remove('show');
+          } else if (payload.action === 'pause') {
+            try { player?.pause?.(); } catch {}
+          }
+        } finally {
+          setTimeout(() => { applyingRemoteControl = false; }, 500);
+        }
+      }
+
+      if (controlBus) controlBus.addEventListener('message', (event) => applyRemoteControl(event.data));
 
       playFallback.addEventListener('click', () => {
         forcePlay();
         setTimeout(restoreAudio, 150);
         playFallback.classList.remove('show');
+        publishControl('play');
       });
 
       async function refresh() {
@@ -155,7 +194,10 @@
         }
       }
 
-      addEventListener('beforeunload', () => { stopped = true; });
+      addEventListener('beforeunload', () => {
+        stopped = true;
+        try { controlBus?.close?.(); } catch {}
+      });
       void refresh();
       setInterval(refresh, 15000);
     })();

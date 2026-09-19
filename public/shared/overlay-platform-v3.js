@@ -182,7 +182,7 @@
     const media = contract.isMediaKind(widget.kind);
     const opacity = Math.round((Number(widget.opacity) || 0) * 100);
     return `<aside class="obv3-inspector" data-obv3-inspector data-inspector-widget="${escapeHtml(widget.id)}">
-      <div class="obv3-inspector-head"><div><strong>${escapeHtml(widget.title || widget.id)}</strong><small>${escapeHtml(widget.kind)} · layer ${Number(widget.zIndex) || 0}</small></div><button class="button ghost" type="button" data-inspector-edit>Edit</button></div>
+      <div class="obv3-inspector-head"><div><strong>${escapeHtml(widget.title || widget.id)}</strong><small>${escapeHtml(widget.kind)} · layer ${Number(widget.zIndex) || 0}</small></div><div class="control-actions">${widget.url ? '<button class="button ghost" type="button" data-inspector-interact>Interact</button>' : ''}<button class="button ghost" type="button" data-inspector-edit>Edit</button></div></div>
       <div class="obv3-toggle-row"><label><input type="checkbox" data-inspector-visible ${widget.visible === false ? '' : 'checked'}> Visible</label><label><input type="checkbox" data-inspector-locked ${widget.locked ? 'checked' : ''}> Lock</label></div>
       <div class="obv3-inspector-grid">
         <label class="obv3-control range"><span>Opacity</span><span class="obv3-range-line"><input type="range" min="0" max="100" step="1" value="${opacity}" data-inspector-opacity><output data-inspector-opacity-output>${opacity}%</output></span></label>
@@ -277,6 +277,21 @@
     const widget = selectedWidget();
     const inspector = document.querySelector('[data-obv3-inspector]');
     if (!widget || !inspector) return;
+    inspector.querySelector('[data-inspector-interact]')?.addEventListener('click', () => {
+      const rawUrl = String(widget.url || '').trim();
+      if (!rawUrl) {
+        setUiStatus('This source does not expose an interactive URL.', 'error');
+        return;
+      }
+      let interactUrl = rawUrl;
+      try {
+        const url = new URL(rawUrl, location.href);
+        url.searchParams.set('interact', '1');
+        interactUrl = url.href;
+      } catch {}
+      window.open(interactUrl, '_blank', 'noopener,noreferrer');
+      setUiStatus(`${widget.title || widget.id} interaction window opened. The source stays live in the ${outputLabel()} overlay.`, 'ok');
+    });
     inspector.querySelector('[data-inspector-edit]')?.addEventListener('click', () => platformState.baseEdit?.(widget.id));
     inspector.querySelector('[data-inspector-visible]')?.addEventListener('change', (event) => { widget.visible = event.target.checked; markDirty(); renderPlatformOverlay(); });
     inspector.querySelector('[data-inspector-locked]')?.addEventListener('change', (event) => { widget.locked = event.target.checked; markDirty(); renderPlatformOverlay(); });

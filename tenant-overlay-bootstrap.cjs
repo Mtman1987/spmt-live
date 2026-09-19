@@ -689,7 +689,21 @@ function readTenantRecord(user, create = true) {
           corrected = true;
         } else {
           const current = record.outputs.lounge.widgets[existingInteractiveTestIndex];
-          const next = normalizeWidget({ ...current, ...interactiveTest }, existingInteractiveTestIndex);
+          // Migrations may repair system-owned identity/URL fields, but must never
+          // overwrite operator-controlled scene state such as visibility, lock,
+          // geometry, opacity, or layer order after the editor has saved it.
+          const next = normalizeWidget({
+            ...interactiveTest,
+            ...current,
+            id: interactiveTest.id,
+            title: interactiveTest.title,
+            kind: interactiveTest.kind,
+            url: interactiveTest.url,
+            sourceApp: interactiveTest.sourceApp,
+            role: interactiveTest.role,
+            interactive: interactiveTest.interactive,
+            interactionMode: interactiveTest.interactionMode,
+          }, existingInteractiveTestIndex);
           if (JSON.stringify(next) !== JSON.stringify(current)) {
             record.outputs.lounge.widgets[existingInteractiveTestIndex] = next;
             corrected = true;

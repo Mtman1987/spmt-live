@@ -170,6 +170,6 @@ test('saved hidden Lounge layers stay hidden and tenant renderer respects visibi
 test('Lounge uses one shared Pokemon and Quackverse card-pack reveal layer', () => {
   const bootstrap = read('tenant-overlay-bootstrap.cjs');
   assert.match(bootstrap, /Card Pack Reveal · Pokemon \+ Quackverse/);
-  assert.match(bootstrap, /card-pack-overlay\?tenant=spacemountainlive/);
+  assert.match(bootstrap, /overlay\/card-pack\?tenant=spacemountainlive/);
   assert.match(bootstrap, /card-pack-event-layer/);
 });

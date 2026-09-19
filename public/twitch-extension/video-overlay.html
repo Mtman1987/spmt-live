@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+  <title>SpaceMountain Viewer Controls</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;color:#fff}
+    button,a,textarea{font:inherit}
+    button,a{touch-action:manipulation}
+    #app{position:fixed;inset:0;pointer-events:none}
+    .controls-toggle{position:absolute;right:18px;top:18px;pointer-events:auto;border:1px solid rgba(255,255,255,.25);border-radius:999px;background:rgba(8,12,24,.88);backdrop-filter:blur(14px);color:#fff;padding:10px 15px;font-weight:800;cursor:pointer;box-shadow:0 8px 28px rgba(0,0,0,.28)}
+    .drawer{position:absolute;right:18px;top:68px;width:min(330px,calc(100vw - 36px));max-height:calc(100% - 86px);overflow:auto;pointer-events:auto;background:rgba(7,10,22,.94);border:1px solid rgba(255,255,255,.18);border-radius:18px;padding:14px;backdrop-filter:blur(18px);box-shadow:0 16px 48px rgba(0,0,0,.42)}
+    .hidden{display:none!important}
+    .section{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.1)}
+    .section:last-child{border-bottom:0}
+    .eyebrow{font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#9fb5ff}
+    .featured-name{font-size:20px;font-weight:900;margin:4px 0 2px}
+    .meta{font-size:12px;line-height:1.35;color:#c8cfdf}
+    .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .btn{min-height:42px;border-radius:11px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.09);color:#fff;padding:9px 12px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+    .btn.primary{background:#7657ff;border-color:#8d76ff}
+    .btn.help{background:#9d3344;border-color:#c14a5f}
+    .btn.join{background:#236e58;border-color:#339a7c}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    textarea{width:100%;min-height:78px;resize:vertical;margin-top:9px;border-radius:11px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);color:#fff;padding:10px;outline:none}
+    textarea:focus{border-color:#9fb5ff}
+    .status{min-height:16px;margin-top:7px;font-size:11px;color:#b9c5df}
+    .prompt{position:absolute;left:50%;bottom:7%;transform:translateX(-50%);width:min(560px,calc(100vw - 28px));pointer-events:auto;background:rgba(7,10,22,.96);border:1px solid rgba(255,255,255,.2);border-radius:18px;padding:14px 16px;backdrop-filter:blur(18px);box-shadow:0 18px 48px rgba(0,0,0,.45)}
+    .prompt-question{font-size:16px;font-weight:850;line-height:1.35;margin:4px 0 10px}
+    .prompt-options{display:flex;gap:8px;flex-wrap:wrap}
+    .prompt-options .btn{flex:1 1 110px}
+    @media(max-width:520px){.controls-toggle{right:10px;top:10px}.drawer{right:10px;top:58px;width:calc(100vw - 20px);max-height:calc(100% - 68px)}.prompt{bottom:4%;}}
+  </style>
+</head>
+<body>
+  <div id="app">
+    <button id="controls-toggle" class="controls-toggle" type="button" aria-expanded="false">Controls</button>
+
+    <aside id="drawer" class="drawer hidden" aria-label="SpaceMountain viewer controls">
+      <div class="section">
+        <div class="eyebrow">Community spotlight</div>
+        <div id="featured-name" class="featured-name">No featured stream right now</div>
+        <div id="featured-meta" class="meta">When a community streamer rotates in, their controls appear here.</div>
+        <div class="row">
+          <a id="watch-link" class="btn primary hidden" target="_blank" rel="noopener noreferrer">Watch + Lurk</a>
+          <button id="follow-button" class="btn hidden" type="button">Follow streamer</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="eyebrow">Media request</div>
+        <textarea id="media-request" maxlength="300" placeholder="Song, movie, clip, or media request"></textarea>
+        <div class="row"><button id="media-send" class="btn" type="button">Send request</button></div>
+      </div>
+
+      <div class="section">
+        <div class="eyebrow">SpaceMountain</div>
+        <div class="row">
+          <button id="join-button" class="btn join" type="button">Join SpaceMountain</button>
+          <button id="help-button" class="btn help" type="button">Need help</button>
+        </div>
+        <div id="status" class="status" aria-live="polite"></div>
+      </div>
+    </aside>
+
+    <section id="prompt" class="prompt hidden" aria-live="polite">
+      <div class="eyebrow">Stella is asking</div>
+      <div id="prompt-question" class="prompt-question"></div>
+      <div id="prompt-options" class="prompt-options"></div>
+    </section>
+  </div>
+
+  <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const ui = {
+        toggle: document.getElementById('controls-toggle'),
+        drawer: document.getElementById('drawer'),
+        featuredName: document.getElementById('featured-name'),
+        featuredMeta: document.getElementById('featured-meta'),
+        watch: document.getElementById('watch-link'),
+        follow: document.getElementById('follow-button'),
+        media: document.getElementById('media-request'),
+        mediaSend: document.getElementById('media-send'),
+        join: document.getElementById('join-button'),
+        help: document.getElementById('help-button'),
+        status: document.getElementById('status'),
+        prompt: document.getElementById('prompt'),
+        promptQuestion: document.getElementById('prompt-question'),
+        promptOptions: document.getElementById('prompt-options'),
+      };
+
+      const state = {
+        token: '',
+        channelId: '',
+        linked: false,
+        featured: null,
+        prompt: null,
+        pendingIdentityAction: null,
+        pollTimer: null,
+        busy: false,
+      };
+
+      function setStatus(message) {
+        ui.status.textContent = String(message || '');
+      }
+
+      function setDrawer(open) {
+        ui.drawer.classList.toggle('hidden', !open);
+        ui.toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+
+      function renderFeatured() {
+        const featured = state.featured;
+        if (!featured?.login) {
+          ui.featuredName.textContent = 'No featured stream right now';
+          ui.featuredMeta.textContent = 'When a community streamer rotates in, their controls appear here.';
+          ui.watch.classList.add('hidden');
+          ui.follow.classList.add('hidden');
+          return;
+        }
+        ui.featuredName.textContent = '@' + featured.login;
+        ui.featuredMeta.textContent = [featured.game, featured.title].filter(Boolean).join(' · ') || 'Live now on Twitch';
+        ui.watch.href = 'https://www.twitch.tv/' + encodeURIComponent(featured.login);
+        ui.watch.classList.remove('hidden');
+        ui.follow.classList.remove('hidden');
+      }
+
+      function renderPrompt() {
+        const prompt = state.prompt;
+        if (!prompt?.id || !Array.isArray(prompt.options) || !prompt.options.length) {
+          ui.prompt.classList.add('hidden');
+          ui.promptQuestion.textContent = '';
+          ui.promptOptions.replaceChildren();
+          return;
+        }
+        ui.promptQuestion.textContent = prompt.question || 'Choose a response';
+        ui.promptOptions.replaceChildren();
+        prompt.options.forEach((option) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'btn primary';
+          button.textContent = option;
+          button.addEventListener('click', () => sendAction({
+            type: 'prompt_response',
+            promptId: prompt.id,
+            choice: option,
+          }));
+          ui.promptOptions.appendChild(button);
+        });
+        ui.prompt.classList.remove('hidden');
+      }
+
+      async function api(path, init = {}) {
+        if (!state.token) throw new Error('Extension authorization is not ready yet');
+        const response = await fetch(path, {
+          ...init,
+          headers: {
+            'x-extension-jwt': state.token,
+            'content-type': 'application/json',
+            ...(init.headers || {}),
+          },
+          cache: 'no-store',
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const error = new Error(payload.error || ('Request failed (' + response.status + ')'));
+          error.payload = payload;
+          throw error;
+        }
+        return payload;
+      }
+
+      async function loadState() {
+        if (!state.token) return;
+        try {
+          const payload = await api('/api/twitch-extension/state', { method: 'GET', headers: {} });
+          state.linked = Boolean(payload?.viewer?.linked || window.Twitch?.ext?.viewer?.isLinked);
+          state.featured = payload?.featured || null;
+          state.prompt = payload?.prompt || null;
+          renderFeatured();
+          renderPrompt();
+        } catch (error) {
+          setStatus(error.message || 'Could not load viewer controls.');
+        }
+      }
+
+      async function sendAction(body) {
+        if (state.busy) return;
+        state.busy = true;
+        try {
+          const payload = await api('/api/twitch-extension/action', {
+            method: 'POST',
+            body: JSON.stringify({
+              ...body,
+              featuredLogin: state.featured?.login || '',
+            }),
+          });
+          if (body.type === 'media_request') {
+            ui.media.value = '';
+            setStatus('Media request sent.');
+          } else if (body.type === 'help') {
+            setStatus('Your help request was sent to the SpaceMountain crew.');
+          } else if (body.type === 'join_request') {
+            setStatus('Your SpaceMountain join request was sent.');
+          } else if (body.type === 'prompt_response') {
+            state.prompt = null;
+            renderPrompt();
+            setStatus('Response sent to Stella.');
+          }
+          return payload;
+        } catch (error) {
+          if (error?.payload?.identityRequired && window.Twitch?.ext?.actions?.requestIdShare) {
+            state.pendingIdentityAction = body;
+            setStatus('Twitch will ask permission to identify you so we can respond.');
+            window.Twitch.ext.actions.requestIdShare();
+            return;
+          }
+          setStatus(error.message || 'That action could not be sent.');
+        } finally {
+          state.busy = false;
+        }
+      }
+
+      ui.toggle.addEventListener('click', () => setDrawer(ui.drawer.classList.contains('hidden')));
+
+      ui.follow.addEventListener('click', () => {
+        const login = state.featured?.login;
+        if (!login || !window.Twitch?.ext?.actions?.followChannel) return;
+        window.Twitch.ext.actions.followChannel(login);
+      });
+
+      ui.mediaSend.addEventListener('click', () => {
+        const message = ui.media.value.trim();
+        if (!message) return setStatus('Type a media request first.');
+        void sendAction({ type: 'media_request', message });
+      });
+
+      ui.join.addEventListener('click', () => void sendAction({
+        type: 'join_request',
+        message: 'Viewer requested information about joining SpaceMountain.',
+      }));
+
+      ui.help.addEventListener('click', () => void sendAction({
+        type: 'help',
+        message: 'Viewer asked the SpaceMountain crew for help from the Twitch overlay.',
+      }));
+
+      if (window.Twitch?.ext?.actions?.onFollow) {
+        window.Twitch.ext.actions.onFollow((didFollow, channelName) => {
+          setStatus(didFollow ? ('Following @' + channelName + '.') : 'Follow was cancelled.');
+        });
+      }
+
+      if (window.Twitch?.ext?.onAuthorized) {
+        window.Twitch.ext.onAuthorized((auth) => {
+          state.token = auth.token || '';
+          state.channelId = auth.channelId || '';
+          state.linked = Boolean(window.Twitch?.ext?.viewer?.isLinked);
+          void loadState().then(() => {
+            if (state.pendingIdentityAction && state.linked) {
+              const pending = state.pendingIdentityAction;
+              state.pendingIdentityAction = null;
+              void sendAction(pending);
+            }
+          });
+          if (state.pollTimer) clearInterval(state.pollTimer);
+          state.pollTimer = setInterval(loadState, 3000);
+        });
+      } else {
+        setStatus('Open this surface through the Twitch Extension hosted test.');
+      }
+
+      addEventListener('beforeunload', () => {
+        if (state.pollTimer) clearInterval(state.pollTimer);
+      });
+    })();
+  </script>
+</body>
+</html>

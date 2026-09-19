@@ -236,15 +236,15 @@ function personalLoungeDebugLayout() {
       "visible": true,
       "locked": true,
       "interactive": false,
-      "x": 16,
-      "y": 77,
-      "width": 653,
-      "height": 120,
+      "x": 0,
+      "y": 0,
+      "width": 960,
+      "height": 540,
       "opacity": 1,
-      "zIndex": 55,
+      "zIndex": 230,
       "url": "https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-parade",
       "sourceApp": "NebulaBay",
-      "role": "bottom-lane-effect"
+      "role": "full-canvas-party-effect"
     },
     {
       "id": "community-lounge-nebula-stage",

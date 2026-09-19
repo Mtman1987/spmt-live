@@ -429,7 +429,7 @@ function personalLoungeDebugLayout() {
       "height": 540,
       "opacity": 1,
       "zIndex": 262,
-      "url": "https://streamweaver-new.fly.dev/card-pack-overlay?tenant=spacemountainlive",
+      "url": "https://streamweaver-new.fly.dev/overlay/card-pack?tenant=spacemountainlive",
       "sourceApp": "StreamWeaver",
       "role": "card-pack-event-layer"
     },
@@ -652,7 +652,7 @@ function readTenantRecord(user, create = true) {
             return { ...widget, url: nextUrl };
           }
           if (widget.id === 'sw-pokemon-pack') {
-            const nextUrl = 'https://streamweaver-new.fly.dev/card-pack-overlay?tenant=spacemountainlive';
+            const nextUrl = 'https://streamweaver-new.fly.dev/overlay/card-pack?tenant=spacemountainlive';
             const next = {
               ...widget,
               title: 'Card Pack Reveal · Pokemon + Quackverse',

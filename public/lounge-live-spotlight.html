@@ -58,10 +58,19 @@
         playerHost.replaceChildren();
       }
 
+      const TARGET_VOLUME = 0.58;
+
       function forcePlay() {
         if (!player) return;
+        try { player.setVolume(TARGET_VOLUME); } catch {}
         try { player.setMuted(true); } catch {}
         try { player.play(); } catch {}
+      }
+
+      function restoreAudio() {
+        if (!player) return;
+        try { player.setVolume(TARGET_VOLUME); } catch {}
+        try { player.setMuted(false); } catch {}
       }
 
       function mount(login) {
@@ -87,7 +96,7 @@
           parent: [location.hostname || 'spmt.live'],
           autoplay: true,
           muted: true,
-          controls: false,
+          controls: testMode,
           width: '100%',
           height: '100%',
         });
@@ -102,7 +111,13 @@
         });
         player.addEventListener(window.Twitch.Player.PLAY, () => {
           clearFallback();
-          if (testMode) setStatus('Playing @' + clean + '.');
+          restoreAudio();
+          if (testMode) setStatus('Playing @' + clean + ' — use the Twitch volume controls in the player.');
+        });
+        player.addEventListener(window.Twitch.Player.PLAYING, () => {
+          restoreAudio();
+          setTimeout(restoreAudio, 250);
+          setTimeout(restoreAudio, 1000);
         });
         player.addEventListener(window.Twitch.Player.PAUSE, () => {
           playFallback.classList.add('show');
@@ -116,6 +131,7 @@
 
       playFallback.addEventListener('click', () => {
         forcePlay();
+        setTimeout(restoreAudio, 150);
         playFallback.classList.remove('show');
       });
 

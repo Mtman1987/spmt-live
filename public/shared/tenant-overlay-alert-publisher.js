@@ -13,7 +13,7 @@
     custom: { eventType: 'custom', headline: 'SpaceMountain Test', message: 'Canonical tenant alerts are live.' },
   };
 
-  async function publish(payload, outputs = ['public', 'personal'], source = 'overlay-bay') {
+  async function publish(payload, outputs = ['public', 'personal', 'lounge'], source = 'overlay-bay') {
     const headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
     try {
       const token = localStorage.getItem('spmt_token') || '';
@@ -38,9 +38,9 @@
     if (!button) return;
     const type = String(button.dataset.testAlert || 'follow').toLowerCase();
     const payload = samples[type] || samples.follow;
-    void publish(payload, ['public', 'personal'], 'overlay-bay-test')
+    void publish(payload, ['public', 'personal', 'lounge'], 'overlay-bay-test')
       .then(() => {
-        try { setStatus?.(`${type} test sent to Public + Personal.`, 'ok'); } catch {}
+        try { setStatus?.(`${type} test sent to Public + Personal + Lounge.`, 'ok'); } catch {}
       })
       .catch((error) => {
         try { setStatus?.(error.message || 'Test alert could not be sent.', 'error'); } catch {}

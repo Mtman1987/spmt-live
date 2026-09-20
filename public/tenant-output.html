@@ -11,6 +11,7 @@
     #stage-wrap{position:fixed;inset:0;overflow:hidden;background:transparent;pointer-events:none}
     #scene{position:absolute;left:0;top:0;width:960px;height:540px;overflow:hidden;background:transparent;transform-origin:0 0;pointer-events:none}
     .tenant-widget{position:absolute;overflow:hidden;background:transparent;pointer-events:none}
+    .tenant-widget.lounge-program-swap{transition:left .8s cubic-bezier(.2,.8,.2,1),top .8s cubic-bezier(.2,.8,.2,1),width .8s cubic-bezier(.2,.8,.2,1),height .8s cubic-bezier(.2,.8,.2,1)}
     .tenant-widget.activity-idle-off{visibility:hidden}
     .tenant-widget.is-interactive,.tenant-widget.is-interactive iframe{pointer-events:auto}
     .tenant-widget iframe,.tenant-widget img,.tenant-widget video{display:block;width:100%;height:100%;border:0;background:transparent}
@@ -60,6 +61,7 @@
         alertTimers: new Map(),
         testStarted: false,
         activityRotationStartedAt: Date.now(),
+        loungeMediaMode: 'stream',
       };
 
       const ALERT_TEMPLATES = {
@@ -187,6 +189,7 @@
         const fallbackAlertMarkup = hasSavedAlert ? '' :
           `<section class="tenant-widget kind-alert default-alert" data-tenant-widget="${DEFAULT_ALERT_WIDGET.id}" style="${widgetStyle(DEFAULT_ALERT_WIDGET)}">${sourceMarkup(DEFAULT_ALERT_WIDGET)}</section>`;
         sceneEl.innerHTML = savedMarkup + fallbackAlertMarkup;
+        applyLoungeMediaLayout();
         applyActivityRotation();
         applyXboxVisibility();
         if (testMode && !state.testStarted) {
@@ -203,6 +206,44 @@
         const chat = sceneEl.querySelector('[data-tenant-widget="sw-featured-chat"]');
         leaderboard?.classList.toggle('activity-idle-off', !showLeaderboard);
         chat?.classList.toggle('activity-idle-off', showLeaderboard);
+      }
+
+      function placeLoungeProgram(element, slot) {
+        if (!element) return;
+        const slots = {
+          main: { left: 2.5, top: 4.5, width: 667, height: 362 },
+          media: { left: 75.5, top: 16, width: 211, height: 130 },
+        };
+        const target = slots[slot];
+        element.classList.add('lounge-program-swap');
+        element.style.left = `${target.left}%`;
+        element.style.top = `${target.top}%`;
+        element.style.width = `${target.width}px`;
+        element.style.height = `${target.height}px`;
+      }
+
+      function applyLoungeMediaLayout() {
+        if (output !== 'lounge' || tenant !== 'mtman1987') return;
+        const stream = sceneEl.querySelector('[data-tenant-widget="community-lounge-live-spotlight"]');
+        const media = sceneEl.querySelector('[data-tenant-widget="community-lounge-hmo-media"]');
+        const mediaIsMain = state.loungeMediaMode === 'media';
+        placeLoungeProgram(stream, mediaIsMain ? 'media' : 'main');
+        placeLoungeProgram(media, mediaIsMain ? 'main' : 'media');
+      }
+
+      async function refreshLoungeMediaLayout() {
+        if (output !== 'lounge' || tenant !== 'mtman1987') return;
+        try {
+          const response = await fetch('https://streamweaver-new.fly.dev/api/lounge/media-layout', { cache: 'no-store' });
+          if (!response.ok) return;
+          const payload = await response.json();
+          const nextMode = payload?.mode === 'media' ? 'media' : 'stream';
+          if (nextMode === state.loungeMediaMode) return;
+          state.loungeMediaMode = nextMode;
+          applyLoungeMediaLayout();
+        } catch {
+          // Preserve the last good arrangement through a temporary service miss.
+        }
       }
 
       function xboxWidget() {
@@ -391,9 +432,10 @@
 
       resizeScene();
       try { window.parent.postMessage({ type: 'spmt.personal.renderer-ready', tenant, output }, '*'); } catch {}
-      refreshScene().then(refreshXboxStatus);
+      refreshScene().then(() => Promise.all([refreshXboxStatus(), refreshLoungeMediaLayout()]));
       setInterval(refreshScene, 2000);
       setInterval(applyActivityRotation, 1000);
+      setInterval(refreshLoungeMediaLayout, 2500);
       setInterval(refreshXboxStatus, 1000);
       setInterval(refreshXboxFrame, 500);
     })();

@@ -54,6 +54,16 @@ test('Lounge rotates idle leaderboard and featured chat without removing event l
   assert.match(output, /30000/);
 });
 
+test('Lounge can smoothly swap HearMeOut and the live stream between main and media slots', () => {
+  const output = fs.readFileSync('public/tenant-output.html', 'utf8');
+  assert.match(output, /api\/lounge\/media-layout/);
+  assert.match(output, /community-lounge-live-spotlight/);
+  assert.match(output, /community-lounge-hmo-media/);
+  assert.match(output, /mediaIsMain \? 'media' : 'main'/);
+  assert.match(output, /mediaIsMain \? 'main' : 'media'/);
+  assert.match(output, /lounge-program-swap/);
+});
+
 test('tenant output passes clicks only to explicitly interactive layers', () => {
   const output = fs.readFileSync('public/tenant-output.html', 'utf8');
   assert.match(output, /\.tenant-widget\.is-interactive,\.tenant-widget\.is-interactive iframe\{pointer-events:auto\}/);

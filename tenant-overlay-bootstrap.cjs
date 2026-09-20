@@ -363,40 +363,6 @@ function personalLoungeDebugLayout() {
       "role": "event-layer"
     },
     {
-      "id": "sw-pokemon",
-      "title": "Pokemon Overlay",
-      "kind": "embed",
-      "visible": true,
-      "locked": true,
-      "interactive": false,
-      "x": 0,
-      "y": 0,
-      "width": 960,
-      "height": 540,
-      "opacity": 1,
-      "zIndex": 260,
-      "url": "https://streamweaver-new.fly.dev/pokemon-overlay?tenant=spacemountainlive",
-      "sourceApp": "StreamWeaver",
-      "role": "event-layer"
-    },
-    {
-      "id": "sw-pokemon-collection",
-      "title": "Pokemon Collection",
-      "kind": "embed",
-      "visible": true,
-      "locked": true,
-      "interactive": false,
-      "x": 0,
-      "y": 0,
-      "width": 960,
-      "height": 540,
-      "opacity": 1,
-      "zIndex": 261,
-      "url": "https://streamweaver-new.fly.dev/pokemon-collection-overlay?tenant=spacemountainlive",
-      "sourceApp": "StreamWeaver",
-      "role": "event-layer"
-    },
-    {
       "id": "sw-pokemon-pack",
       "title": "Card Pack Reveal · Pokemon + Quackverse",
       "kind": "embed",
@@ -412,23 +378,6 @@ function personalLoungeDebugLayout() {
       "url": "https://streamweaver-new.fly.dev/overlay/card-pack?tenant=spacemountainlive",
       "sourceApp": "StreamWeaver",
       "role": "card-pack-event-layer"
-    },
-    {
-      "id": "sw-pokemon-trade",
-      "title": "Pokemon Trade",
-      "kind": "embed",
-      "visible": true,
-      "locked": true,
-      "interactive": false,
-      "x": 0,
-      "y": 0,
-      "width": 960,
-      "height": 540,
-      "opacity": 1,
-      "zIndex": 263,
-      "url": "https://streamweaver-new.fly.dev/pokemon-trade-overlay?tenant=spacemountainlive",
-      "sourceApp": "StreamWeaver",
-      "role": "event-layer"
     },
     {
       "id": "sw-shoutout",
@@ -615,7 +564,12 @@ function readTenantRecord(user, create = true) {
       // wrong app room or its shell fallback.
       if (tenant === 'mtman1987') {
         let corrected = false;
-        record.outputs.lounge.widgets = (record.outputs.lounge.widgets || []).map((widget) => {
+        const browserOnlyPokemonIds = new Set(['sw-pokemon', 'sw-pokemon-collection', 'sw-pokemon-trade']);
+        const beforePokemonPrune = record.outputs.lounge.widgets || [];
+        record.outputs.lounge.widgets = beforePokemonPrune.filter((widget) => !browserOnlyPokemonIds.has(widget.id));
+        if (record.outputs.lounge.widgets.length !== beforePokemonPrune.length) corrected = true;
+
+        record.outputs.lounge.widgets = record.outputs.lounge.widgets.map((widget) => {
           if (widget.id === 'community-lounge-live-spotlight') {
             const nextUrl = 'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1';
             const next = { ...widget, url: nextUrl, title: 'DSH Live Community Spotlight', interactive: true, interactionMode: 'interactive' };

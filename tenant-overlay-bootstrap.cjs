@@ -238,7 +238,7 @@ function personalLoungeDebugLayout() {
       "width": 787,
       "height": 378,
       "opacity": 1,
-      "zIndex": 90,
+      "zIndex": 340,
       "url": "https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity",
       "sourceApp": "NebulaBay",
       "role": "game-stage"
@@ -575,6 +575,15 @@ function applyMtmanLounge24x7Layout(input) {
           url: 'https://streamweaver-new.fly.dev/overlay/card-pack?tenant=spacemountainlive&placement=lounge-main',
         };
       }
+      if (widget.id === 'community-lounge-nebula-stage') {
+        return {
+          ...widget,
+          ...LOUNGE_24X7_SLOTS.activity,
+          layoutSlot: 'activity',
+          zIndex: 340,
+          url: 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity',
+        };
+      }
       const slot = slotById.get(widget.id);
       return slot ? { ...widget, ...LOUNGE_24X7_SLOTS[slot], layoutSlot: slot } : widget;
     });
@@ -765,7 +774,7 @@ function readTenantRecord(user, create = true) {
               ...widget,
               title: 'NebulaBay Activity Games',
               url: 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity',
-              zIndex: 90,
+              zIndex: 340,
               role: 'activity-game-stage',
               ...LOUNGE_24X7_SLOTS.activity,
               layoutSlot: 'activity',

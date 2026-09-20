@@ -146,6 +146,7 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
     layout.widgets.find((widget) => widget.id === 'community-lounge-nebula-stage')?.url,
     'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity',
   );
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-nebula-stage')?.zIndex, 340);
   assert.equal(
     layout.widgets.find((widget) => widget.id === 'community-lounge-nebula-main-stage')?.layoutSlot,
     'mainEvent',

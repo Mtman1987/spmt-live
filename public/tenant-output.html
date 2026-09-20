@@ -62,6 +62,7 @@
         testStarted: false,
         activityRotationStartedAt: Date.now(),
         loungeMediaMode: 'stream',
+        nebulaActivityActive: false,
       };
 
       const ALERT_TEMPLATES = {
@@ -204,8 +205,8 @@
         const showLeaderboard = Math.floor(elapsed / 30000) % 2 === 0;
         const leaderboard = sceneEl.querySelector('[data-tenant-widget="community-lounge-leaderboard-v2"], [data-tenant-widget="community-lounge-leaderboard"]');
         const chat = sceneEl.querySelector('[data-tenant-widget="sw-featured-chat"]');
-        leaderboard?.classList.toggle('activity-idle-off', !showLeaderboard);
-        chat?.classList.toggle('activity-idle-off', showLeaderboard);
+        leaderboard?.classList.toggle('activity-idle-off', state.nebulaActivityActive || !showLeaderboard);
+        chat?.classList.toggle('activity-idle-off', state.nebulaActivityActive || showLeaderboard);
       }
 
       function placeLoungeProgram(element, slot) {
@@ -420,8 +421,16 @@
       window.spmtOverlayAlert = fireAlert;
       window.addEventListener('spmt:overlay-alert', (event) => fireAlert(event.detail || {}));
       window.addEventListener('message', (event) => {
+        const data = event.data || {};
+        if (data.type === 'nebula.activity-state' && output === 'lounge' && tenant === 'mtman1987') {
+          const nebula = sceneEl.querySelector('[data-tenant-widget="community-lounge-nebula-stage"] iframe');
+          if (!nebula || event.source === nebula.contentWindow) {
+            state.nebulaActivityActive = data.active === true;
+            applyActivityRotation();
+          }
+          return;
+        }
         if (event.source === window || event.origin === location.origin) {
-          const data = event.data || {};
           if (data.type === 'spmt.overlay.alert' || data.type === 'spacemountain.alert') fireAlert(data);
         }
       });

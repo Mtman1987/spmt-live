@@ -54,6 +54,16 @@ test('Lounge rotates idle leaderboard and featured chat without removing event l
   assert.match(output, /30000/);
 });
 
+test('active Nebula activity games suppress the idle leaderboard and chat layers', () => {
+  const output = fs.readFileSync('public/tenant-output.html', 'utf8');
+  const bootstrap = fs.readFileSync('tenant-overlay-bootstrap.cjs', 'utf8');
+  assert.match(output, /nebulaActivityActive: false/);
+  assert.match(output, /data\.type === 'nebula\.activity-state'/);
+  assert.match(output, /state\.nebulaActivityActive \|\| !showLeaderboard/);
+  assert.match(output, /state\.nebulaActivityActive \|\| showLeaderboard/);
+  assert.match(bootstrap, /widget\.id === 'community-lounge-nebula-stage'[\s\S]*zIndex: 340/);
+});
+
 test('Lounge can smoothly swap HearMeOut and the live stream between main and media slots', () => {
   const output = fs.readFileSync('public/tenant-output.html', 'utf8');
   assert.match(output, /api\/lounge\/media-layout/);

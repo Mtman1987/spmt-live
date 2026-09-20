@@ -160,8 +160,8 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   const original = bootstrap._test.personalLoungeDebugLayout();
   const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
   assert.equal(layout.template, 'community-lounge-24x7-v1');
-  assert.equal(layout.lounge24x7LayoutVersion, 4);
-  assert.equal(layout.widgets.length, original.widgets.length + 2);
+  assert.equal(layout.lounge24x7LayoutVersion, 5);
+  assert.equal(layout.widgets.length, original.widgets.length + 5);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-alerts')?.layoutSlot, 'mainAlert');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-hmo-media')?.layoutSlot, 'media');
@@ -171,7 +171,11 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-stella-tts')?.zIndex, 490);
   assert.match(layout.widgets.find((widget) => widget.id === 'community-lounge-stella-tts')?.url || '', /placement=lounge/);
   assert.match(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tag')?.url || '', /compact=lounge/);
-  assert.equal(layout.widgets.find((widget) => widget.id === 'sw-shoutout')?.layoutSlot, 'shoutouts');
+  assert.equal(layout.widgets.find((widget) => widget.id === 'sw-shoutout')?.visible, false);
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-partners')?.layoutSlot, 'stats');
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-community')?.layoutSlot, 'shoutouts');
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-status-strip')?.layoutSlot, 'alerts');
+  assert.match(layout.widgets.find((widget) => widget.id === 'community-lounge-status-strip')?.url || '', /lounge-status-strip/);
   assert.equal(layout.widgets.find((widget) => widget.id === 'sw-partner-checkin')?.layoutSlot, 'mainEvent');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tag')?.layoutSlot, 'games');
   assert.equal(layout.widgets.find((widget) => widget.id === 'sw-gamble')?.layoutSlot, 'games');

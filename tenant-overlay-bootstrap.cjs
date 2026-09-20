@@ -205,7 +205,7 @@ function personalLoungeDebugLayout() {
       "height": 169,
       "opacity": 1,
       "zIndex": 35,
-      "url": "https://hearmeout-main.fly.dev/overlay/system-spacemountainlive-lounge?media=auto&clean=1&volume=0.58&muted=0",
+      "url": "https://hearmeout-main.fly.dev/overlay/system-spacemountainlive-lounge?media=auto&clean=1&volume=0.58&muted=0&v=apollo-lounge-3",
       "sourceApp": "Hear Me Out",
       "role": "media-mini-player"
     },
@@ -751,8 +751,8 @@ function readTenantRecord(user, create = true) {
           if (widget.id === 'community-lounge-hmo-media') {
             let nextUrl = String(widget.url || '')
               .replace('/overlay/system-mtman1987-lounge', '/overlay/system-spacemountainlive-lounge')
-              .replace(/([?&])v=[^&]*/g, '$1v=mtman-hmo-2');
-            if (!/[?&]v=/.test(nextUrl)) nextUrl += `${nextUrl.includes('?') ? '&' : '?'}v=mtman-hmo-2`;
+              .replace(/([?&])v=[^&]*/g, '$1v=apollo-lounge-3');
+            if (!/[?&]v=/.test(nextUrl)) nextUrl += `${nextUrl.includes('?') ? '&' : '?'}v=apollo-lounge-3`;
             const next = { ...widget, url: nextUrl, interactive: true, interactionMode: 'interactive' };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;

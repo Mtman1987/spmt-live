@@ -11,6 +11,7 @@
     #stage-wrap{position:fixed;inset:0;overflow:hidden;background:transparent;pointer-events:none}
     #scene{position:absolute;left:0;top:0;width:960px;height:540px;overflow:hidden;background:transparent;transform-origin:0 0;pointer-events:none}
     .tenant-widget{position:absolute;overflow:hidden;background:transparent;pointer-events:none}
+    .tenant-widget.is-interactive,.tenant-widget.is-interactive iframe{pointer-events:auto}
     .tenant-widget iframe,.tenant-widget img,.tenant-widget video{display:block;width:100%;height:100%;border:0;background:transparent}
     .tenant-text{width:100%;height:100%;display:grid;align-items:center;padding:12px;color:#fff;font-weight:900;line-height:1.05;text-shadow:0 3px 18px rgba(0,0,0,.8);white-space:pre-wrap;overflow:hidden}
     .tenant-alert-stage{position:absolute;inset:0;display:grid;place-items:center;padding:14px;pointer-events:none}
@@ -160,7 +161,7 @@
         const visibleWidgets = allWidgets.filter((widget) => widget.visible !== false);
         const hasSavedAlert = allWidgets.some((widget) => widget.kind === 'alert');
         const savedMarkup = visibleWidgets.map((widget) =>
-          `<section class="tenant-widget kind-${escapeHtml(widget.kind)}" data-tenant-widget="${escapeHtml(widget.id)}" style="${widgetStyle(widget)}">${sourceMarkup(widget)}</section>`
+          `<section class="tenant-widget kind-${escapeHtml(widget.kind)}${widget.interactive === true || widget.interactionMode === 'interactive' ? ' is-interactive' : ''}" data-tenant-widget="${escapeHtml(widget.id)}" style="${widgetStyle(widget)}">${sourceMarkup(widget)}</section>`
         ).join('');
         const fallbackAlertMarkup = hasSavedAlert ? '' :
           `<section class="tenant-widget kind-alert default-alert" data-tenant-widget="${DEFAULT_ALERT_WIDGET.id}" style="${widgetStyle(DEFAULT_ALERT_WIDGET)}">${sourceMarkup(DEFAULT_ALERT_WIDGET)}</section>`;

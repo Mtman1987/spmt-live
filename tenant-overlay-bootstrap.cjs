@@ -198,7 +198,7 @@ function personalLoungeDebugLayout() {
       "kind": "embed",
       "visible": true,
       "locked": true,
-      "interactive": false,
+      "interactive": true,
       "x": 68,
       "y": 3,
       "width": 300,
@@ -426,7 +426,7 @@ function personalLoungeDebugLayout() {
       "height": 145,
       "opacity": 1,
       "zIndex": 275,
-      "url": "https://chat-tag-new.fly.dev/overlay/channel/spacemountainlive?cycle=420&hudOn=45&hudOff=120",
+      "url": "https://chat-tag-new.fly.dev/overlay/channel/spacemountainlive?cycle=420&hudOn=45&hudOff=120&compact=lounge",
       "sourceApp": "NebulaBay",
       "role": "persistent-chat-tag"
     },
@@ -666,9 +666,10 @@ function readTenantRecord(user, create = true) {
               .replace('/overlay/system-mtman1987-lounge', '/overlay/system-spacemountainlive-lounge')
               .replace(/([?&])v=[^&]*/g, '$1v=mtman-hmo-2');
             if (!/[?&]v=/.test(nextUrl)) nextUrl += `${nextUrl.includes('?') ? '&' : '?'}v=mtman-hmo-2`;
-            if (nextUrl === widget.url) return widget;
+            const next = { ...widget, url: nextUrl, interactive: true, interactionMode: 'interactive' };
+            if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;
-            return { ...widget, url: nextUrl };
+            return next;
           }
           if (widget.id === 'sw-featured-chat') {
             const next = {
@@ -688,6 +689,15 @@ function readTenantRecord(user, create = true) {
               ...widget,
               url: 'https://streamweaver-new.fly.dev/tts-player?tenant=spacemountainlive&placement=lounge',
               zIndex: 490,
+            };
+            if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
+            corrected = true;
+            return next;
+          }
+          if (widget.id === 'community-lounge-chat-tag') {
+            const next = {
+              ...widget,
+              url: 'https://chat-tag-new.fly.dev/overlay/channel/spacemountainlive?cycle=420&hudOn=45&hudOff=120&compact=lounge',
             };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;

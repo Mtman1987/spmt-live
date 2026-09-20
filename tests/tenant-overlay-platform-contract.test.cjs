@@ -139,10 +139,14 @@ test('SpaceMountainLive system tenant resolves to an empty transparent alerts-on
 test('mtman1987 debug Lounge preset contains the complete populated scene', () => {
   const layout = bootstrap._test.personalLoungeDebugLayout();
   assert.equal(layout.template, 'community-lounge-system-v2');
-  assert.equal(layout.widgets.length, 21);
+  assert.equal(layout.widgets.length, 18);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-alerts'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight'));
   assert.equal(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight-interactive-test'), false);
+  assert.equal(layout.widgets.some((widget) => widget.id === 'sw-pokemon'), false);
+  assert.equal(layout.widgets.some((widget) => widget.id === 'sw-pokemon-collection'), false);
+  assert.equal(layout.widgets.some((widget) => widget.id === 'sw-pokemon-trade'), false);
+  assert.ok(layout.widgets.some((widget) => widget.id === 'sw-pokemon-pack'));
   assert.equal(
     layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.url,
     'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1',

@@ -155,6 +155,21 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));
 });
 
+test('mtman1987 24/7 migration preserves sources and assigns the broadcast panels', () => {
+  const original = bootstrap._test.personalLoungeDebugLayout();
+  const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
+  assert.equal(layout.template, 'community-lounge-24x7-v1');
+  assert.equal(layout.lounge24x7LayoutVersion, 1);
+  assert.equal(layout.widgets.length, original.widgets.length + 2);
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-hmo-media')?.layoutSlot, 'media');
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-leaderboard')?.layoutSlot, 'activity');
+  assert.equal(layout.widgets.find((widget) => widget.id === 'sw-shoutout')?.layoutSlot, 'shoutouts');
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tag')?.layoutSlot, 'games');
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-starfield-24x7')?.kind, 'video');
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-frame-24x7')?.kind, 'frame');
+});
+
 
 test('saved hidden Lounge layers stay hidden and tenant renderer respects visibility in every mode', () => {
   const bootstrapSource = read('tenant-overlay-bootstrap.cjs');

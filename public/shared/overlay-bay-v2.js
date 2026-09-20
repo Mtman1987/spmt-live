@@ -128,6 +128,12 @@
       const url = prompt('Image URL', 'https://');
       if (url === null) return;
       widget = commonWidget('image', 'Image', { url: url.trim(), width: 320, height: 180, fit: 'contain' });
+    } else if (kind === 'video') {
+      const url = prompt('Looping video URL', '/assets/overlay-bay/starfield-pingpong.mp4');
+      if (url === null) return;
+      widget = commonWidget('video', 'Looping Video', { url: url.trim(), width: 960, height: 540, fit: 'cover', muted: true, loop: true });
+    } else if (kind === 'frame') {
+      widget = commonWidget('frame', 'Neon Panel Frame', { width: 960, height: 540, x: 0, y: 0, locked: true, interactive: false, preset: 'broadcast-v1' });
     } else if (kind === 'camera') {
       widget = commonWidget('camera', 'Camera', { width: 360, height: 220, muted: true, fit: 'cover' });
     } else if (kind === 'screen') {
@@ -268,6 +274,19 @@
         ? `<img class="obv2-media" src="${esc(widget.url)}" alt="${esc(widget.title || 'Overlay image')}" style="object-fit:${esc(widget.fit || 'contain')}">`
         : '<div class="obv2-placeholder">Double-click and add an image URL.</div>';
     }
+    if (kind === 'video') {
+      return widget.url
+        ? `<video class="obv2-media" src="${esc(widget.url)}" autoplay muted loop playsinline style="object-fit:${esc(widget.fit || 'cover')}"></video>`
+        : '<div class="obv2-placeholder">Double-click and add a looping video URL.</div>';
+    }
+    if (kind === 'frame') {
+      const slots = [
+        ['main', 2.5, 4.5, 69.5, 67], ['alerts', 75.5, 4.5, 22, 7.5],
+        ['media', 75.5, 16, 22, 24], ['activity', 75.5, 44, 22, 49],
+        ['stats', 2.5, 76, 21, 17], ['shoutouts', 26.75, 76, 21, 17], ['games', 51, 76, 21, 17],
+      ];
+      return `<div class="obv2-broadcast-frame">${slots.map(([id, x, y, width, height]) => `<i data-slot="${id}" style="left:${x}%;top:${y}%;width:${width}%;height:${height}%"></i>`).join('')}</div>`;
+    }
     if (kind === 'camera' || kind === 'screen') {
       const label = kind === 'camera' ? 'Connect camera' : 'Share screen / window';
       return `<div class="obv2-local-source"><video class="obv2-media" data-local-video="${esc(widget.id)}" autoplay playsinline ${widget.muted === false ? '' : 'muted'} style="object-fit:${esc(widget.fit || (kind === 'camera' ? 'cover' : 'contain'))}"></video><div class="obv2-local-cover" data-local-cover="${esc(widget.id)}"><strong>${kind === 'camera' ? 'Camera' : 'Screen / Window'}</strong><span>Local permission is required each browser session.</span>${isOverlayRuntime ? '' : `<button type="button" class="button primary" data-connect-local="${esc(widget.id)}">${label}</button>`}</div></div>`;
@@ -357,7 +376,7 @@
     const title = prompt('Source title', widget.title || 'Source');
     if (title === null) return;
     widget.title = title.trim() || widget.title;
-    if (widget.kind === 'embed' || widget.kind === 'image') {
+    if (widget.kind === 'embed' || widget.kind === 'image' || widget.kind === 'video') {
       const url = prompt(widget.kind === 'image' ? 'Image URL' : 'Web / overlay HTTPS URL', widget.url || '');
       if (url === null) return;
       widget.url = url.trim();
@@ -374,11 +393,11 @@
 
   function sourceToolbar() {
     const items = [
-      ['xbox', 'Xbox'], ['camera', 'Camera'], ['screen', 'Screen'], ['image', 'Image'],
-      ['embed', 'Web'], ['text', 'Text'], ['alert', 'Alerts'],
+      ['xbox', 'Xbox'], ['camera', 'Camera'], ['screen', 'Screen'], ['image', 'Image'], ['video', 'Video'],
+      ['embed', 'Web'], ['text', 'Text'], ['alert', 'Alerts'], ['frame', 'Frame'],
     ];
     const loungeTest = !isOverlayRuntime && new URLSearchParams(location.search).get('output') === 'lounge'
-      ? '<button type="button" class="button primary" id="test-lounge-layers">Test all Lounge layers</button>'
+      ? '<button type="button" class="button primary" id="apply-lounge-24x7">Apply 24/7 layout</button><button type="button" class="button primary" id="test-lounge-layers">Test all Lounge layers</button>'
       : '';
     return `<div class="obv2-source-toolbar">${items.map(([kind, label]) => `<button type="button" class="button ghost" data-add-source="${kind}">+ ${label}</button>`).join('')}<button type="button" class="button ghost obv2-defaults" id="add-space-defaults">SpaceMountain defaults</button>${loungeTest}</div>`;
   }
@@ -406,6 +425,46 @@
   function v2WireOverlayManager() {
     document.querySelectorAll('[data-add-source]').forEach((button) => button.addEventListener('click', () => addWidget(button.dataset.addSource)));
     document.getElementById('add-space-defaults')?.addEventListener('click', addSpaceMountainDefaults);
+    document.getElementById('apply-lounge-24x7')?.addEventListener('click', () => {
+      const tenant = String(window.spmtTenantOutputs?.tenant || '').trim().toLowerCase();
+      if (tenant !== 'mtman1987') {
+        setStatus?.('The 24/7 Lounge layout is reserved for the mtman1987 Lounge.', 'error');
+        return;
+      }
+      const slots = {
+        main: { x: 2.5, y: 4.5, width: 667, height: 362 }, alerts: { x: 75.5, y: 4.5, width: 211, height: 41 },
+        media: { x: 75.5, y: 16, width: 211, height: 130 }, activity: { x: 75.5, y: 44, width: 211, height: 265 },
+        stats: { x: 2.5, y: 76, width: 202, height: 92 }, shoutouts: { x: 26.75, y: 76, width: 202, height: 92 },
+        games: { x: 51, y: 76, width: 202, height: 92 },
+      };
+      const slotById = new Map([
+        ['community-lounge-live-spotlight', 'main'], ['community-lounge-alerts', 'alerts'], ['community-lounge-hmo-media', 'media'],
+        ['community-lounge-nebula-stage', 'activity'], ['sw-featured-chat', 'activity'], ['sw-social', 'activity'],
+        ['sw-notification', 'activity'], ['sw-gamble', 'activity'], ['sw-classic-gamble', 'activity'], ['sw-pokemon-pack', 'activity'],
+        ['community-lounge-leaderboard-v2', 'activity'], ['sw-partner-checkin', 'stats'], ['sw-shoutout', 'shoutouts'],
+        ['community-lounge-chat-tag', 'games'],
+      ]);
+      state.overlay.widgets = (state.overlay.widgets || [])
+        .filter((item) => !['community-lounge-starfield-24x7', 'community-lounge-frame-24x7'].includes(item.id))
+        .map((item) => {
+          const slot = slotById.get(item.id);
+          return slot ? { ...item, ...slots[slot], layoutSlot: slot } : item;
+        });
+      state.overlay.widgets.unshift(commonWidget('video', '24/7 Starfield', {
+        id: 'community-lounge-starfield-24x7', url: '/assets/overlay-bay/starfield-pingpong.mp4', x: 0, y: 0,
+        width: 960, height: 540, fit: 'cover', muted: true, loop: true, locked: true, interactive: false,
+        zIndex: -100, role: 'broadcast-background',
+      }));
+      state.overlay.widgets.push(commonWidget('frame', '24/7 Neon Panel Frame', {
+        id: 'community-lounge-frame-24x7', x: 0, y: 0, width: 960, height: 540,
+        locked: true, interactive: false, zIndex: 480, role: 'broadcast-frame',
+      }));
+      state.overlay.template = 'community-lounge-24x7-v1';
+      state.overlay.lounge24x7LayoutVersion = 1;
+      state.overlayDirty = true;
+      renderOverlays();
+      setStatus?.('24/7 layout applied to this Lounge. Save overlay to keep it.', 'ok');
+    });
     document.getElementById('test-lounge-layers')?.addEventListener('click', () => {
       const tenant = String(window.spmtTenantOutputs?.tenant || '').trim().toLowerCase();
       if (!tenant) {

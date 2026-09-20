@@ -3,9 +3,9 @@
 
   const SCENE = Object.freeze({ width: 960, height: 540 });
   const OUTPUTS = Object.freeze(['public', 'personal']);
-  const KINDS = Object.freeze(['xbox', 'camera', 'screen', 'image', 'embed', 'text', 'alert']);
+  const KINDS = Object.freeze(['xbox', 'camera', 'screen', 'image', 'video', 'frame', 'embed', 'text', 'alert']);
   const FITS = Object.freeze(['contain', 'cover', 'fill']);
-  const MEDIA_KINDS = new Set(['xbox', 'camera', 'screen', 'image']);
+  const MEDIA_KINDS = new Set(['xbox', 'camera', 'screen', 'image', 'video']);
 
   function clone(value) {
     return typeof structuredClone === 'function' ? structuredClone(value) : JSON.parse(JSON.stringify(value));

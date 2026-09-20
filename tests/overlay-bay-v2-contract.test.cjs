@@ -23,7 +23,7 @@ test('Overlay Bay v2 browser scripts parse', () => {
 });
 
 test('Overlay Bay exposes the expected source kinds', () => {
-  for (const kind of ['xbox', 'camera', 'screen', 'image', 'embed', 'text', 'alert']) {
+  for (const kind of ['xbox', 'camera', 'screen', 'image', 'video', 'frame', 'embed', 'text', 'alert']) {
     assert.match(overlay, new RegExp(`['\\"]${kind}['\\"]`));
   }
 });
@@ -33,6 +33,13 @@ test('new Overlay Bay workspaces receive SpaceMountain defaults', () => {
   assert.match(overlay, /sm-alerts-default/);
   assert.match(overlay, /sm-live-badge/);
   assert.match(overlay, /defaultsVersion:\s*1/);
+});
+
+test('mtman1987 Lounge exposes the 24/7 layout control and renderer sources', () => {
+  assert.match(overlay, /apply-lounge-24x7/);
+  assert.match(overlay, /community-lounge-starfield-24x7/);
+  assert.match(overlay, /community-lounge-frame-24x7/);
+  assert.match(overlay, /starfield-pingpong\.mp4/);
 });
 
 test('generic alert contract is present and replaceable', () => {

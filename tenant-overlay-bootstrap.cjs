@@ -104,7 +104,7 @@ function clamp(value, min, max, fallback) {
 
 function normalizeWidget(input, index = 0) {
   const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
-  const kind = ['xbox', 'camera', 'screen', 'image', 'embed', 'text', 'alert'].includes(source.kind) ? source.kind : 'embed';
+  const kind = ['xbox', 'camera', 'screen', 'image', 'video', 'frame', 'embed', 'text', 'alert'].includes(source.kind) ? source.kind : 'embed';
   const fallbackWidth = kind === 'xbox' ? SCENE_WIDTH : kind === 'screen' ? 640 : kind === 'alert' ? 520 : 360;
   const fallbackHeight = kind === 'xbox' ? SCENE_HEIGHT : kind === 'screen' ? 360 : 220;
   const fitDefault = kind === 'camera' ? 'cover' : 'contain';
@@ -123,7 +123,7 @@ function normalizeWidget(input, index = 0) {
     height: clamp(source.height, 24, SCENE_HEIGHT * 2, fallbackHeight),
     opacity: clamp(source.opacity, 0, 1, 1),
     zIndex: clamp(source.zIndex, -100000, 100000, kind === 'xbox' ? 0 : index + 1),
-    ...(['xbox', 'camera', 'screen', 'image'].includes(kind) ? { fit } : {}),
+    ...(['xbox', 'camera', 'screen', 'image', 'video'].includes(kind) ? { fit } : {}),
   };
 }
 
@@ -473,6 +473,63 @@ function personalLoungeDebugLayout() {
 };
 }
 
+const LOUNGE_24X7_VERSION = 1;
+const LOUNGE_24X7_SLOTS = Object.freeze({
+  main: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
+  alerts: Object.freeze({ x: 75.5, y: 4.5, width: 211, height: 41 }),
+  media: Object.freeze({ x: 75.5, y: 16, width: 211, height: 130 }),
+  activity: Object.freeze({ x: 75.5, y: 44, width: 211, height: 265 }),
+  stats: Object.freeze({ x: 2.5, y: 76, width: 202, height: 92 }),
+  shoutouts: Object.freeze({ x: 26.75, y: 76, width: 202, height: 92 }),
+  games: Object.freeze({ x: 51, y: 76, width: 202, height: 92 }),
+});
+
+function applyMtmanLounge24x7Layout(input) {
+  const layout = normalizeLayout(input);
+  const slotById = new Map([
+    ['community-lounge-live-spotlight', 'main'],
+    ['community-lounge-alerts', 'alerts'],
+    ['community-lounge-hmo-media', 'media'],
+    ['community-lounge-nebula-stage', 'activity'],
+    ['sw-featured-chat', 'activity'],
+    ['sw-social', 'activity'],
+    ['sw-notification', 'activity'],
+    ['sw-gamble', 'activity'],
+    ['sw-classic-gamble', 'activity'],
+    ['sw-pokemon-pack', 'activity'],
+    ['community-lounge-leaderboard', 'activity'],
+    ['community-lounge-leaderboard-v2', 'activity'],
+    ['sw-partner-checkin', 'stats'],
+    ['sw-shoutout', 'shoutouts'],
+    ['community-lounge-chat-tag', 'games'],
+  ]);
+  const background = {
+    id: 'community-lounge-starfield-24x7', title: '24/7 Starfield', kind: 'video', visible: true,
+    locked: true, interactive: false, x: 0, y: 0, width: SCENE_WIDTH, height: SCENE_HEIGHT,
+    opacity: 1, zIndex: -100, fit: 'cover', autoplay: true, muted: true, loop: true,
+    url: '/assets/overlay-bay/starfield-pingpong.mp4', role: 'broadcast-background',
+  };
+  const frame = {
+    id: 'community-lounge-frame-24x7', title: '24/7 Neon Panel Frame', kind: 'frame', visible: true,
+    locked: true, interactive: false, x: 0, y: 0, width: SCENE_WIDTH, height: SCENE_HEIGHT,
+    opacity: 1, zIndex: 480, preset: 'broadcast-v1', role: 'broadcast-frame',
+  };
+  const widgets = layout.widgets
+    .filter((widget) => widget.id !== background.id && widget.id !== frame.id)
+    .map((widget) => {
+      const slot = slotById.get(widget.id);
+      return slot ? { ...widget, ...LOUNGE_24X7_SLOTS[slot], layoutSlot: slot } : widget;
+    });
+  widgets.unshift(normalizeWidget(background, 0));
+  widgets.push(normalizeWidget(frame, widgets.length));
+  return {
+    ...layout,
+    template: 'community-lounge-24x7-v1',
+    lounge24x7LayoutVersion: LOUNGE_24X7_VERSION,
+    widgets,
+  };
+}
+
 function normalizeLayout(input) {
   const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   return {
@@ -633,6 +690,11 @@ function readTenantRecord(user, create = true) {
         );
         if (interactiveTestIndex >= 0) {
           record.outputs.lounge.widgets.splice(interactiveTestIndex, 1);
+          corrected = true;
+        }
+
+        if (Number(record.outputs.lounge.lounge24x7LayoutVersion || 0) < LOUNGE_24X7_VERSION) {
+          record.outputs.lounge = applyMtmanLounge24x7Layout(record.outputs.lounge);
           corrected = true;
         }
 
@@ -929,6 +991,7 @@ module.exports = {
     emptyLayout,
     systemTransparentAlertLayout,
     personalLoungeDebugLayout,
+    applyMtmanLounge24x7Layout,
     urlsForTenant,
   },
 };

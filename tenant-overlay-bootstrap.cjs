@@ -508,17 +508,19 @@ function personalLoungeDebugLayout() {
 };
 }
 
-const LOUNGE_24X7_VERSION = 6;
+const LOUNGE_24X7_VERSION = 7;
 const LOUNGE_24X7_SLOTS = Object.freeze({
   main: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   mainAlert: Object.freeze({ x: 6, y: 6, width: 590, height: 150 }),
   mainEvent: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   alerts: Object.freeze({ x: 75.5, y: 4.5, width: 211, height: 41 }),
   media: Object.freeze({ x: 75.5, y: 16, width: 211, height: 130 }),
-  activity: Object.freeze({ x: 75.5, y: 44, width: 211, height: 265 }),
-  stats: Object.freeze({ x: 2.5, y: 76, width: 202, height: 92 }),
-  shoutouts: Object.freeze({ x: 26.75, y: 76, width: 202, height: 92 }),
-  games: Object.freeze({ x: 51, y: 76, width: 202, height: 92 }),
+  // Reserve a shallow 47px footer lane. Tightening the gaps lets the bottom
+  // cards retain their full height while the tall activity panel loses 2px.
+  activity: Object.freeze({ x: 75.5, y: 42.5, width: 211, height: 263 }),
+  stats: Object.freeze({ x: 2.5, y: 74, width: 202, height: 92 }),
+  shoutouts: Object.freeze({ x: 26.75, y: 74, width: 202, height: 92 }),
+  games: Object.freeze({ x: 51, y: 74, width: 202, height: 92 }),
 });
 
 function applyMtmanLounge24x7Layout(input) {

@@ -282,8 +282,8 @@
     if (kind === 'frame') {
       const slots = [
         ['main', 2.5, 4.5, 69.5, 67], ['alerts', 75.5, 4.5, 22, 7.5],
-        ['media', 75.5, 16, 22, 24], ['activity', 75.5, 44, 22, 49],
-        ['stats', 2.5, 76, 21, 17], ['shoutouts', 26.75, 76, 21, 17], ['games', 51, 76, 21, 17],
+        ['media', 75.5, 16, 22, 24], ['activity', 75.5, 42.5, 22, 48.7],
+        ['stats', 2.5, 74, 21, 17], ['shoutouts', 26.75, 74, 21, 17], ['games', 51, 74, 21, 17],
       ];
       return `<div class="obv2-broadcast-frame">${slots.map(([id, x, y, width, height]) => `<i data-slot="${id}" style="left:${x}%;top:${y}%;width:${width}%;height:${height}%"></i>`).join('')}</div>`;
     }
@@ -434,9 +434,9 @@
       const slots = {
         main: { x: 2.5, y: 4.5, width: 667, height: 362 }, alerts: { x: 75.5, y: 4.5, width: 211, height: 41 },
         mainAlert: { x: 6, y: 6, width: 590, height: 150 }, mainEvent: { x: 2.5, y: 4.5, width: 667, height: 362 },
-        media: { x: 75.5, y: 16, width: 211, height: 130 }, activity: { x: 75.5, y: 44, width: 211, height: 265 },
-        stats: { x: 2.5, y: 76, width: 202, height: 92 }, shoutouts: { x: 26.75, y: 76, width: 202, height: 92 },
-        games: { x: 51, y: 76, width: 202, height: 92 },
+        media: { x: 75.5, y: 16, width: 211, height: 130 }, activity: { x: 75.5, y: 42.5, width: 211, height: 263 },
+        stats: { x: 2.5, y: 74, width: 202, height: 92 }, shoutouts: { x: 26.75, y: 74, width: 202, height: 92 },
+        games: { x: 51, y: 74, width: 202, height: 92 },
       };
       const slotById = new Map([
         ['community-lounge-live-spotlight', 'main'], ['community-lounge-alerts', 'mainAlert'], ['community-lounge-hmo-media', 'media'],
@@ -479,7 +479,7 @@
         locked: true, interactive: false, zIndex: 480, role: 'broadcast-frame',
       }));
       state.overlay.template = 'community-lounge-24x7-v1';
-      state.overlay.lounge24x7LayoutVersion = 5;
+      state.overlay.lounge24x7LayoutVersion = 7;
       state.overlayDirty = true;
       renderOverlays();
       setStatus?.('24/7 layout applied to this Lounge. Save overlay to keep it.', 'ok');

@@ -169,7 +169,7 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   const original = bootstrap._test.personalLoungeDebugLayout();
   const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
   assert.equal(layout.template, 'community-lounge-24x7-v1');
-  assert.equal(layout.lounge24x7LayoutVersion, 6);
+  assert.equal(layout.lounge24x7LayoutVersion, 7);
   assert.equal(layout.widgets.length, original.widgets.length + 5);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-alerts')?.layoutSlot, 'mainAlert');
@@ -195,6 +195,18 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   assert.match(layout.widgets.find((widget) => widget.id === 'sw-pokemon-pack')?.url || '', /placement=lounge-main/);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-starfield-24x7')?.kind, 'video');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-frame-24x7')?.kind, 'frame');
+  const activity = layout.widgets.find((widget) => widget.id === 'community-lounge-nebula-stage');
+  assert.deepEqual(
+    { x: activity?.x, y: activity?.y, width: activity?.width, height: activity?.height },
+    { x: 75.5, y: 42.5, width: 211, height: 263 },
+  );
+  const games = layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tag');
+  assert.deepEqual(
+    { x: games?.x, y: games?.y, width: games?.width, height: games?.height },
+    { x: 51, y: 74, width: 202, height: 92 },
+  );
+  assert.ok((activity.y / 100 * 540) + activity.height <= 493, 'activity panel must stay above the footer lane');
+  assert.ok((games.y / 100 * 540) + games.height <= 493, 'bottom panels must stay above the footer lane');
 });
 
 

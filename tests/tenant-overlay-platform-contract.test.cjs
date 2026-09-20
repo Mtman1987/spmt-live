@@ -139,18 +139,15 @@ test('SpaceMountainLive system tenant resolves to an empty transparent alerts-on
 test('mtman1987 debug Lounge preset contains the complete populated scene', () => {
   const layout = bootstrap._test.personalLoungeDebugLayout();
   assert.equal(layout.template, 'community-lounge-system-v2');
-  assert.equal(layout.widgets.length, 22);
+  assert.equal(layout.widgets.length, 21);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-alerts'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight'));
-  const interactiveTest = layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight-interactive-test');
-  assert.ok(interactiveTest);
-  assert.equal(interactiveTest.interactive, true);
-  assert.equal(interactiveTest.interactionMode, 'interactive');
-  assert.equal(interactiveTest.role, 'community-program-interactive-test');
+  assert.equal(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight-interactive-test'), false);
   assert.equal(
     layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.url,
     'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1',
   );
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.interactive, true);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));
 });
 
@@ -160,7 +157,7 @@ test('saved hidden Lounge layers stay hidden and tenant renderer respects visibi
   const outputSource = read('public/tenant-output.html');
   const sharedSource = read('public/shared/shared.js');
 
-  assert.match(bootstrapSource, /\.\.\.interactiveTest,\s*\.\.\.current,/s);
+  assert.match(bootstrapSource, /interactiveTestIndex[\s\S]+splice\(interactiveTestIndex, 1\)/);
   assert.match(outputSource, /const visibleWidgets = allWidgets\.filter\(\(widget\) => widget\.visible !== false\)/);
   assert.doesNotMatch(outputSource, /testMode \? allWidgets : allWidgets\.filter/);
   assert.match(sharedSource, /widget\.visible = widget\.visible === false; state\.overlayDirty = true/);

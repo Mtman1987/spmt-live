@@ -39,3 +39,9 @@ test('Lounge Twitch test player exposes controls and restores audio after playba
   assert.match(spotlight, /setMuted\(false\)/);
   assert.match(spotlight, /Twitch volume controls/);
 });
+
+test('tenant output passes clicks only to explicitly interactive layers', () => {
+  const output = fs.readFileSync('public/tenant-output.html', 'utf8');
+  assert.match(output, /\.tenant-widget\.is-interactive,\.tenant-widget\.is-interactive iframe\{pointer-events:auto\}/);
+  assert.match(output, /widget\.interactive === true \|\| widget\.interactionMode === 'interactive'/);
+});

@@ -433,15 +433,16 @@
       }
       const slots = {
         main: { x: 2.5, y: 4.5, width: 667, height: 362 }, alerts: { x: 75.5, y: 4.5, width: 211, height: 41 },
+        mainAlert: { x: 6, y: 6, width: 590, height: 150 }, mainEvent: { x: 2.5, y: 4.5, width: 667, height: 362 },
         media: { x: 75.5, y: 16, width: 211, height: 130 }, activity: { x: 75.5, y: 44, width: 211, height: 265 },
         stats: { x: 2.5, y: 76, width: 202, height: 92 }, shoutouts: { x: 26.75, y: 76, width: 202, height: 92 },
         games: { x: 51, y: 76, width: 202, height: 92 },
       };
       const slotById = new Map([
-        ['community-lounge-live-spotlight', 'main'], ['community-lounge-alerts', 'alerts'], ['community-lounge-hmo-media', 'media'],
+        ['community-lounge-live-spotlight', 'main'], ['community-lounge-alerts', 'mainAlert'], ['community-lounge-hmo-media', 'media'],
         ['community-lounge-nebula-stage', 'activity'], ['sw-featured-chat', 'activity'], ['sw-social', 'activity'],
         ['sw-notification', 'activity'], ['sw-gamble', 'activity'], ['sw-classic-gamble', 'activity'], ['sw-pokemon-pack', 'activity'],
-        ['community-lounge-leaderboard-v2', 'activity'], ['sw-partner-checkin', 'stats'], ['sw-shoutout', 'shoutouts'],
+        ['community-lounge-leaderboard-v2', 'activity'], ['sw-partner-checkin', 'mainEvent'], ['sw-shoutout', 'shoutouts'],
         ['community-lounge-chat-tag', 'games'],
       ]);
       state.overlay.widgets = (state.overlay.widgets || [])
@@ -460,7 +461,7 @@
         locked: true, interactive: false, zIndex: 480, role: 'broadcast-frame',
       }));
       state.overlay.template = 'community-lounge-24x7-v1';
-      state.overlay.lounge24x7LayoutVersion = 1;
+      state.overlay.lounge24x7LayoutVersion = 3;
       state.overlayDirty = true;
       renderOverlays();
       setStatus?.('24/7 layout applied to this Lounge. Save overlay to keep it.', 'ok');

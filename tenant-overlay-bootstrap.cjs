@@ -490,9 +490,11 @@ function personalLoungeDebugLayout() {
 };
 }
 
-const LOUNGE_24X7_VERSION = 2;
+const LOUNGE_24X7_VERSION = 3;
 const LOUNGE_24X7_SLOTS = Object.freeze({
   main: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
+  mainAlert: Object.freeze({ x: 6, y: 6, width: 590, height: 150 }),
+  mainEvent: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   alerts: Object.freeze({ x: 75.5, y: 4.5, width: 211, height: 41 }),
   media: Object.freeze({ x: 75.5, y: 16, width: 211, height: 130 }),
   activity: Object.freeze({ x: 75.5, y: 44, width: 211, height: 265 }),
@@ -505,7 +507,7 @@ function applyMtmanLounge24x7Layout(input) {
   const layout = normalizeLayout(input);
   const slotById = new Map([
     ['community-lounge-live-spotlight', 'main'],
-    ['community-lounge-alerts', 'alerts'],
+    ['community-lounge-alerts', 'mainAlert'],
     ['community-lounge-hmo-media', 'media'],
     ['community-lounge-nebula-stage', 'activity'],
     ['sw-featured-chat', 'activity'],
@@ -517,7 +519,7 @@ function applyMtmanLounge24x7Layout(input) {
     ['sw-pokemon-pack', 'activity'],
     ['community-lounge-leaderboard', 'activity'],
     ['community-lounge-leaderboard-v2', 'activity'],
-    ['sw-partner-checkin', 'stats'],
+    ['sw-partner-checkin', 'mainEvent'],
     ['sw-shoutout', 'shoutouts'],
     ['community-lounge-chat-tag', 'games'],
   ]);

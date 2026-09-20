@@ -167,26 +167,6 @@ function loungeAlertWidget() {
   };
 }
 
-function loungeInteractiveTwitchTestWidget() {
-  return {
-    id: 'community-lounge-live-spotlight-interactive-test',
-    title: 'Interactive Twitch Test',
-    kind: 'embed',
-    visible: true,
-    locked: true,
-    interactive: true,
-    interactionMode: 'interactive',
-    x: 64,
-    y: 64,
-    width: 330,
-    height: 186,
-    opacity: 1,
-    zIndex: 10,
-    url: 'https://spmt.live/lounge-live-spotlight.html?test=1&v=interactive-lounge-1',
-    sourceApp: 'SPMT',
-    role: 'community-program-interactive-test',
-  };
-}
 function personalLoungeDebugLayout() {
   return {
   "schemaVersion": 3,
@@ -194,14 +174,14 @@ function personalLoungeDebugLayout() {
   "enabled": true,
   "widgets": [
     loungeAlertWidget(),
-    loungeInteractiveTwitchTestWidget(),
     {
       "id": "community-lounge-live-spotlight",
       "title": "DSH Live Community Spotlight",
       "kind": "embed",
       "visible": true,
       "locked": true,
-      "interactive": false,
+      "interactive": true,
+      "interactionMode": "interactive",
       "x": 0,
       "y": 0,
       "width": 960,
@@ -638,9 +618,10 @@ function readTenantRecord(user, create = true) {
         record.outputs.lounge.widgets = (record.outputs.lounge.widgets || []).map((widget) => {
           if (widget.id === 'community-lounge-live-spotlight') {
             const nextUrl = 'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1';
-            if (widget.url === nextUrl) return widget;
+            const next = { ...widget, url: nextUrl, title: 'DSH Live Community Spotlight', interactive: true, interactionMode: 'interactive' };
+            if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;
-            return { ...widget, url: nextUrl, title: 'DSH Live Community Spotlight' };
+            return next;
           }
           if (widget.id === 'community-lounge-hmo-media') {
             let nextUrl = String(widget.url || '')
@@ -693,34 +674,12 @@ function readTenantRecord(user, create = true) {
           corrected = true;
         }
 
-        const interactiveTest = loungeInteractiveTwitchTestWidget();
-        const existingInteractiveTestIndex = record.outputs.lounge.widgets.findIndex(
-          (widget) => widget.id === interactiveTest.id,
+        const interactiveTestIndex = record.outputs.lounge.widgets.findIndex(
+          (widget) => widget.id === 'community-lounge-live-spotlight-interactive-test',
         );
-        if (existingInteractiveTestIndex < 0) {
-          record.outputs.lounge.widgets.push(normalizeWidget(interactiveTest, record.outputs.lounge.widgets.length));
+        if (interactiveTestIndex >= 0) {
+          record.outputs.lounge.widgets.splice(interactiveTestIndex, 1);
           corrected = true;
-        } else {
-          const current = record.outputs.lounge.widgets[existingInteractiveTestIndex];
-          // Migrations may repair system-owned identity/URL fields, but must never
-          // overwrite operator-controlled scene state such as visibility, lock,
-          // geometry, opacity, or layer order after the editor has saved it.
-          const next = normalizeWidget({
-            ...interactiveTest,
-            ...current,
-            id: interactiveTest.id,
-            title: interactiveTest.title,
-            kind: interactiveTest.kind,
-            url: interactiveTest.url,
-            sourceApp: interactiveTest.sourceApp,
-            role: interactiveTest.role,
-            interactive: interactiveTest.interactive,
-            interactionMode: interactiveTest.interactionMode,
-          }, existingInteractiveTestIndex);
-          if (JSON.stringify(next) !== JSON.stringify(current)) {
-            record.outputs.lounge.widgets[existingInteractiveTestIndex] = next;
-            corrected = true;
-          }
         }
 
         if (corrected) writeTenantRecord(record);

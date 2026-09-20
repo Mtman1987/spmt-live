@@ -490,7 +490,7 @@ function personalLoungeDebugLayout() {
 };
 }
 
-const LOUNGE_24X7_VERSION = 4;
+const LOUNGE_24X7_VERSION = 5;
 const LOUNGE_24X7_SLOTS = Object.freeze({
   main: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   mainAlert: Object.freeze({ x: 6, y: 6, width: 590, height: 150 }),
@@ -547,6 +547,7 @@ function applyMtmanLounge24x7Layout(input) {
         };
       }
       if (widget.id === 'sw-classic-gamble') return { ...widget, visible: false };
+      if (widget.id === 'sw-shoutout') return { ...widget, visible: false };
       if (widget.id === 'sw-pokemon-pack') {
         return {
           ...widget,
@@ -565,6 +566,33 @@ function applyMtmanLounge24x7Layout(input) {
       url: 'https://streamweaver-new.fly.dev/overlay/leaderboard?tenant=spacemountainlive',
       sourceApp: 'StreamWeaver', role: 'command-activity-leaderboard',
       ...LOUNGE_24X7_SLOTS.activity, layoutSlot: 'activity',
+    }, widgets.length));
+  }
+  if (!widgets.some((widget) => widget.id === 'community-lounge-live-partners')) {
+    widgets.push(normalizeWidget({
+      id: 'community-lounge-live-partners', title: 'Partner / Crew Live Spotlight', kind: 'embed', visible: true,
+      locked: true, interactive: false, opacity: 1, zIndex: 64,
+      url: 'https://streamweaver-new.fly.dev/overlay/live-shoutouts?group=partner',
+      sourceApp: 'StreamWeaver', role: 'partner-live-rotation',
+      ...LOUNGE_24X7_SLOTS.stats, layoutSlot: 'stats',
+    }, widgets.length));
+  }
+  if (!widgets.some((widget) => widget.id === 'community-lounge-live-community')) {
+    widgets.push(normalizeWidget({
+      id: 'community-lounge-live-community', title: 'Community Live Spotlight', kind: 'embed', visible: true,
+      locked: true, interactive: false, opacity: 1, zIndex: 64,
+      url: 'https://streamweaver-new.fly.dev/overlay/live-shoutouts?group=community',
+      sourceApp: 'StreamWeaver', role: 'community-live-rotation',
+      ...LOUNGE_24X7_SLOTS.shoutouts, layoutSlot: 'shoutouts',
+    }, widgets.length));
+  }
+  if (!widgets.some((widget) => widget.id === 'community-lounge-status-strip')) {
+    widgets.push(normalizeWidget({
+      id: 'community-lounge-status-strip', title: 'Active Game / Now Showing', kind: 'embed', visible: true,
+      locked: true, interactive: false, opacity: 1, zIndex: 64,
+      url: 'https://streamweaver-new.fly.dev/overlay/lounge-status-strip',
+      sourceApp: 'StreamWeaver', role: 'lounge-status-strip',
+      ...LOUNGE_24X7_SLOTS.alerts, layoutSlot: 'alerts',
     }, widgets.length));
   }
   widgets.unshift(normalizeWidget(background, 0));

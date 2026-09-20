@@ -450,10 +450,23 @@
         .map((item) => {
           if (item.id === 'sw-gamble') return { ...item, ...slots.games, layoutSlot: 'games', zIndex: 276, url: 'https://streamweaver-new.fly.dev/gamble-overlay?tenant=spacemountainlive&placement=lounge-tag' };
           if (item.id === 'sw-classic-gamble') return { ...item, visible: false };
+          if (item.id === 'sw-shoutout') return { ...item, visible: false };
           if (item.id === 'sw-pokemon-pack') return { ...item, ...slots.mainEvent, layoutSlot: 'mainEvent', url: 'https://streamweaver-new.fly.dev/overlay/card-pack?tenant=spacemountainlive&placement=lounge-main' };
           const slot = slotById.get(item.id);
           return slot ? { ...item, ...slots[slot], layoutSlot: slot } : item;
         });
+      const loungeSources = [
+        { id: 'community-lounge-live-partners', title: 'Partner / Crew Live Spotlight', url: 'https://streamweaver-new.fly.dev/overlay/live-shoutouts?group=partner', role: 'partner-live-rotation', slot: 'stats' },
+        { id: 'community-lounge-live-community', title: 'Community Live Spotlight', url: 'https://streamweaver-new.fly.dev/overlay/live-shoutouts?group=community', role: 'community-live-rotation', slot: 'shoutouts' },
+        { id: 'community-lounge-status-strip', title: 'Active Game / Now Showing', url: 'https://streamweaver-new.fly.dev/overlay/lounge-status-strip', role: 'lounge-status-strip', slot: 'alerts' },
+      ];
+      loungeSources.forEach((source) => {
+        if (state.overlay.widgets.some((item) => item.id === source.id)) return;
+        state.overlay.widgets.push(commonWidget('embed', source.title, {
+          id: source.id, url: source.url, ...slots[source.slot], layoutSlot: source.slot,
+          locked: true, interactive: false, zIndex: 64, role: source.role,
+        }));
+      });
       state.overlay.widgets.unshift(commonWidget('video', '24/7 Starfield', {
         id: 'community-lounge-starfield-24x7', url: '/assets/overlay-bay/starfield-pingpong.mp4', x: 0, y: 0,
         width: 960, height: 540, fit: 'cover', muted: true, loop: true, locked: true, interactive: false,
@@ -464,7 +477,7 @@
         locked: true, interactive: false, zIndex: 480, role: 'broadcast-frame',
       }));
       state.overlay.template = 'community-lounge-24x7-v1';
-      state.overlay.lounge24x7LayoutVersion = 4;
+      state.overlay.lounge24x7LayoutVersion = 5;
       state.overlayDirty = true;
       renderOverlays();
       setStatus?.('24/7 layout applied to this Lounge. Save overlay to keep it.', 'ok');

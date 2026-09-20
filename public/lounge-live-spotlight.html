@@ -36,6 +36,7 @@
       let player = null;
       let fallbackTimer = null;
       let userUnlocked = false;
+      let switchingChannel = false;
 
       function setStatus(message) {
         statusEl.textContent = String(message || '');
@@ -59,10 +60,10 @@
 
       const TARGET_VOLUME = 0.58;
 
-      function forcePlay() {
+      function forcePlay(mutedBootstrap = false) {
         if (!player) return;
         try { player.setVolume(TARGET_VOLUME); } catch {}
-        try { player.setMuted(!userUnlocked); } catch {}
+        try { player.setMuted(mutedBootstrap || !userUnlocked); } catch {}
         try { player.play(); } catch {}
       }
 
@@ -89,11 +90,16 @@
         // fresh click every time the community spotlight rotates.
         if (player) {
           currentLogin = clean;
+          switchingChannel = true;
+          clearFallback();
           if (testMode) setStatus('Switching to @' + clean + '…');
+          try { player.setMuted(true); } catch {}
           try { player.setChannel(clean); } catch {}
-          forcePlay();
-          setTimeout(forcePlay, 350);
-          setTimeout(forcePlay, 1200);
+          forcePlay(true);
+          setTimeout(() => forcePlay(true), 350);
+          setTimeout(() => forcePlay(true), 1200);
+          setTimeout(() => forcePlay(true), 2500);
+          setTimeout(() => forcePlay(true), 4000);
           return;
         }
 
@@ -122,16 +128,23 @@
           }, 1800);
         });
         player.addEventListener(window.Twitch.Player.PLAY, () => {
+          switchingChannel = false;
           clearFallback();
           restoreAudio();
           if (testMode) setStatus('Playing @' + clean + ' — use the Twitch volume controls in the player.');
         });
         player.addEventListener(window.Twitch.Player.PLAYING, () => {
+          switchingChannel = false;
+          clearFallback();
           restoreAudio();
           setTimeout(restoreAudio, 250);
           setTimeout(restoreAudio, 1000);
         });
         player.addEventListener(window.Twitch.Player.PAUSE, () => {
+          if (switchingChannel) {
+            setTimeout(() => forcePlay(true), 300);
+            return;
+          }
           playFallback.classList.add('show');
           if (testMode) setStatus('Playback paused. Tap Play to resume.');
         });
@@ -144,6 +157,7 @@
 
       playFallback.addEventListener('click', () => {
         userUnlocked = true;
+        switchingChannel = false;
         forcePlay();
         setTimeout(restoreAudio, 150);
         playFallback.classList.remove('show');

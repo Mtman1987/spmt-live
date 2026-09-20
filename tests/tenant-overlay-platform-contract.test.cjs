@@ -139,9 +139,17 @@ test('SpaceMountainLive system tenant resolves to an empty transparent alerts-on
 test('mtman1987 debug Lounge preset contains the complete populated scene', () => {
   const layout = bootstrap._test.personalLoungeDebugLayout();
   assert.equal(layout.template, 'community-lounge-system-v2');
-  assert.equal(layout.widgets.length, 19);
+  assert.equal(layout.widgets.length, 20);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-alerts'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight'));
+  assert.equal(
+    layout.widgets.find((widget) => widget.id === 'community-lounge-nebula-stage')?.url,
+    'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity',
+  );
+  assert.equal(
+    layout.widgets.find((widget) => widget.id === 'community-lounge-nebula-main-stage')?.layoutSlot,
+    'mainEvent',
+  );
   assert.equal(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight-interactive-test'), false);
   assert.equal(layout.widgets.some((widget) => widget.id === 'sw-pokemon'), false);
   assert.equal(layout.widgets.some((widget) => widget.id === 'sw-pokemon-collection'), false);
@@ -150,7 +158,7 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-leaderboard-command'));
   assert.equal(
     layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.url,
-    'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1',
+    'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-2',
   );
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.interactive, true);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));
@@ -160,7 +168,7 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   const original = bootstrap._test.personalLoungeDebugLayout();
   const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
   assert.equal(layout.template, 'community-lounge-24x7-v1');
-  assert.equal(layout.lounge24x7LayoutVersion, 5);
+  assert.equal(layout.lounge24x7LayoutVersion, 6);
   assert.equal(layout.widgets.length, original.widgets.length + 5);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-alerts')?.layoutSlot, 'mainAlert');

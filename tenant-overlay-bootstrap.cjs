@@ -188,7 +188,7 @@ function personalLoungeDebugLayout() {
       "height": 540,
       "opacity": 1,
       "zIndex": 0,
-      "url": "https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1",
+      "url": "https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-2",
       "sourceApp": "DiscordStreamHub",
       "role": "community-program"
     },
@@ -228,7 +228,7 @@ function personalLoungeDebugLayout() {
     },
     {
       "id": "community-lounge-nebula-stage",
-      "title": "NebulaBay Game Stage",
+      "title": "NebulaBay Activity Games",
       "kind": "embed",
       "visible": true,
       "locked": true,
@@ -239,9 +239,27 @@ function personalLoungeDebugLayout() {
       "height": 378,
       "opacity": 1,
       "zIndex": 90,
-      "url": "https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-main",
+      "url": "https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity",
       "sourceApp": "NebulaBay",
       "role": "game-stage"
+    },
+    {
+      "id": "community-lounge-nebula-main-stage",
+      "title": "NebulaBay Word Game Stage",
+      "kind": "embed",
+      "visible": true,
+      "locked": true,
+      "interactive": false,
+      "x": 0,
+      "y": 0,
+      "width": 960,
+      "height": 540,
+      "opacity": 1,
+      "zIndex": 90,
+      "url": "https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-main",
+      "sourceApp": "NebulaBay",
+      "role": "main-game-stage",
+      "layoutSlot": "mainEvent"
     },
     {
       "id": "community-lounge-emoji-rain",
@@ -490,7 +508,7 @@ function personalLoungeDebugLayout() {
 };
 }
 
-const LOUNGE_24X7_VERSION = 5;
+const LOUNGE_24X7_VERSION = 6;
 const LOUNGE_24X7_SLOTS = Object.freeze({
   main: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   mainAlert: Object.freeze({ x: 6, y: 6, width: 590, height: 150 }),
@@ -510,6 +528,7 @@ function applyMtmanLounge24x7Layout(input) {
     ['community-lounge-alerts', 'mainAlert'],
     ['community-lounge-hmo-media', 'media'],
     ['community-lounge-nebula-stage', 'activity'],
+    ['community-lounge-nebula-main-stage', 'mainEvent'],
     ['sw-featured-chat', 'activity'],
     ['sw-leaderboard-command', 'activity'],
     ['sw-social', 'activity'],
@@ -566,6 +585,15 @@ function applyMtmanLounge24x7Layout(input) {
       url: 'https://streamweaver-new.fly.dev/overlay/leaderboard?tenant=spacemountainlive',
       sourceApp: 'StreamWeaver', role: 'command-activity-leaderboard',
       ...LOUNGE_24X7_SLOTS.activity, layoutSlot: 'activity',
+    }, widgets.length));
+  }
+  if (!widgets.some((widget) => widget.id === 'community-lounge-nebula-main-stage')) {
+    widgets.push(normalizeWidget({
+      id: 'community-lounge-nebula-main-stage', title: 'NebulaBay Word Game Stage', kind: 'embed', visible: true,
+      locked: true, interactive: false, opacity: 1, zIndex: 90,
+      url: 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-main',
+      sourceApp: 'NebulaBay', role: 'main-game-stage',
+      ...LOUNGE_24X7_SLOTS.mainEvent, layoutSlot: 'mainEvent',
     }, widgets.length));
   }
   if (!widgets.some((widget) => widget.id === 'community-lounge-live-partners')) {
@@ -703,7 +731,7 @@ function readTenantRecord(user, create = true) {
 
         record.outputs.lounge.widgets = record.outputs.lounge.widgets.map((widget) => {
           if (widget.id === 'community-lounge-live-spotlight') {
-            const nextUrl = 'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1';
+            const nextUrl = 'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-2';
             const next = { ...widget, url: nextUrl, title: 'DSH Live Community Spotlight', interactive: true, interactionMode: 'interactive' };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;
@@ -725,6 +753,20 @@ function readTenantRecord(user, create = true) {
               url: 'https://streamweaver-new.fly.dev/overlay/shared-chat-featured?tenant=spacemountainlive&fallback=latest',
               zIndex: 71,
               role: 'idle-activity-chat',
+              ...LOUNGE_24X7_SLOTS.activity,
+              layoutSlot: 'activity',
+            };
+            if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
+            corrected = true;
+            return next;
+          }
+          if (widget.id === 'community-lounge-nebula-stage') {
+            const next = {
+              ...widget,
+              title: 'NebulaBay Activity Games',
+              url: 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity',
+              zIndex: 90,
+              role: 'activity-game-stage',
               ...LOUNGE_24X7_SLOTS.activity,
               layoutSlot: 'activity',
             };

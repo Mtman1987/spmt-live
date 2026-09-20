@@ -440,7 +440,7 @@
       };
       const slotById = new Map([
         ['community-lounge-live-spotlight', 'main'], ['community-lounge-alerts', 'mainAlert'], ['community-lounge-hmo-media', 'media'],
-        ['community-lounge-nebula-stage', 'activity'], ['sw-featured-chat', 'activity'], ['sw-social', 'activity'],
+        ['community-lounge-nebula-stage', 'activity'], ['community-lounge-nebula-main-stage', 'mainEvent'], ['sw-featured-chat', 'activity'], ['sw-social', 'activity'],
         ['sw-notification', 'activity'], ['sw-gamble', 'games'], ['sw-classic-gamble', 'activity'], ['sw-pokemon-pack', 'mainEvent'],
         ['community-lounge-leaderboard-v2', 'activity'], ['sw-partner-checkin', 'mainEvent'], ['sw-shoutout', 'shoutouts'],
         ['community-lounge-chat-tag', 'games'],
@@ -448,6 +448,7 @@
       state.overlay.widgets = (state.overlay.widgets || [])
         .filter((item) => !['community-lounge-starfield-24x7', 'community-lounge-frame-24x7'].includes(item.id))
         .map((item) => {
+          if (item.id === 'community-lounge-nebula-stage') return { ...item, title: 'NebulaBay Activity Games', url: 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity', ...slots.activity, layoutSlot: 'activity', zIndex: 90, role: 'activity-game-stage' };
           if (item.id === 'sw-gamble') return { ...item, ...slots.games, layoutSlot: 'games', zIndex: 276, url: 'https://streamweaver-new.fly.dev/gamble-overlay?tenant=spacemountainlive&placement=lounge-tag' };
           if (item.id === 'sw-classic-gamble') return { ...item, visible: false };
           if (item.id === 'sw-shoutout') return { ...item, visible: false };
@@ -456,6 +457,7 @@
           return slot ? { ...item, ...slots[slot], layoutSlot: slot } : item;
         });
       const loungeSources = [
+        { id: 'community-lounge-nebula-main-stage', title: 'NebulaBay Word Game Stage', url: 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-main', role: 'main-game-stage', slot: 'mainEvent', zIndex: 90 },
         { id: 'community-lounge-live-partners', title: 'Partner / Crew Live Spotlight', url: 'https://streamweaver-new.fly.dev/overlay/live-shoutouts?group=partner', role: 'partner-live-rotation', slot: 'stats' },
         { id: 'community-lounge-live-community', title: 'Community Live Spotlight', url: 'https://streamweaver-new.fly.dev/overlay/live-shoutouts?group=community', role: 'community-live-rotation', slot: 'shoutouts' },
         { id: 'community-lounge-status-strip', title: 'Active Game / Now Showing', url: 'https://streamweaver-new.fly.dev/overlay/lounge-status-strip', role: 'lounge-status-strip', slot: 'alerts' },
@@ -464,7 +466,7 @@
         if (state.overlay.widgets.some((item) => item.id === source.id)) return;
         state.overlay.widgets.push(commonWidget('embed', source.title, {
           id: source.id, url: source.url, ...slots[source.slot], layoutSlot: source.slot,
-          locked: true, interactive: false, zIndex: 64, role: source.role,
+          locked: true, interactive: false, zIndex: source.zIndex || 64, role: source.role,
         }));
       });
       state.overlay.widgets.unshift(commonWidget('video', '24/7 Starfield', {

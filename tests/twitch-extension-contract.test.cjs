@@ -39,6 +39,9 @@ test('Lounge Twitch test player exposes controls and restores audio after playba
   assert.match(spotlight, /setMuted\(false\)/);
   assert.match(spotlight, /Twitch volume controls/);
   assert.match(spotlight, /player\.setChannel\(clean\)/);
+  assert.match(spotlight, /switchingChannel = true/);
+  assert.match(spotlight, /forcePlay\(true\)/);
+  assert.match(spotlight, /player\.setMuted\(true\)/);
   assert.match(spotlight, /userUnlocked = true/);
   assert.doesNotMatch(spotlight, /player\.destroy\(\)/);
 });

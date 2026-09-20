@@ -169,7 +169,7 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   const original = bootstrap._test.personalLoungeDebugLayout();
   const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
   assert.equal(layout.template, 'community-lounge-24x7-v1');
-  assert.equal(layout.lounge24x7LayoutVersion, 8);
+  assert.equal(layout.lounge24x7LayoutVersion, 9);
   assert.equal(layout.widgets.length, original.widgets.length + 5);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-alerts')?.layoutSlot, 'mainAlert');
@@ -206,7 +206,11 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
     { x: 51, y: 76, width: 202, height: 92 },
   );
   assert.ok((activity.y / 100 * 540) + activity.height <= 503, 'activity panel must stop at the fixed-height footer edge');
-  assert.ok((activity.y / 100 * 540) - ((16 / 100 * 540) + 130) <= 6, 'activity panel should use the gap below media');
+  const media = layout.widgets.find((widget) => widget.id === 'community-lounge-hmo-media');
+  const status = layout.widgets.find((widget) => widget.id === 'community-lounge-status-strip');
+  const upperRightGap = (media.y / 100 * 540) - ((status.y / 100 * 540) + status.height);
+  const lowerRightGap = (activity.y / 100 * 540) - ((media.y / 100 * 540) + media.height);
+  assert.ok(Math.abs(upperRightGap - lowerRightGap) <= 1, 'status, media and activity panels should have even vertical gaps');
   assert.ok((games.y / 100 * 540) + games.height <= 503, 'bottom panels must stop at the fixed-height footer edge');
 });
 

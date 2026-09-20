@@ -508,13 +508,13 @@ function personalLoungeDebugLayout() {
 };
 }
 
-const LOUNGE_24X7_VERSION = 8;
+const LOUNGE_24X7_VERSION = 9;
 const LOUNGE_24X7_SLOTS = Object.freeze({
   main: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   mainAlert: Object.freeze({ x: 6, y: 6, width: 590, height: 150 }),
   mainEvent: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   alerts: Object.freeze({ x: 75.5, y: 4.5, width: 211, height: 41 }),
-  media: Object.freeze({ x: 75.5, y: 16, width: 211, height: 130 }),
+  media: Object.freeze({ x: 75.5, y: 14.5, width: 211, height: 130 }),
   // Use the spare gap below media for the activity panel. The lower cards stay
   // at their established position; the 34px footer meets their bottom edge.
   activity: Object.freeze({ x: 75.5, y: 41, width: 211, height: 280 }),

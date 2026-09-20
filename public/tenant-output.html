@@ -153,7 +153,7 @@
         if (widget.kind === 'frame') {
           const slots = [
             ['main', 2.5, 4.5, 69.5, 67], ['alerts', 75.5, 4.5, 22, 7.5],
-            ['media', 75.5, 16, 22, 24], ['activity', 75.5, 41, 22, 51.9],
+            ['media', 75.5, 14.5, 22, 24], ['activity', 75.5, 41, 22, 51.9],
             ['stats', 2.5, 76, 21, 17], ['shoutouts', 26.75, 76, 21, 17], ['games', 51, 76, 21, 17],
           ];
           return `<div class="tenant-broadcast-frame">${slots.map(([id, x, y, width, height]) => `<i data-slot="${id}" style="left:${x}%;top:${y}%;width:${width}%;height:${height}%"></i>`).join('')}</div>`;

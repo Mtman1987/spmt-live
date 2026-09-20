@@ -35,6 +35,7 @@
       let stopped = false;
       let player = null;
       let fallbackTimer = null;
+      let userUnlocked = false;
 
       function setStatus(message) {
         statusEl.textContent = String(message || '');
@@ -54,8 +55,6 @@
         clearFallback();
         if (!testMode) setStatus('');
         try { player?.pause?.(); } catch {}
-        player = null;
-        playerHost.replaceChildren();
       }
 
       const TARGET_VOLUME = 0.58;
@@ -63,12 +62,12 @@
       function forcePlay() {
         if (!player) return;
         try { player.setVolume(TARGET_VOLUME); } catch {}
-        try { player.setMuted(true); } catch {}
+        try { player.setMuted(!userUnlocked); } catch {}
         try { player.play(); } catch {}
       }
 
       function restoreAudio() {
-        if (!player) return;
+        if (!player || !userUnlocked) return;
         try { player.setVolume(TARGET_VOLUME); } catch {}
         try { player.setMuted(false); } catch {}
       }
@@ -82,6 +81,19 @@
         }
         if (clean === currentLogin && player) {
           forcePlay();
+          return;
+        }
+
+        // Keep one Twitch.Player instance for the life of the page. Replacing
+        // the iframe loses the browser's prior user activation and forces a
+        // fresh click every time the community spotlight rotates.
+        if (player) {
+          currentLogin = clean;
+          if (testMode) setStatus('Switching to @' + clean + '…');
+          try { player.setChannel(clean); } catch {}
+          forcePlay();
+          setTimeout(forcePlay, 350);
+          setTimeout(forcePlay, 1200);
           return;
         }
 
@@ -124,12 +136,14 @@
           if (testMode) setStatus('Playback paused. Tap Play to resume.');
         });
         player.addEventListener(window.Twitch.Player.OFFLINE, () => {
-          clear();
+          currentLogin = '';
+          clearFallback();
           if (testMode) setStatus('@' + clean + ' is offline. Use ?channel=ANOTHER_LIVE_CHANNEL&test=1 to test playback.');
         });
       }
 
       playFallback.addEventListener('click', () => {
+        userUnlocked = true;
         forcePlay();
         setTimeout(restoreAudio, 150);
         playFallback.classList.remove('show');

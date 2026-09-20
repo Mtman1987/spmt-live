@@ -38,6 +38,17 @@ test('Lounge Twitch test player exposes controls and restores audio after playba
   assert.match(spotlight, /setVolume\(TARGET_VOLUME\)/);
   assert.match(spotlight, /setMuted\(false\)/);
   assert.match(spotlight, /Twitch volume controls/);
+  assert.match(spotlight, /player\.setChannel\(clean\)/);
+  assert.match(spotlight, /userUnlocked = true/);
+  assert.doesNotMatch(spotlight, /player\.destroy\(\)/);
+});
+
+test('Lounge rotates idle leaderboard and featured chat without removing event layers', () => {
+  const output = fs.readFileSync('public/tenant-output.html', 'utf8');
+  assert.match(output, /applyActivityRotation/);
+  assert.match(output, /community-lounge-leaderboard-v2/);
+  assert.match(output, /sw-featured-chat/);
+  assert.match(output, /30000/);
 });
 
 test('tenant output passes clicks only to explicitly interactive layers', () => {

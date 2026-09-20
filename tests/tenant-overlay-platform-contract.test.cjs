@@ -139,7 +139,7 @@ test('SpaceMountainLive system tenant resolves to an empty transparent alerts-on
 test('mtman1987 debug Lounge preset contains the complete populated scene', () => {
   const layout = bootstrap._test.personalLoungeDebugLayout();
   assert.equal(layout.template, 'community-lounge-system-v2');
-  assert.equal(layout.widgets.length, 18);
+  assert.equal(layout.widgets.length, 19);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-alerts'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight'));
   assert.equal(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight-interactive-test'), false);
@@ -147,6 +147,7 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.equal(layout.widgets.some((widget) => widget.id === 'sw-pokemon-collection'), false);
   assert.equal(layout.widgets.some((widget) => widget.id === 'sw-pokemon-trade'), false);
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-pokemon-pack'));
+  assert.ok(layout.widgets.some((widget) => widget.id === 'sw-leaderboard-command'));
   assert.equal(
     layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.url,
     'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1',
@@ -159,11 +160,14 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   const original = bootstrap._test.personalLoungeDebugLayout();
   const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
   assert.equal(layout.template, 'community-lounge-24x7-v1');
-  assert.equal(layout.lounge24x7LayoutVersion, 1);
+  assert.equal(layout.lounge24x7LayoutVersion, 2);
   assert.equal(layout.widgets.length, original.widgets.length + 2);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-hmo-media')?.layoutSlot, 'media');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-leaderboard')?.layoutSlot, 'activity');
+  assert.equal(layout.widgets.find((widget) => widget.id === 'sw-leaderboard-command')?.layoutSlot, 'activity');
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-stella-tts')?.zIndex, 490);
+  assert.match(layout.widgets.find((widget) => widget.id === 'community-lounge-stella-tts')?.url || '', /placement=lounge/);
   assert.equal(layout.widgets.find((widget) => widget.id === 'sw-shoutout')?.layoutSlot, 'shoutouts');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tag')?.layoutSlot, 'games');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-starfield-24x7')?.kind, 'video');

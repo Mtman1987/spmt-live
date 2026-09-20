@@ -272,10 +272,27 @@ function personalLoungeDebugLayout() {
       "width": 960,
       "height": 540,
       "opacity": 1,
-      "zIndex": 245,
-      "url": "https://streamweaver-new.fly.dev/overlay/shared-chat-featured?tenant=spacemountainlive",
+      "zIndex": 71,
+      "url": "https://streamweaver-new.fly.dev/overlay/shared-chat-featured?tenant=spacemountainlive&fallback=latest",
       "sourceApp": "StreamWeaver",
-      "role": "event-layer"
+      "role": "idle-activity-chat"
+    },
+    {
+      "id": "sw-leaderboard-command",
+      "title": "Command Leaderboard",
+      "kind": "embed",
+      "visible": true,
+      "locked": true,
+      "interactive": false,
+      "x": 0,
+      "y": 0,
+      "width": 960,
+      "height": 540,
+      "opacity": 1,
+      "zIndex": 330,
+      "url": "https://streamweaver-new.fly.dev/overlay/leaderboard?tenant=spacemountainlive",
+      "sourceApp": "StreamWeaver",
+      "role": "command-activity-leaderboard"
     },
     {
       "id": "sw-social",
@@ -425,8 +442,8 @@ function personalLoungeDebugLayout() {
       "width": 960,
       "height": 540,
       "opacity": 1,
-      "zIndex": 280,
-      "url": "https://streamweaver-new.fly.dev/tts-player?tenant=spacemountainlive",
+      "zIndex": 490,
+      "url": "https://streamweaver-new.fly.dev/tts-player?tenant=spacemountainlive&placement=lounge",
       "sourceApp": "StreamWeaver",
       "role": "host-avatar-tts"
     },
@@ -442,10 +459,10 @@ function personalLoungeDebugLayout() {
       "width": 960,
       "height": 540,
       "opacity": 1,
-      "zIndex": 320,
+      "zIndex": 70,
       "url": "https://discord-stream-hub-new.fly.dev/headless/leaderboard/1240832965865635881?mode=overlay&cycle=1800&show=20&serverName=Space%20Mountain&memberName=Mountaineer&memberNamePlural=Mountaineers",
       "sourceApp": "DiscordStreamHub",
-      "role": "scheduled-community-leaderboard"
+      "role": "idle-activity-leaderboard"
     },
     {
       "id": "community-lounge-brb",
@@ -473,7 +490,7 @@ function personalLoungeDebugLayout() {
 };
 }
 
-const LOUNGE_24X7_VERSION = 1;
+const LOUNGE_24X7_VERSION = 2;
 const LOUNGE_24X7_SLOTS = Object.freeze({
   main: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   alerts: Object.freeze({ x: 75.5, y: 4.5, width: 211, height: 41 }),
@@ -492,6 +509,7 @@ function applyMtmanLounge24x7Layout(input) {
     ['community-lounge-hmo-media', 'media'],
     ['community-lounge-nebula-stage', 'activity'],
     ['sw-featured-chat', 'activity'],
+    ['sw-leaderboard-command', 'activity'],
     ['sw-social', 'activity'],
     ['sw-notification', 'activity'],
     ['sw-gamble', 'activity'],
@@ -520,6 +538,15 @@ function applyMtmanLounge24x7Layout(input) {
       const slot = slotById.get(widget.id);
       return slot ? { ...widget, ...LOUNGE_24X7_SLOTS[slot], layoutSlot: slot } : widget;
     });
+  if (!widgets.some((widget) => widget.id === 'sw-leaderboard-command')) {
+    widgets.push(normalizeWidget({
+      id: 'sw-leaderboard-command', title: 'Command Leaderboard', kind: 'embed', visible: true,
+      locked: true, interactive: false, opacity: 1, zIndex: 330,
+      url: 'https://streamweaver-new.fly.dev/overlay/leaderboard?tenant=spacemountainlive',
+      sourceApp: 'StreamWeaver', role: 'command-activity-leaderboard',
+      ...LOUNGE_24X7_SLOTS.activity, layoutSlot: 'activity',
+    }, widgets.length));
+  }
   widgets.unshift(normalizeWidget(background, 0));
   widgets.push(normalizeWidget(frame, widgets.length));
   return {
@@ -643,6 +670,29 @@ function readTenantRecord(user, create = true) {
             corrected = true;
             return { ...widget, url: nextUrl };
           }
+          if (widget.id === 'sw-featured-chat') {
+            const next = {
+              ...widget,
+              url: 'https://streamweaver-new.fly.dev/overlay/shared-chat-featured?tenant=spacemountainlive&fallback=latest',
+              zIndex: 71,
+              role: 'idle-activity-chat',
+              ...LOUNGE_24X7_SLOTS.activity,
+              layoutSlot: 'activity',
+            };
+            if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
+            corrected = true;
+            return next;
+          }
+          if (widget.id === 'community-lounge-stella-tts') {
+            const next = {
+              ...widget,
+              url: 'https://streamweaver-new.fly.dev/tts-player?tenant=spacemountainlive&placement=lounge',
+              zIndex: 490,
+            };
+            if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
+            corrected = true;
+            return next;
+          }
           if (widget.id === 'sw-pokemon-pack') {
             const nextUrl = 'https://streamweaver-new.fly.dev/overlay/card-pack?tenant=spacemountainlive';
             const next = {
@@ -664,16 +714,16 @@ function readTenantRecord(user, create = true) {
               id: 'community-lounge-leaderboard-v2',
               title: 'DSH Community Leaderboard v2',
               url: nextUrl,
-              x: 240,
-              y: 135,
-              width: 480,
-              height: 270,
+              ...LOUNGE_24X7_SLOTS.activity,
+              layoutSlot: 'activity',
               opacity: 1,
+              zIndex: 70,
+              role: 'idle-activity-leaderboard',
             };
           }
           if (widget.id === 'community-lounge-leaderboard-v2') {
             const nextUrl = 'https://discord-stream-hub-new.fly.dev/headless/leaderboard-embed/1240832965865635881?v=dsh-image-v2';
-            const next = { ...widget, url: nextUrl, x: 240, y: 135, width: 480, height: 270, opacity: 1 };
+            const next = { ...widget, url: nextUrl, ...LOUNGE_24X7_SLOTS.activity, layoutSlot: 'activity', opacity: 1, zIndex: 70, role: 'idle-activity-leaderboard' };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;
             return next;

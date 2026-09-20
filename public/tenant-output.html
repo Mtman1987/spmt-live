@@ -11,6 +11,7 @@
     #stage-wrap{position:fixed;inset:0;overflow:hidden;background:transparent;pointer-events:none}
     #scene{position:absolute;left:0;top:0;width:960px;height:540px;overflow:hidden;background:transparent;transform-origin:0 0;pointer-events:none}
     .tenant-widget{position:absolute;overflow:hidden;background:transparent;pointer-events:none}
+    .tenant-widget.activity-idle-off{visibility:hidden}
     .tenant-widget.is-interactive,.tenant-widget.is-interactive iframe{pointer-events:auto}
     .tenant-widget iframe,.tenant-widget img,.tenant-widget video{display:block;width:100%;height:100%;border:0;background:transparent}
     .tenant-broadcast-frame{position:absolute;inset:0;pointer-events:none}
@@ -58,6 +59,7 @@
         lastFrameUrl: '',
         alertTimers: new Map(),
         testStarted: false,
+        activityRotationStartedAt: Date.now(),
       };
 
       const ALERT_TEMPLATES = {
@@ -185,11 +187,22 @@
         const fallbackAlertMarkup = hasSavedAlert ? '' :
           `<section class="tenant-widget kind-alert default-alert" data-tenant-widget="${DEFAULT_ALERT_WIDGET.id}" style="${widgetStyle(DEFAULT_ALERT_WIDGET)}">${sourceMarkup(DEFAULT_ALERT_WIDGET)}</section>`;
         sceneEl.innerHTML = savedMarkup + fallbackAlertMarkup;
+        applyActivityRotation();
         applyXboxVisibility();
         if (testMode && !state.testStarted) {
           state.testStarted = true;
           setTimeout(runLoungeLayerTest, 80);
         }
+      }
+
+      function applyActivityRotation() {
+        if (output !== 'lounge') return;
+        const elapsed = Date.now() - state.activityRotationStartedAt;
+        const showLeaderboard = Math.floor(elapsed / 30000) % 2 === 0;
+        const leaderboard = sceneEl.querySelector('[data-tenant-widget="community-lounge-leaderboard-v2"], [data-tenant-widget="community-lounge-leaderboard"]');
+        const chat = sceneEl.querySelector('[data-tenant-widget="sw-featured-chat"]');
+        leaderboard?.classList.toggle('activity-idle-off', !showLeaderboard);
+        chat?.classList.toggle('activity-idle-off', showLeaderboard);
       }
 
       function xboxWidget() {
@@ -380,6 +393,7 @@
       try { window.parent.postMessage({ type: 'spmt.personal.renderer-ready', tenant, output }, '*'); } catch {}
       refreshScene().then(refreshXboxStatus);
       setInterval(refreshScene, 2000);
+      setInterval(applyActivityRotation, 1000);
       setInterval(refreshXboxStatus, 1000);
       setInterval(refreshXboxFrame, 500);
     })();

@@ -441,13 +441,16 @@
       const slotById = new Map([
         ['community-lounge-live-spotlight', 'main'], ['community-lounge-alerts', 'mainAlert'], ['community-lounge-hmo-media', 'media'],
         ['community-lounge-nebula-stage', 'activity'], ['sw-featured-chat', 'activity'], ['sw-social', 'activity'],
-        ['sw-notification', 'activity'], ['sw-gamble', 'activity'], ['sw-classic-gamble', 'activity'], ['sw-pokemon-pack', 'activity'],
+        ['sw-notification', 'activity'], ['sw-gamble', 'games'], ['sw-classic-gamble', 'activity'], ['sw-pokemon-pack', 'mainEvent'],
         ['community-lounge-leaderboard-v2', 'activity'], ['sw-partner-checkin', 'mainEvent'], ['sw-shoutout', 'shoutouts'],
         ['community-lounge-chat-tag', 'games'],
       ]);
       state.overlay.widgets = (state.overlay.widgets || [])
         .filter((item) => !['community-lounge-starfield-24x7', 'community-lounge-frame-24x7'].includes(item.id))
         .map((item) => {
+          if (item.id === 'sw-gamble') return { ...item, ...slots.games, layoutSlot: 'games', zIndex: 276, url: 'https://streamweaver-new.fly.dev/gamble-overlay?tenant=spacemountainlive&placement=lounge-tag' };
+          if (item.id === 'sw-classic-gamble') return { ...item, visible: false };
+          if (item.id === 'sw-pokemon-pack') return { ...item, ...slots.mainEvent, layoutSlot: 'mainEvent', url: 'https://streamweaver-new.fly.dev/overlay/card-pack?tenant=spacemountainlive&placement=lounge-main' };
           const slot = slotById.get(item.id);
           return slot ? { ...item, ...slots[slot], layoutSlot: slot } : item;
         });
@@ -461,7 +464,7 @@
         locked: true, interactive: false, zIndex: 480, role: 'broadcast-frame',
       }));
       state.overlay.template = 'community-lounge-24x7-v1';
-      state.overlay.lounge24x7LayoutVersion = 3;
+      state.overlay.lounge24x7LayoutVersion = 4;
       state.overlayDirty = true;
       renderOverlays();
       setStatus?.('24/7 layout applied to this Lounge. Save overlay to keep it.', 'ok');

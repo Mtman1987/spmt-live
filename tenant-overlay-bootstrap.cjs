@@ -490,7 +490,7 @@ function personalLoungeDebugLayout() {
 };
 }
 
-const LOUNGE_24X7_VERSION = 3;
+const LOUNGE_24X7_VERSION = 4;
 const LOUNGE_24X7_SLOTS = Object.freeze({
   main: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   mainAlert: Object.freeze({ x: 6, y: 6, width: 590, height: 150 }),
@@ -514,9 +514,9 @@ function applyMtmanLounge24x7Layout(input) {
     ['sw-leaderboard-command', 'activity'],
     ['sw-social', 'activity'],
     ['sw-notification', 'activity'],
-    ['sw-gamble', 'activity'],
+    ['sw-gamble', 'games'],
     ['sw-classic-gamble', 'activity'],
-    ['sw-pokemon-pack', 'activity'],
+    ['sw-pokemon-pack', 'mainEvent'],
     ['community-lounge-leaderboard', 'activity'],
     ['community-lounge-leaderboard-v2', 'activity'],
     ['sw-partner-checkin', 'mainEvent'],
@@ -537,6 +537,24 @@ function applyMtmanLounge24x7Layout(input) {
   const widgets = layout.widgets
     .filter((widget) => widget.id !== background.id && widget.id !== frame.id)
     .map((widget) => {
+      if (widget.id === 'sw-gamble') {
+        return {
+          ...widget,
+          ...LOUNGE_24X7_SLOTS.games,
+          layoutSlot: 'games',
+          zIndex: 276,
+          url: 'https://streamweaver-new.fly.dev/gamble-overlay?tenant=spacemountainlive&placement=lounge-tag',
+        };
+      }
+      if (widget.id === 'sw-classic-gamble') return { ...widget, visible: false };
+      if (widget.id === 'sw-pokemon-pack') {
+        return {
+          ...widget,
+          ...LOUNGE_24X7_SLOTS.mainEvent,
+          layoutSlot: 'mainEvent',
+          url: 'https://streamweaver-new.fly.dev/overlay/card-pack?tenant=spacemountainlive&placement=lounge-main',
+        };
+      }
       const slot = slotById.get(widget.id);
       return slot ? { ...widget, ...LOUNGE_24X7_SLOTS[slot], layoutSlot: slot } : widget;
     });
@@ -706,13 +724,15 @@ function readTenantRecord(user, create = true) {
             return next;
           }
           if (widget.id === 'sw-pokemon-pack') {
-            const nextUrl = 'https://streamweaver-new.fly.dev/overlay/card-pack?tenant=spacemountainlive';
+            const nextUrl = 'https://streamweaver-new.fly.dev/overlay/card-pack?tenant=spacemountainlive&placement=lounge-main';
             const next = {
               ...widget,
               title: 'Card Pack Reveal · Pokemon + Quackverse',
               url: nextUrl,
               sourceApp: 'StreamWeaver',
               role: 'card-pack-event-layer',
+              ...LOUNGE_24X7_SLOTS.mainEvent,
+              layoutSlot: 'mainEvent',
             };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;

@@ -160,7 +160,7 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   const original = bootstrap._test.personalLoungeDebugLayout();
   const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
   assert.equal(layout.template, 'community-lounge-24x7-v1');
-  assert.equal(layout.lounge24x7LayoutVersion, 3);
+  assert.equal(layout.lounge24x7LayoutVersion, 4);
   assert.equal(layout.widgets.length, original.widgets.length + 2);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-alerts')?.layoutSlot, 'mainAlert');
@@ -174,6 +174,12 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   assert.equal(layout.widgets.find((widget) => widget.id === 'sw-shoutout')?.layoutSlot, 'shoutouts');
   assert.equal(layout.widgets.find((widget) => widget.id === 'sw-partner-checkin')?.layoutSlot, 'mainEvent');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tag')?.layoutSlot, 'games');
+  assert.equal(layout.widgets.find((widget) => widget.id === 'sw-gamble')?.layoutSlot, 'games');
+  assert.equal(layout.widgets.find((widget) => widget.id === 'sw-gamble')?.zIndex, 276);
+  assert.match(layout.widgets.find((widget) => widget.id === 'sw-gamble')?.url || '', /placement=lounge-tag/);
+  assert.equal(layout.widgets.find((widget) => widget.id === 'sw-classic-gamble')?.visible, false);
+  assert.equal(layout.widgets.find((widget) => widget.id === 'sw-pokemon-pack')?.layoutSlot, 'mainEvent');
+  assert.match(layout.widgets.find((widget) => widget.id === 'sw-pokemon-pack')?.url || '', /placement=lounge-main/);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-starfield-24x7')?.kind, 'video');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-frame-24x7')?.kind, 'frame');
 });

@@ -18,7 +18,7 @@
 <body>
   <div id="root" aria-live="off">
     <div id="twitch-player"></div>
-    <button id="play-fallback" type="button" aria-label="Play live Twitch stream">Tap to play live stream</button>
+    <button id="play-fallback" type="button" aria-label="Play live Twitch stream with sound">Tap to play with sound</button>
     <div id="status" role="status" aria-live="polite"></div>
   </div>
   <script src="https://player.twitch.tv/js/embed/v1.js"></script>
@@ -75,6 +75,15 @@
         try { player.setMuted(false); } catch {}
       }
 
+      function unlockAudioFromGesture() {
+        userUnlocked = true;
+        switchingChannel = false;
+        forcePlay(false);
+        restoreAudio();
+        [150, 500, 1000].forEach((delay) => setTimeout(restoreAudio, delay));
+        clearFallback();
+      }
+
       function mount(login) {
         const clean = String(login || '').trim().toLowerCase();
         if (!clean) {
@@ -114,7 +123,7 @@
           parent: [location.hostname || 'spmt.live'],
           autoplay: true,
           muted: true,
-          controls: testMode,
+          controls: true,
           width: '100%',
           height: '100%',
         });
@@ -158,11 +167,7 @@
       }
 
       playFallback.addEventListener('click', () => {
-        userUnlocked = true;
-        switchingChannel = false;
-        forcePlay(false);
-        setTimeout(restoreAudio, 150);
-        playFallback.classList.remove('show');
+        unlockAudioFromGesture();
       });
 
       async function refresh() {

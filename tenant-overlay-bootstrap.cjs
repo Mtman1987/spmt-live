@@ -205,7 +205,7 @@ function personalLoungeDebugLayout() {
       "height": 169,
       "opacity": 1,
       "zIndex": 35,
-      "url": "https://hearmeout-main.fly.dev/overlay/system-spacemountainlive-lounge?media=auto&clean=1&volume=0.58&muted=0&v=apollo-lounge-3",
+      "url": "https://web-terminal-bvesa.sprites.app/watch?roomId=system-spacemountainlive-lounge&output=program&v=direct-apollo-player-1",
       "sourceApp": "Hear Me Out",
       "role": "media-mini-player"
     },
@@ -749,10 +749,7 @@ function readTenantRecord(user, create = true) {
             return next;
           }
           if (widget.id === 'community-lounge-hmo-media') {
-            let nextUrl = String(widget.url || '')
-              .replace('/overlay/system-mtman1987-lounge', '/overlay/system-spacemountainlive-lounge')
-              .replace(/([?&])v=[^&]*/g, '$1v=apollo-lounge-3');
-            if (!/[?&]v=/.test(nextUrl)) nextUrl += `${nextUrl.includes('?') ? '&' : '?'}v=apollo-lounge-3`;
+            const nextUrl = 'https://web-terminal-bvesa.sprites.app/watch?roomId=system-spacemountainlive-lounge&output=program&v=direct-apollo-player-1';
             const next = { ...widget, url: nextUrl, interactive: true, interactionMode: 'interactive' };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;

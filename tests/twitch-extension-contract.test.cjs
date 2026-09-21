@@ -74,6 +74,7 @@ test('Lounge can smoothly swap HearMeOut and the live stream between main and me
   assert.match(output, /mediaIsMain \? 'media' : 'main'/);
   assert.match(output, /mediaIsMain \? 'main' : 'media'/);
   assert.match(output, /lounge-program-swap/);
+  assert.match(output, /media: \{ left: 75\.5, top: 14\.5, width: 211, height: 130 \}/);
 });
 
 test('tenant output passes clicks only to explicitly interactive layers', () => {

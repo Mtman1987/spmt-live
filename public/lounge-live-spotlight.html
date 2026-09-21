@@ -31,6 +31,11 @@
       const params = new URLSearchParams(location.search);
       const forcedChannel = String(params.get('channel') || '').replace(/^@/, '').trim().toLowerCase();
       const testMode = params.get('test') === '1' || Boolean(forcedChannel);
+      // A browser cannot reliably grant audio autoplay to a newly selected
+      // Twitch channel. Production lounge output therefore stays muted and
+      // unattended; add ?audio=1 only when a human has intentionally enabled
+      // audio in a compatible browser/OBS source.
+      const unattendedMode = !testMode && params.get('audio') !== '1';
       let currentLogin = '';
       let stopped = false;
       let player = null;
@@ -63,7 +68,7 @@
       function forcePlay(mutedBootstrap = false) {
         if (!player) return;
         try { player.setVolume(TARGET_VOLUME); } catch {}
-        if (mutedBootstrap) {
+        if (mutedBootstrap || unattendedMode) {
           try { player.setMuted(true); } catch {}
         }
         try { player.play(); } catch {}
@@ -95,11 +100,10 @@
           clearFallback();
           if (testMode) setStatus('Switching to @' + clean + '…');
           try { player.setChannel(clean); } catch {}
-          forcePlay();
-          setTimeout(() => forcePlay(), 350);
-          setTimeout(() => forcePlay(), 1200);
-          setTimeout(() => forcePlay(), 2500);
-          setTimeout(() => forcePlay(), 4000);
+          forcePlay(unattendedMode);
+          [350, 1200, 2500, 4000].forEach((delay) =>
+            setTimeout(() => forcePlay(unattendedMode), delay),
+          );
           return;
         }
 
@@ -114,40 +118,46 @@
           parent: [location.hostname || 'spmt.live'],
           autoplay: true,
           muted: true,
-          controls: testMode,
+          controls: testMode || !unattendedMode,
           width: '100%',
           height: '100%',
         });
 
         player.addEventListener(window.Twitch.Player.READY, () => {
-          forcePlay(true);
+          forcePlay(unattendedMode);
           if (testMode) setStatus('Loaded @' + clean + '. If autoplay is blocked, use the Play button.');
           clearFallback();
-          fallbackTimer = setTimeout(() => {
-            playFallback.classList.add('show');
-          }, 1800);
+          if (!unattendedMode) {
+            fallbackTimer = setTimeout(() => {
+              playFallback.classList.add('show');
+            }, 1800);
+          }
         });
         player.addEventListener(window.Twitch.Player.PLAY, () => {
           switchingChannel = false;
           clearFallback();
-          userUnlocked = true;
-          restoreAudio();
+          if (!unattendedMode) {
+            userUnlocked = true;
+            restoreAudio();
+          }
           if (testMode) setStatus('Playing @' + clean + ' — use the Twitch volume controls in the player.');
         });
         player.addEventListener(window.Twitch.Player.PLAYING, () => {
           switchingChannel = false;
           clearFallback();
-          userUnlocked = true;
-          restoreAudio();
-          setTimeout(restoreAudio, 250);
-          setTimeout(restoreAudio, 1000);
+          if (!unattendedMode) {
+            userUnlocked = true;
+            restoreAudio();
+            setTimeout(restoreAudio, 250);
+            setTimeout(restoreAudio, 1000);
+          }
         });
         player.addEventListener(window.Twitch.Player.PAUSE, () => {
           if (switchingChannel) {
-            setTimeout(() => forcePlay(), 300);
+            setTimeout(() => forcePlay(unattendedMode), 300);
             return;
           }
-          playFallback.classList.add('show');
+          if (!unattendedMode) playFallback.classList.add('show');
           if (testMode) setStatus('Playback paused. Tap Play to resume.');
         });
         player.addEventListener(window.Twitch.Player.OFFLINE, () => {
@@ -160,7 +170,7 @@
       playFallback.addEventListener('click', () => {
         userUnlocked = true;
         switchingChannel = false;
-        forcePlay();
+        forcePlay(false);
         setTimeout(restoreAudio, 150);
         playFallback.classList.remove('show');
       });

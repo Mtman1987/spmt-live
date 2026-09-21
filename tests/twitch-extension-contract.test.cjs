@@ -36,9 +36,11 @@ test('Lounge Twitch player preserves one viewer unlock across polling and channe
   const spotlight = fs.readFileSync('public/lounge-live-spotlight.html', 'utf8');
   assert.match(spotlight, /let userUnlocked = false/);
   assert.match(spotlight, /playFallback\.addEventListener\('click'/);
-  assert.match(spotlight, /Tap to play with sound/);
+  assert.match(spotlight, /Enable sound/);
   assert.match(spotlight, /function unlockAudioFromGesture\(\)/);
   assert.match(spotlight, /unlockAudioFromGesture\(\)/);
+  assert.match(spotlight, /if \(userUnlocked\) \{\s*clearFallback\(\)/);
+  assert.match(spotlight, /playFallback\.classList\.add\('show'\)/);
   assert.match(spotlight, /forcePlay\(!userUnlocked\)/);
   assert.match(spotlight, /if \(userUnlocked\) restoreAudio\(\)/);
   assert.match(spotlight, /controls: true/);

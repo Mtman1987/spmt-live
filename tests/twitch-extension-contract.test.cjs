@@ -32,7 +32,7 @@ test('Twitch Extension backend is installed at process startup', () => {
 });
 
 
-test('Lounge Twitch test player exposes controls and restores audio after playback', () => {
+test('Lounge Twitch player preserves one viewer unlock across polling and channel changes', () => {
   const spotlight = fs.readFileSync('public/lounge-live-spotlight.html', 'utf8');
   assert.match(spotlight, /controls: testMode/);
   assert.match(spotlight, /setVolume\(TARGET_VOLUME\)/);
@@ -40,9 +40,11 @@ test('Lounge Twitch test player exposes controls and restores audio after playba
   assert.match(spotlight, /Twitch volume controls/);
   assert.match(spotlight, /player\.setChannel\(clean\)/);
   assert.match(spotlight, /switchingChannel = true/);
+  assert.match(spotlight, /if \(clean === currentLogin && player\) return/);
+  assert.match(spotlight, /if \(mutedBootstrap\)/);
   assert.match(spotlight, /forcePlay\(true\)/);
-  assert.match(spotlight, /player\.setMuted\(true\)/);
   assert.match(spotlight, /userUnlocked = true/);
+  assert.doesNotMatch(spotlight, /inset:0;display:none;place-items:center/);
   assert.doesNotMatch(spotlight, /player\.destroy\(\)/);
 });
 

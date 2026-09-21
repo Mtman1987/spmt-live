@@ -9,8 +9,8 @@
     html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent!important}
     #root{position:fixed;inset:0;background:transparent}
     #twitch-player{position:absolute;inset:0;width:100%;height:100%;background:transparent}
-    #play-fallback{position:absolute;inset:0;display:none;place-items:center;background:rgba(0,0,0,.18);border:0;color:#fff;font:700 18px/1 system-ui,sans-serif;cursor:pointer;z-index:2}
-    #play-fallback.show{display:grid}
+    #play-fallback{position:absolute;right:14px;bottom:14px;display:none;padding:10px 14px;border:1px solid rgba(255,255,255,.72);border-radius:999px;background:rgba(0,0,0,.78);color:#fff;font:700 14px/1 system-ui,sans-serif;cursor:pointer;z-index:2}
+    #play-fallback.show{display:block}
     #status{position:absolute;left:14px;bottom:14px;z-index:3;display:none;max-width:min(560px,calc(100% - 28px));padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.72);color:#fff;font:600 13px/1.3 system-ui,sans-serif}
     #status.show{display:block}
   </style>
@@ -63,7 +63,9 @@
       function forcePlay(mutedBootstrap = false) {
         if (!player) return;
         try { player.setVolume(TARGET_VOLUME); } catch {}
-        try { player.setMuted(mutedBootstrap || !userUnlocked); } catch {}
+        if (mutedBootstrap) {
+          try { player.setMuted(true); } catch {}
+        }
         try { player.play(); } catch {}
       }
 
@@ -80,10 +82,9 @@
           if (testMode) setStatus('No featured live channel is available right now.');
           return;
         }
-        if (clean === currentLogin && player) {
-          forcePlay();
-          return;
-        }
+        // The 15-second spotlight poll must not restart or re-mute the same
+        // player. That would discard the viewer's one Twitch interaction.
+        if (clean === currentLogin && player) return;
 
         // Keep one Twitch.Player instance for the life of the page. Replacing
         // the iframe loses the browser's prior user activation and forces a
@@ -93,13 +94,12 @@
           switchingChannel = true;
           clearFallback();
           if (testMode) setStatus('Switching to @' + clean + '…');
-          try { player.setMuted(true); } catch {}
           try { player.setChannel(clean); } catch {}
-          forcePlay(true);
-          setTimeout(() => forcePlay(true), 350);
-          setTimeout(() => forcePlay(true), 1200);
-          setTimeout(() => forcePlay(true), 2500);
-          setTimeout(() => forcePlay(true), 4000);
+          forcePlay();
+          setTimeout(() => forcePlay(), 350);
+          setTimeout(() => forcePlay(), 1200);
+          setTimeout(() => forcePlay(), 2500);
+          setTimeout(() => forcePlay(), 4000);
           return;
         }
 
@@ -120,7 +120,7 @@
         });
 
         player.addEventListener(window.Twitch.Player.READY, () => {
-          forcePlay();
+          forcePlay(true);
           if (testMode) setStatus('Loaded @' + clean + '. If autoplay is blocked, use the Play button.');
           clearFallback();
           fallbackTimer = setTimeout(() => {
@@ -130,19 +130,21 @@
         player.addEventListener(window.Twitch.Player.PLAY, () => {
           switchingChannel = false;
           clearFallback();
+          userUnlocked = true;
           restoreAudio();
           if (testMode) setStatus('Playing @' + clean + ' — use the Twitch volume controls in the player.');
         });
         player.addEventListener(window.Twitch.Player.PLAYING, () => {
           switchingChannel = false;
           clearFallback();
+          userUnlocked = true;
           restoreAudio();
           setTimeout(restoreAudio, 250);
           setTimeout(restoreAudio, 1000);
         });
         player.addEventListener(window.Twitch.Player.PAUSE, () => {
           if (switchingChannel) {
-            setTimeout(() => forcePlay(true), 300);
+            setTimeout(() => forcePlay(), 300);
             return;
           }
           playFallback.classList.add('show');

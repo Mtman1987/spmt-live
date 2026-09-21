@@ -32,7 +32,7 @@ const SAFE_RECONCILIATION_GATE = [
   '        db.prepare("DELETE FROM account_recovery_codes WHERE user_id = ?").run(twitchUser.id);',
   '        db.prepare("DELETE FROM provider_identity_tickets WHERE user_id IN (?, ?)").run(discordUser.id, twitchUser.id);',
   '        const duplicateReferences = [];',
-  '        const quoteSqlIdentifier = (value) => `"${String(value).replace(/"/g, "\"\"")}"`;',
+  '        const quoteSqlIdentifier = (value) => String.fromCharCode(34) + String(value).replaceAll(String.fromCharCode(34), String.fromCharCode(34, 34)) + String.fromCharCode(34);',
   '        const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = \'table\' AND name NOT LIKE \'sqlite_%\'").all();',
   '        for (const table of tables) {',
   '          if (table.name === "users") continue;',

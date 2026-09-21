@@ -39,6 +39,7 @@
       let currentLogin = '';
       let stopped = false;
       let player = null;
+      let twitchFrame = null;
       let fallbackTimer = null;
       let userUnlocked = false;
       let switchingChannel = false;
@@ -61,6 +62,10 @@
         clearFallback();
         if (!testMode) setStatus('');
         try { player?.pause?.(); } catch {}
+        if (twitchFrame) {
+          twitchFrame.remove();
+          twitchFrame = null;
+        }
       }
 
       const TARGET_VOLUME = 0.58;
@@ -89,7 +94,7 @@
         }
         // The 15-second spotlight poll must not restart or re-mute the same
         // player. That would discard the viewer's one Twitch interaction.
-        if (clean === currentLogin && player) return;
+        if (clean === currentLogin && (player || twitchFrame)) return;
 
         // Keep one Twitch.Player instance for the life of the page. Replacing
         // the iframe loses the browser's prior user activation and forces a
@@ -104,6 +109,27 @@
           [350, 1200, 2500, 4000].forEach((delay) =>
             setTimeout(() => forcePlay(unattendedMode), delay),
           );
+          return;
+        }
+
+        // In production, use Twitch's native iframe URL rather than relying
+        // on the JavaScript API to propagate autoplay/muted into a nested
+        // overlay iframe. Browsers allow muted media autoplay when the media
+        // element's intent is present in the iframe URL itself.
+        if (unattendedMode) {
+          currentLogin = clean;
+          switchingChannel = true;
+          clearFallback();
+          twitchFrame = twitchFrame || document.createElement('iframe');
+          twitchFrame.title = 'Twitch live spotlight';
+          twitchFrame.allow = 'autoplay; fullscreen';
+          twitchFrame.setAttribute('scrolling', 'no');
+          twitchFrame.setAttribute('frameborder', '0');
+          twitchFrame.width = '100%';
+          twitchFrame.height = '100%';
+          twitchFrame.src = `https://player.twitch.tv/?channel=${encodeURIComponent(clean)}&parent=${encodeURIComponent(location.hostname || 'spmt.live')}&autoplay=true&muted=true&controls=false`; 
+          playerHost.replaceChildren(twitchFrame);
+          setTimeout(() => { switchingChannel = false; }, 5000);
           return;
         }
 

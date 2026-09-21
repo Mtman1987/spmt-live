@@ -35,6 +35,9 @@ test('Twitch Extension backend is installed at process startup', () => {
 test('Lounge Twitch player preserves one viewer unlock across polling and channel changes', () => {
   const spotlight = fs.readFileSync('public/lounge-live-spotlight.html', 'utf8');
   assert.match(spotlight, /const unattendedMode = !testMode/);
+  assert.match(spotlight, /https:\/\/player\.twitch\.tv\/\?channel=/);
+  assert.match(spotlight, /autoplay=true&muted=true&controls=false/);
+  assert.match(spotlight, /allow = 'autoplay; fullscreen'/);
   assert.match(spotlight, /if \(mutedBootstrap \|\| unattendedMode\)/);
   assert.match(spotlight, /if \(!unattendedMode\) \{\s*userUnlocked = true/);
   assert.match(spotlight, /if \(!unattendedMode\) playFallback\.classList\.add\('show'\)/);
@@ -44,7 +47,7 @@ test('Lounge Twitch player preserves one viewer unlock across polling and channe
   assert.match(spotlight, /Twitch volume controls/);
   assert.match(spotlight, /player\.setChannel\(clean\)/);
   assert.match(spotlight, /switchingChannel = true/);
-  assert.match(spotlight, /if \(clean === currentLogin && player\) return/);
+  assert.match(spotlight, /if \(clean === currentLogin && \(player \|\| twitchFrame\)\) return/);
   assert.match(spotlight, /if \(mutedBootstrap \|\| unattendedMode\)/);
   assert.match(spotlight, /forcePlay\(unattendedMode\)/);
   assert.match(spotlight, /userUnlocked = true/);

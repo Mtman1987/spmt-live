@@ -31,15 +31,9 @@
       const params = new URLSearchParams(location.search);
       const forcedChannel = String(params.get('channel') || '').replace(/^@/, '').trim().toLowerCase();
       const testMode = params.get('test') === '1' || Boolean(forcedChannel);
-      // A browser cannot reliably grant audio autoplay to a newly selected
-      // Twitch channel. Production lounge output therefore stays muted and
-      // unattended; add ?audio=1 only when a human has intentionally enabled
-      // audio in a compatible browser/OBS source.
-      const unattendedMode = !testMode && params.get('audio') !== '1';
       let currentLogin = '';
       let stopped = false;
       let player = null;
-      let twitchFrame = null;
       let fallbackTimer = null;
       let userUnlocked = false;
       let switchingChannel = false;
@@ -62,10 +56,6 @@
         clearFallback();
         if (!testMode) setStatus('');
         try { player?.pause?.(); } catch {}
-        if (twitchFrame) {
-          twitchFrame.remove();
-          twitchFrame = null;
-        }
       }
 
       const TARGET_VOLUME = 0.58;
@@ -73,7 +63,7 @@
       function forcePlay(mutedBootstrap = false) {
         if (!player) return;
         try { player.setVolume(TARGET_VOLUME); } catch {}
-        if (mutedBootstrap || unattendedMode) {
+        if (mutedBootstrap) {
           try { player.setMuted(true); } catch {}
         }
         try { player.play(); } catch {}
@@ -94,7 +84,7 @@
         }
         // The 15-second spotlight poll must not restart or re-mute the same
         // player. That would discard the viewer's one Twitch interaction.
-        if (clean === currentLogin && (player || twitchFrame)) return;
+        if (clean === currentLogin && player) return;
 
         // Keep one Twitch.Player instance for the life of the page. Replacing
         // the iframe loses the browser's prior user activation and forces a
@@ -105,31 +95,11 @@
           clearFallback();
           if (testMode) setStatus('Switching to @' + clean + '…');
           try { player.setChannel(clean); } catch {}
-          forcePlay(unattendedMode);
+          forcePlay(!userUnlocked);
           [350, 1200, 2500, 4000].forEach((delay) =>
-            setTimeout(() => forcePlay(unattendedMode), delay),
+            setTimeout(() => forcePlay(!userUnlocked), delay),
           );
-          return;
-        }
-
-        // In production, use Twitch's native iframe URL rather than relying
-        // on the JavaScript API to propagate autoplay/muted into a nested
-        // overlay iframe. Browsers allow muted media autoplay when the media
-        // element's intent is present in the iframe URL itself.
-        if (unattendedMode) {
-          currentLogin = clean;
-          switchingChannel = true;
-          clearFallback();
-          twitchFrame = twitchFrame || document.createElement('iframe');
-          twitchFrame.title = 'Twitch live spotlight';
-          twitchFrame.allow = 'autoplay; fullscreen';
-          twitchFrame.setAttribute('scrolling', 'no');
-          twitchFrame.setAttribute('frameborder', '0');
-          twitchFrame.width = '100%';
-          twitchFrame.height = '100%';
-          twitchFrame.src = `https://player.twitch.tv/?channel=${encodeURIComponent(clean)}&parent=${encodeURIComponent(location.hostname || 'spmt.live')}&autoplay=true&muted=true&controls=false`; 
-          playerHost.replaceChildren(twitchFrame);
-          setTimeout(() => { switchingChannel = false; }, 5000);
+          if (userUnlocked) restoreAudio();
           return;
         }
 
@@ -144,35 +114,29 @@
           parent: [location.hostname || 'spmt.live'],
           autoplay: true,
           muted: true,
-          controls: testMode || !unattendedMode,
+          controls: testMode,
           width: '100%',
           height: '100%',
         });
 
         player.addEventListener(window.Twitch.Player.READY, () => {
-          forcePlay(unattendedMode);
+          forcePlay(true);
           if (testMode) setStatus('Loaded @' + clean + '. If autoplay is blocked, use the Play button.');
           clearFallback();
-          if (!unattendedMode) {
-            fallbackTimer = setTimeout(() => {
-              playFallback.classList.add('show');
-            }, 1800);
-          }
+          fallbackTimer = setTimeout(() => {
+            playFallback.classList.add('show');
+          }, 1800);
         });
         player.addEventListener(window.Twitch.Player.PLAY, () => {
           switchingChannel = false;
           clearFallback();
-          if (!unattendedMode) {
-            userUnlocked = true;
-            restoreAudio();
-          }
+          if (userUnlocked) restoreAudio();
           if (testMode) setStatus('Playing @' + clean + ' — use the Twitch volume controls in the player.');
         });
         player.addEventListener(window.Twitch.Player.PLAYING, () => {
           switchingChannel = false;
           clearFallback();
-          if (!unattendedMode) {
-            userUnlocked = true;
+          if (userUnlocked) {
             restoreAudio();
             setTimeout(restoreAudio, 250);
             setTimeout(restoreAudio, 1000);
@@ -180,10 +144,10 @@
         });
         player.addEventListener(window.Twitch.Player.PAUSE, () => {
           if (switchingChannel) {
-            setTimeout(() => forcePlay(unattendedMode), 300);
+            setTimeout(() => forcePlay(!userUnlocked), 300);
             return;
           }
-          if (!unattendedMode) playFallback.classList.add('show');
+          playFallback.classList.add('show');
           if (testMode) setStatus('Playback paused. Tap Play to resume.');
         });
         player.addEventListener(window.Twitch.Player.OFFLINE, () => {

@@ -22,6 +22,10 @@ test('replaces the bundled crew-review stop with the safe provider-owned reconci
   assert.match(patched, /UPDATE users SET twitch_username = NULL, twitch_id = NULL/);
   assert.match(patched, /account_recovery_codes/);
   assert.match(patched, /provider_identity_tickets/);
+  assert.match(patched, /sqlite_master/);
+  assert.match(patched, /duplicateReferences/);
+  assert.match(patched, /DELETE FROM users WHERE id/);
+  assert.match(patched, /duplicateDeleted/);
   assert.match(patched, /disposablePlaceholder/);
   assert.match(patched, /UPDATE users SET username/);
   assert.match(patched, /manual-review-required|Crew review is required/);

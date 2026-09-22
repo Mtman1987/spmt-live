@@ -205,7 +205,7 @@ function personalLoungeDebugLayout() {
       "height": 169,
       "opacity": 1,
       "zIndex": 35,
-      "url": "https://web-terminal-bvesa.sprites.app/watch?embed=1&appRoomId=system-spacemountainlive-lounge&roomId=system-spacemountainlive-lounge&output=program&v=apollo-hmo-consumer-2",
+      "url": "https://web-terminal-bvesa.sprites.app/watch?consumer=1&embed=1&appRoomId=system-spacemountainlive-lounge&roomId=system-spacemountainlive-lounge&output=program&v=apollo-hmo-consumer-3",
       "sourceApp": "Hear Me Out",
       "role": "media-mini-player"
     },
@@ -749,7 +749,7 @@ function readTenantRecord(user, create = true) {
             return next;
           }
           if (widget.id === 'community-lounge-hmo-media') {
-            const nextUrl = 'https://web-terminal-bvesa.sprites.app/watch?embed=1&appRoomId=system-spacemountainlive-lounge&roomId=system-spacemountainlive-lounge&output=program&v=apollo-hmo-consumer-2';
+            const nextUrl = 'https://web-terminal-bvesa.sprites.app/watch?consumer=1&embed=1&appRoomId=system-spacemountainlive-lounge&roomId=system-spacemountainlive-lounge&output=program&v=apollo-hmo-consumer-3';
             const next = { ...widget, url: nextUrl, interactive: true, interactionMode: 'interactive' };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;

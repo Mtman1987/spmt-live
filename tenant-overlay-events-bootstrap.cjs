@@ -44,7 +44,7 @@ function authPayload(req) {
     const payload = jwt.verify(token, secret);
     if (!payload || typeof payload !== 'object') return null;
     const id = payload.id || payload.userId || payload.sub;
-    return id ? { id: String(id), payload } : null;
+    return id ? { id: String(id), payload, token } : null;
   } catch {
     return null;
   }
@@ -72,7 +72,7 @@ function resolveAuthenticatedUser(req) {
   if (!auth) return null;
   const row = lookupUserById(auth.id);
   const username = tenantSlug(row?.username || auth.payload?.username);
-  return username ? { id: String(auth.id), username } : null;
+  return username ? { id: String(auth.id), username, token: auth.token } : null;
 }
 
 function safeJson(res, status, body) {
@@ -264,8 +264,32 @@ function installRoutes(app, express) {
     try {
       const payload = normalizeAlert(req.body?.payload || req.body || {});
       const outputs = normalizeOutputs(req.body?.outputs);
-      const event = appendEvent(user.username, payload, outputs, req.body?.source || 'spmt');
-      return safeJson(res, 201, { ok: true, event });
+      const source = String(req.body?.source || 'spmt');
+      const event = appendEvent(user.username, payload, outputs, source);
+      const testRaid = source === 'overlay-bay-test'
+        && payload.eventType === 'raid'
+        && user.username === SYSTEM_TENANT;
+      if (testRaid) {
+        void fetch('https://chat-tag-new.fly.dev/api/game-hub/parade', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'x-spmt-overlay-test': 'raid',
+          },
+          body: JSON.stringify({
+            action: 'start',
+            channel: SYSTEM_TENANT,
+            trigger: 'raid',
+            triggerUser: payload.user || 'RaidCrew',
+          }),
+          signal: AbortSignal.timeout(10000),
+        }).then(async (response) => {
+          if (!response.ok) console.warn('[OverlayBay] Test raid parade trigger failed', response.status, await response.text().catch(() => ''));
+        }).catch((error) => console.warn('[OverlayBay] Test raid parade trigger failed', error?.message || error));
+      }
+      return safeJson(res, 201, { ok: true, event, paradeTriggered: testRaid });
     } catch (error) {
       return safeJson(res, 400, { error: error?.message || 'Alert event could not be published' });
     }

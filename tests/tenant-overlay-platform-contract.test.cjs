@@ -207,7 +207,7 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   );
   assert.ok((activity.y / 100 * 540) + activity.height <= 503, 'activity panel must stop at the fixed-height footer edge');
   const media = layout.widgets.find((widget) => widget.id === 'community-lounge-hmo-media');
-  assert.equal(media?.url, 'https://web-terminal-bvesa.sprites.app/watch?embed=1&appRoomId=system-spacemountainlive-lounge&roomId=system-spacemountainlive-lounge&output=program&v=apollo-hmo-consumer-2');
+  assert.equal(media?.url, 'https://web-terminal-bvesa.sprites.app/watch?consumer=1&embed=1&appRoomId=system-spacemountainlive-lounge&roomId=system-spacemountainlive-lounge&output=program&v=apollo-hmo-consumer-3');
   assert.doesNotMatch(media?.url || '', /hearmeout-main\.fly\.dev\/overlay/);
   const status = layout.widgets.find((widget) => widget.id === 'community-lounge-status-strip');
   const upperRightGap = (media.y / 100 * 540) - ((status.y / 100 * 540) + status.height);

@@ -73,3 +73,17 @@ test('production image and startup include the event bootstrap', () => {
   assert.match(start, /tenant-overlay-alert-publisher\.js/);
   assert.match(start, /personal-overlay-launch-client\.js/);
 });
+
+
+test('Overlay Bay Test Raid relays the authenticated owner event to the real Nebula parade route', () => {
+  const source = read('tenant-overlay-events-bootstrap.cjs');
+  const publisher = read('public/shared/tenant-overlay-alert-publisher.js');
+  assert.match(publisher, /raid: \{ eventType: 'raid', user: 'RaidCrew', count: 42 \}/);
+  assert.match(publisher, /'overlay-bay-test'/);
+  assert.match(source, /source === 'overlay-bay-test'/);
+  assert.match(source, /payload\.eventType === 'raid'/);
+  assert.match(source, /chat-tag-new\.fly\.dev\/api\/game-hub\/parade/);
+  assert.match(source, /x-spmt-overlay-test': 'raid'/);
+  assert.match(source, /trigger: 'raid'/);
+  assert.match(source, /channel: SYSTEM_TENANT/);
+});

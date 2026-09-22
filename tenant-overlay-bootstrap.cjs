@@ -188,7 +188,7 @@ function personalLoungeDebugLayout() {
       "height": 540,
       "opacity": 1,
       "zIndex": 0,
-      "url": "https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-2",
+      "url": "https://web-terminal-bvesa.sprites.app/spotlight-media/player?v=apollo-spotlight-10m-1",
       "sourceApp": "DiscordStreamHub",
       "role": "community-program"
     },
@@ -205,7 +205,7 @@ function personalLoungeDebugLayout() {
       "height": 169,
       "opacity": 1,
       "zIndex": 35,
-      "url": "https://web-terminal-bvesa.sprites.app/watch?roomId=system-spacemountainlive-lounge&output=program&v=direct-apollo-player-1",
+      "url": "https://web-terminal-bvesa.sprites.app/watch?embed=1&appRoomId=system-spacemountainlive-lounge&roomId=system-spacemountainlive-lounge&output=program&v=apollo-hmo-consumer-2",
       "sourceApp": "Hear Me Out",
       "role": "media-mini-player"
     },
@@ -742,14 +742,14 @@ function readTenantRecord(user, create = true) {
 
         record.outputs.lounge.widgets = record.outputs.lounge.widgets.map((widget) => {
           if (widget.id === 'community-lounge-live-spotlight') {
-            const nextUrl = 'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-2';
+            const nextUrl = 'https://web-terminal-bvesa.sprites.app/spotlight-media/player?v=apollo-spotlight-10m-1';
             const next = { ...widget, url: nextUrl, title: 'DSH Live Community Spotlight', interactive: true, interactionMode: 'interactive' };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;
             return next;
           }
           if (widget.id === 'community-lounge-hmo-media') {
-            const nextUrl = 'https://web-terminal-bvesa.sprites.app/watch?roomId=system-spacemountainlive-lounge&output=program&v=direct-apollo-player-1';
+            const nextUrl = 'https://web-terminal-bvesa.sprites.app/watch?embed=1&appRoomId=system-spacemountainlive-lounge&roomId=system-spacemountainlive-lounge&output=program&v=apollo-hmo-consumer-2';
             const next = { ...widget, url: nextUrl, interactive: true, interactionMode: 'interactive' };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;

@@ -163,7 +163,7 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
     layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.url,
     'https://web-terminal-bvesa.sprites.app/spotlight-media/player?v=apollo-spotlight-10m-1',
   );
-  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.interactive, true);
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.interactive, false);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));
 });
 

@@ -64,6 +64,7 @@ const EMBED_SCOPES_BY_CLIENT: Record<string, string[]> = {
 
 const OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT: Record<string, string[]> = {
   'spacemountain-live': ['xp:write'],
+  streamweaver: ['entitlements:read', 'events:write', 'account-recovery:write', 'chat-tag:blacklist:read', 'jobs:read', 'jobs:write'],
   'discord-stream-hub': ['discord:control', 'athena:write'],
 };
 

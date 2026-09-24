@@ -204,7 +204,7 @@ function personalLoungeDebugLayout() {
       "height": 169,
       "opacity": 1,
       "zIndex": 35,
-      "url": "https://web-terminal-bvesa.sprites.app/lounge-media/player?v=apollo-lounge-direct-1",
+      "url": "https://hearmeout-main.fly.dev/lounge-media/player?v=live-hmo-lounge-1",
       "sourceApp": "Hear Me Out",
       "role": "media-mini-player"
     },
@@ -748,7 +748,7 @@ function readTenantRecord(user, create = true) {
             return next;
           }
           if (widget.id === 'community-lounge-hmo-media') {
-            const nextUrl = 'https://web-terminal-bvesa.sprites.app/lounge-media/player?v=apollo-lounge-direct-1';
+            const nextUrl = 'https://hearmeout-main.fly.dev/lounge-media/player?v=live-hmo-lounge-1';
             const next = { ...widget, url: nextUrl, interactive: false, interactionMode: undefined };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;

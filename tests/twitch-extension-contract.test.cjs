@@ -93,7 +93,7 @@ test('tenant output passes clicks only to explicitly interactive layers', () => 
 
 test('Lounge saved media sources use passive canonical viewers only', () => {
   const bootstrap = fs.readFileSync('tenant-overlay-bootstrap.cjs', 'utf8');
-  assert.match(bootstrap, /https:\/\/web-terminal-bvesa\.sprites\.app\/lounge-media\/player\?v=apollo-lounge-direct-1/);
+  assert.match(bootstrap, /https:\/\/hearmeout-main\.fly\.dev\/lounge-media\/player\?v=live-lounge-1/);
   assert.match(bootstrap, /https:\/\/hearmeout-main\.fly\.dev\/spotlight-media\/player\?v=live-spotlight-1/);
   assert.doesNotMatch(bootstrap, /watch\?consumer=1&embed=1&appRoomId=system-spacemountainlive-lounge/);
 });

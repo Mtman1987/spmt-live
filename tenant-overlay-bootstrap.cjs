@@ -187,7 +187,7 @@ function personalLoungeDebugLayout() {
       "height": 540,
       "opacity": 1,
       "zIndex": 0,
-      "url": "https://web-terminal-bvesa.sprites.app/spotlight-media/player?v=apollo-spotlight-10m-1",
+      "url": "https://hearmeout-main.fly.dev/spotlight-media/player?v=live-spotlight-1",
       "sourceApp": "DiscordStreamHub",
       "role": "community-program"
     },
@@ -741,7 +741,7 @@ function readTenantRecord(user, create = true) {
 
         record.outputs.lounge.widgets = record.outputs.lounge.widgets.map((widget) => {
           if (widget.id === 'community-lounge-live-spotlight') {
-            const nextUrl = 'https://web-terminal-bvesa.sprites.app/spotlight-media/player?v=apollo-spotlight-10m-1';
+            const nextUrl = 'https://hearmeout-main.fly.dev/spotlight-media/player?v=live-spotlight-1';
             const next = { ...widget, url: nextUrl, title: 'DSH Live Community Spotlight', interactive: false, interactionMode: undefined };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;

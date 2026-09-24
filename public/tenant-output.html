@@ -49,7 +49,10 @@
       const pathParts = location.pathname.split('/').filter(Boolean);
       const tenant = decodeURIComponent(pathParts[1] || '').toLowerCase();
       const output = ['public', 'personal', 'lounge'].includes(pathParts[2]) ? pathParts[2] : 'public';
-      const testMode = output === 'lounge' && new URLSearchParams(location.search).get('test') === '1';
+      const query = new URLSearchParams(location.search);
+      const testMode = output === 'lounge' && query.get('test') === '1';
+      // This is the pre-live control view. The normal broadcast URL remains click-through.
+      const spotlightInteractMode = output === 'lounge' && tenant === 'mtman1987' && query.get('interact') === 'spotlight';
       const state = {
         layout: contract.emptyLayout(),
         signature: '',
@@ -185,7 +188,7 @@
         const visibleWidgets = allWidgets.filter((widget) => widget.visible !== false);
         const hasSavedAlert = allWidgets.some((widget) => widget.kind === 'alert');
         const savedMarkup = visibleWidgets.map((widget) =>
-          `<section class="tenant-widget kind-${escapeHtml(widget.kind)}${widget.layoutSlot ? ` slot-${escapeHtml(widget.layoutSlot)}` : ''}${widget.interactive === true || widget.interactionMode === 'interactive' ? ' is-interactive' : ''}" data-tenant-widget="${escapeHtml(widget.id)}" style="${widgetStyle(widget)}">${sourceMarkup(widget)}</section>`
+          `<section class="tenant-widget kind-${escapeHtml(widget.kind)}${widget.layoutSlot ? ` slot-${escapeHtml(widget.layoutSlot)}` : ''}${widget.interactive === true || widget.interactionMode === 'interactive' || (spotlightInteractMode && widget.id === 'community-lounge-live-spotlight') ? ' is-interactive' : ''}" data-tenant-widget="${escapeHtml(widget.id)}" style="${widgetStyle(widget)}">${sourceMarkup(widget)}</section>`
         ).join('');
         const fallbackAlertMarkup = hasSavedAlert ? '' :
           `<section class="tenant-widget kind-alert default-alert" data-tenant-widget="${DEFAULT_ALERT_WIDGET.id}" style="${widgetStyle(DEFAULT_ALERT_WIDGET)}">${sourceMarkup(DEFAULT_ALERT_WIDGET)}</section>`;
@@ -440,6 +443,7 @@
       if (typeof ResizeObserver === 'function') new ResizeObserver(resizeScene).observe(wrapEl);
 
       resizeScene();
+      if (spotlightInteractMode) document.documentElement.dataset.spotlightInteract = 'true';
       try { window.parent.postMessage({ type: 'spmt.personal.renderer-ready', tenant, output }, '*'); } catch {}
       refreshScene().then(() => Promise.all([refreshXboxStatus(), refreshLoungeMediaLayout()]));
       setInterval(refreshScene, 2000);

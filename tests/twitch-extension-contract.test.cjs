@@ -90,3 +90,10 @@ test('tenant output passes clicks only to explicitly interactive layers', () => 
   assert.match(output, /\.tenant-widget\.is-interactive,\.tenant-widget\.is-interactive iframe\{pointer-events:auto\}/);
   assert.match(output, /widget\.interactive === true \|\| widget\.interactionMode === 'interactive'/);
 });
+
+test('Lounge saved media sources use passive canonical viewers only', () => {
+  const bootstrap = fs.readFileSync('tenant-overlay-bootstrap.cjs', 'utf8');
+  assert.match(bootstrap, /https:\/\/web-terminal-bvesa\.sprites\.app\/lounge-media\/player\?v=apollo-lounge-direct-1/);
+  assert.match(bootstrap, /https:\/\/web-terminal-bvesa\.sprites\.app\/spotlight-media\/player\?v=apollo-spotlight-10m-1/);
+  assert.doesNotMatch(bootstrap, /watch\?consumer=1&embed=1&appRoomId=system-spacemountainlive-lounge/);
+});

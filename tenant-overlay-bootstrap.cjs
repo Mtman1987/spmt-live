@@ -180,8 +180,7 @@ function personalLoungeDebugLayout() {
       "kind": "embed",
       "visible": true,
       "locked": true,
-      "interactive": true,
-      "interactionMode": "interactive",
+      "interactive": false,
       "x": 0,
       "y": 0,
       "width": 960,
@@ -198,14 +197,14 @@ function personalLoungeDebugLayout() {
       "kind": "embed",
       "visible": true,
       "locked": true,
-      "interactive": true,
+      "interactive": false,
       "x": 68,
       "y": 3,
       "width": 300,
       "height": 169,
       "opacity": 1,
       "zIndex": 35,
-      "url": "https://web-terminal-bvesa.sprites.app/watch?consumer=1&embed=1&appRoomId=system-spacemountainlive-lounge&roomId=system-spacemountainlive-lounge&output=program&v=apollo-hmo-consumer-3",
+      "url": "https://web-terminal-bvesa.sprites.app/lounge-media/player?v=apollo-lounge-direct-1",
       "sourceApp": "Hear Me Out",
       "role": "media-mini-player"
     },
@@ -508,7 +507,7 @@ function personalLoungeDebugLayout() {
 };
 }
 
-const LOUNGE_24X7_VERSION = 9;
+const LOUNGE_24X7_VERSION = 10;
 const LOUNGE_24X7_SLOTS = Object.freeze({
   main: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   mainAlert: Object.freeze({ x: 6, y: 6, width: 590, height: 150 }),
@@ -743,14 +742,14 @@ function readTenantRecord(user, create = true) {
         record.outputs.lounge.widgets = record.outputs.lounge.widgets.map((widget) => {
           if (widget.id === 'community-lounge-live-spotlight') {
             const nextUrl = 'https://web-terminal-bvesa.sprites.app/spotlight-media/player?v=apollo-spotlight-10m-1';
-            const next = { ...widget, url: nextUrl, title: 'DSH Live Community Spotlight', interactive: true, interactionMode: 'interactive' };
+            const next = { ...widget, url: nextUrl, title: 'DSH Live Community Spotlight', interactive: false, interactionMode: undefined };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;
             return next;
           }
           if (widget.id === 'community-lounge-hmo-media') {
-            const nextUrl = 'https://web-terminal-bvesa.sprites.app/watch?consumer=1&embed=1&appRoomId=system-spacemountainlive-lounge&roomId=system-spacemountainlive-lounge&output=program&v=apollo-hmo-consumer-3';
-            const next = { ...widget, url: nextUrl, interactive: true, interactionMode: 'interactive' };
+            const nextUrl = 'https://web-terminal-bvesa.sprites.app/lounge-media/player?v=apollo-lounge-direct-1';
+            const next = { ...widget, url: nextUrl, interactive: false, interactionMode: undefined };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;
             return next;

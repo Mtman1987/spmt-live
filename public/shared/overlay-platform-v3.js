@@ -161,8 +161,12 @@
   }
 
   function outputBarMarkup() {
+    const loungeControls = platformState.output === 'lounge'
+      ? '<div class="control-actions"><a class="button primary" data-start-spotlight href="https://web-terminal-bvesa.sprites.app/spotlight-media" target="_blank" rel="noopener">Start Spotlight</a></div>'
+      : '';
     return `<section class="obv3-output-bar" data-obv3-output-bar>
       <div class="obv3-output-tabs" aria-label="Overlay output"><button type="button" class="button ghost ${platformState.output === 'public' ? 'active' : ''}" data-select-output="public">Public</button><button type="button" class="button ghost ${platformState.output === 'personal' ? 'active' : ''}" data-select-output="personal">Personal</button><button type="button" class="button ghost ${platformState.output === 'lounge' ? 'active' : ''}" data-select-output="lounge">Lounge</button></div>
+      ${loungeControls}
       <div class="obv3-url-grid">${urlRow('public', platformState.urls?.public)}${urlRow('personal', platformState.urls?.personal)}${urlRow('lounge', platformState.urls?.lounge)}</div>
     </section>`;
   }

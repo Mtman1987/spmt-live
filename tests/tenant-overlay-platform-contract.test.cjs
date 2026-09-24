@@ -75,6 +75,8 @@ test('Overlay Bay v3 exposes tenant outputs and standardized source controls', (
     'data-inspector-action="back"',
     'data-inspector-interact',
     'toggleInteraction(widget)',
+    'data-start-spotlight',
+    'https://web-terminal-bvesa.sprites.app/spotlight-media',
     'obv3-interacting',
   ]) assert.ok(source.includes(marker), `missing ${marker}`);
   assert.match(source, /\/api\/tenant-scene\?output=/);
@@ -161,7 +163,7 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
     layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.url,
     'https://web-terminal-bvesa.sprites.app/spotlight-media/player?v=apollo-spotlight-10m-1',
   );
-  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.interactive, true);
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.interactive, false);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));
 });
 
@@ -169,12 +171,12 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   const original = bootstrap._test.personalLoungeDebugLayout();
   const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
   assert.equal(layout.template, 'community-lounge-24x7-v1');
-  assert.equal(layout.lounge24x7LayoutVersion, 9);
+  assert.equal(layout.lounge24x7LayoutVersion, 10);
   assert.equal(layout.widgets.length, original.widgets.length + 5);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-alerts')?.layoutSlot, 'mainAlert');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-hmo-media')?.layoutSlot, 'media');
-  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-hmo-media')?.interactive, true);
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-hmo-media')?.interactive, false);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-leaderboard')?.layoutSlot, 'activity');
   assert.equal(layout.widgets.find((widget) => widget.id === 'sw-leaderboard-command')?.layoutSlot, 'activity');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-stella-tts')?.zIndex, 490);
@@ -207,7 +209,8 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   );
   assert.ok((activity.y / 100 * 540) + activity.height <= 503, 'activity panel must stop at the fixed-height footer edge');
   const media = layout.widgets.find((widget) => widget.id === 'community-lounge-hmo-media');
-  assert.equal(media?.url, 'https://web-terminal-bvesa.sprites.app/watch?consumer=1&embed=1&appRoomId=system-spacemountainlive-lounge&roomId=system-spacemountainlive-lounge&output=program&v=apollo-hmo-consumer-3');
+  assert.equal(media?.url, 'https://web-terminal-bvesa.sprites.app/lounge-media/player?v=apollo-lounge-direct-1');
+  assert.doesNotMatch(media?.url || '', /\/watch\?/);
   assert.doesNotMatch(media?.url || '', /hearmeout-main\.fly\.dev\/overlay/);
   const status = layout.widgets.find((widget) => widget.id === 'community-lounge-status-strip');
   const upperRightGap = (media.y / 100 * 540) - ((status.y / 100 * 540) + status.height);

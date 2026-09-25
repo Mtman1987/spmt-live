@@ -74,6 +74,12 @@ test('active Nebula activity games suppress the idle leaderboard and chat layers
   assert.match(bootstrap, /widget\.id === 'community-lounge-nebula-stage'[\s\S]*zIndex: 340/);
 });
 
+test('Lounge renderer forces the HMO slot to the passive player even if saved state is stale', () => {
+  const output = fs.readFileSync('public/tenant-output.html', 'utf8');
+  assert.match(output, /widget\.id === 'community-lounge-hmo-media'/);
+  assert.match(output, /https:\/\/hearmeout-main\.fly\.dev\/lounge-media\/player\?v=live-lounge-1/);
+});
+
 test('Lounge can smoothly swap HearMeOut and the live stream between main and media slots', () => {
   const output = fs.readFileSync('public/tenant-output.html', 'utf8');
   assert.match(output, /api\/lounge\/media-layout/);

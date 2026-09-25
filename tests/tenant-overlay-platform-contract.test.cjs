@@ -141,9 +141,10 @@ test('SpaceMountainLive system tenant resolves to an empty transparent alerts-on
 test('mtman1987 debug Lounge preset contains the complete populated scene', () => {
   const layout = bootstrap._test.personalLoungeDebugLayout();
   assert.equal(layout.template, 'community-lounge-system-v2');
-  assert.equal(layout.widgets.length, 20);
+  assert.equal(layout.widgets.length, 21);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-alerts'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight'));
+  assert.ok(layout.widgets.some((widget) => widget.id === 'sw-translation-subtitle'));
   assert.equal(
     layout.widgets.find((widget) => widget.id === 'community-lounge-nebula-stage')?.url,
     'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity',
@@ -171,7 +172,7 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   const original = bootstrap._test.personalLoungeDebugLayout();
   const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
   assert.equal(layout.template, 'community-lounge-24x7-v1');
-  assert.equal(layout.lounge24x7LayoutVersion, 11);
+  assert.equal(layout.lounge24x7LayoutVersion, 12);
   assert.equal(layout.widgets.length, original.widgets.length + 5);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-alerts')?.layoutSlot, 'mainAlert');

@@ -141,7 +141,7 @@ test('SpaceMountainLive system tenant resolves to an empty transparent alerts-on
 test('mtman1987 debug Lounge preset contains the complete populated scene', () => {
   const layout = bootstrap._test.personalLoungeDebugLayout();
   assert.equal(layout.template, 'community-lounge-system-v2');
-  assert.equal(layout.widgets.length, 20);
+  assert.equal(layout.widgets.length, 21);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-alerts'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight'));
   assert.equal(
@@ -160,6 +160,10 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-pokemon-pack'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-leaderboard-command'));
   assert.equal(
+    layout.widgets.find((widget) => widget.id === 'sw-translation-subtitle')?.url,
+    'https://streamweaver-new.fly.dev/overlay/translation?tenant=spacemountainlive',
+  );
+  assert.equal(
     layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.url,
     'https://hearmeout-main.fly.dev/spotlight-media/player?v=live-spotlight-1',
   );
@@ -171,7 +175,7 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   const original = bootstrap._test.personalLoungeDebugLayout();
   const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
   assert.equal(layout.template, 'community-lounge-24x7-v1');
-  assert.equal(layout.lounge24x7LayoutVersion, 11);
+  assert.equal(layout.lounge24x7LayoutVersion, 12);
   assert.equal(layout.widgets.length, original.widgets.length + 5);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-alerts')?.layoutSlot, 'mainAlert');
@@ -190,6 +194,8 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-community')?.layoutSlot, 'shoutouts');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-status-strip')?.layoutSlot, 'alerts');
   assert.match(layout.widgets.find((widget) => widget.id === 'community-lounge-status-strip')?.url || '', /lounge-status-strip/);
+  assert.equal(layout.widgets.find((widget) => widget.id === 'sw-translation-subtitle')?.zIndex, 470);
+  assert.match(layout.widgets.find((widget) => widget.id === 'sw-translation-subtitle')?.url || '', /overlay\/translation\?tenant=spacemountainlive/);
   assert.equal(layout.widgets.find((widget) => widget.id === 'sw-partner-checkin')?.layoutSlot, 'mainEvent');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tag')?.layoutSlot, 'games');
   assert.equal(layout.widgets.find((widget) => widget.id === 'sw-gamble')?.layoutSlot, 'games');

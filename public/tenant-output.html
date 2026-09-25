@@ -162,7 +162,10 @@
           return `<div class="tenant-broadcast-frame">${slots.map(([id, x, y, width, height]) => `<i data-slot="${id}" style="left:${x}%;top:${y}%;width:${width}%;height:${height}%"></i>`).join('')}</div>`;
         }
         if (widget.kind === 'embed') {
-          return widget.url ? `<iframe src="${escapeHtml(widget.url)}" title="${escapeHtml(widget.title)}" allow="autoplay; microphone; camera; fullscreen; clipboard-write; display-capture"></iframe>` : '';
+          const embedUrl = output === 'lounge' && widget.id === 'community-lounge-hmo-media'
+            ? 'https://hearmeout-main.fly.dev/lounge-media/player?v=live-lounge-1'
+            : widget.url;
+          return embedUrl ? `<iframe src="${escapeHtml(embedUrl)}" title="${escapeHtml(widget.title)}" allow="autoplay; microphone; camera; fullscreen; clipboard-write; display-capture"></iframe>` : '';
         }
         if (widget.kind === 'text') {
           const size = Math.max(12, Number(widget.fontSize) || 42);

@@ -329,6 +329,23 @@ function personalLoungeDebugLayout() {
       "role": "event-layer"
     },
     {
+      "id": "sw-translation-subtitle",
+      "title": "Stella Translation Subtitles",
+      "kind": "embed",
+      "visible": true,
+      "locked": true,
+      "interactive": false,
+      "x": 0,
+      "y": 0,
+      "width": 960,
+      "height": 540,
+      "opacity": 1,
+      "zIndex": 248,
+      "url": "https://streamweaver-new.fly.dev/overlay/translation-subtitle?tenant=spacemountainlive",
+      "sourceApp": "StreamWeaver",
+      "role": "event-layer"
+    },
+    {
       "id": "sw-notification",
       "title": "Notification",
       "kind": "embed",
@@ -507,7 +524,7 @@ function personalLoungeDebugLayout() {
 };
 }
 
-const LOUNGE_24X7_VERSION = 11;
+const LOUNGE_24X7_VERSION = 12;
 const LOUNGE_24X7_SLOTS = Object.freeze({
   main: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   mainAlert: Object.freeze({ x: 6, y: 6, width: 590, height: 150 }),
@@ -631,6 +648,15 @@ function applyMtmanLounge24x7Layout(input) {
       url: 'https://streamweaver-new.fly.dev/overlay/live-shoutouts?group=community',
       sourceApp: 'StreamWeaver', role: 'community-live-rotation',
       ...LOUNGE_24X7_SLOTS.shoutouts, layoutSlot: 'shoutouts',
+    }, widgets.length));
+  }
+  if (!widgets.some((widget) => widget.id === 'sw-translation-subtitle')) {
+    widgets.push(normalizeWidget({
+      id: 'sw-translation-subtitle', title: 'Stella Translation Subtitles', kind: 'embed', visible: true,
+      locked: true, interactive: false, x: 0, y: 0, width: SCENE_WIDTH, height: SCENE_HEIGHT,
+      opacity: 1, zIndex: 248,
+      url: 'https://streamweaver-new.fly.dev/overlay/translation-subtitle?tenant=spacemountainlive',
+      sourceApp: 'StreamWeaver', role: 'event-layer',
     }, widgets.length));
   }
   if (!widgets.some((widget) => widget.id === 'community-lounge-status-strip')) {

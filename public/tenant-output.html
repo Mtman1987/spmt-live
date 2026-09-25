@@ -192,7 +192,35 @@
         ).join('');
         const fallbackAlertMarkup = hasSavedAlert ? '' :
           `<section class="tenant-widget kind-alert default-alert" data-tenant-widget="${DEFAULT_ALERT_WIDGET.id}" style="${widgetStyle(DEFAULT_ALERT_WIDGET)}">${sourceMarkup(DEFAULT_ALERT_WIDGET)}</section>`;
-        sceneEl.innerHTML = savedMarkup + fallbackAlertMarkup;
+        // Keep running embeds mounted when another Lounge widget or its layout changes.
+        // Recreating an iframe restarts its player and interrupts the 24/7 program.
+        const nextScene = document.createElement('template');
+        nextScene.innerHTML = savedMarkup + fallbackAlertMarkup;
+        const existing = new Map([...sceneEl.children].map((element) => [element.dataset.tenantWidget, element]));
+        const nextIds = new Set();
+        [...nextScene.content.children].forEach((replacement) => {
+          const id = replacement.dataset.tenantWidget;
+          nextIds.add(id);
+          const current = existing.get(id);
+          const oldMedia = current?.querySelector('iframe, video');
+          const newMedia = replacement.querySelector('iframe, video');
+          if (oldMedia && newMedia && oldMedia.tagName === newMedia.tagName &&
+              oldMedia.getAttribute('src') === newMedia.getAttribute('src')) {
+            current.className = replacement.className;
+            current.style.cssText = replacement.style.cssText;
+            oldMedia.style.cssText = newMedia.style.cssText;
+            if (newMedia.tagName === 'IFRAME') {
+              oldMedia.title = newMedia.title;
+              oldMedia.setAttribute('allow', newMedia.getAttribute('allow') || '');
+            }
+            return; // Do not detach or reparent a live iframe: either can reload it.
+          }
+          if (current) current.replaceWith(replacement);
+          else sceneEl.append(replacement);
+        });
+        [...sceneEl.children].forEach((element) => {
+          if (!nextIds.has(element.dataset.tenantWidget)) element.remove();
+        });
         applyLoungeMediaLayout();
         applyActivityRotation();
         applyXboxVisibility();

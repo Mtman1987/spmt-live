@@ -66,7 +66,7 @@ Critical Lounge surfaces:
 - Lounge: `https://spmt.live/tenant/mtman1987/lounge`
 - HMO video-only player: `https://hearmeout-main.fly.dev/lounge-media/player?v=release-smoke`
 - Social alert overlay: `https://streamweaver-new.fly.dev/overlay/social?tenant=spacemountainlive`
-- Stella translation subtitles: `https://streamweaver-new.fly.dev/overlay/translation-subtitle?tenant=spacemountainlive`
+- Stella translation subtitles: `https://streamweaver-new.fly.dev/overlay/translation?tenant=spacemountainlive`
 - Nebula activity stage: `https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity`
 - Nebula main stage: `https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-main`
 

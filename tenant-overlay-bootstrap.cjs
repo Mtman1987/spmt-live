@@ -341,7 +341,7 @@ function personalLoungeDebugLayout() {
       "height": 540,
       "opacity": 1,
       "zIndex": 248,
-      "url": "https://streamweaver-new.fly.dev/overlay/translation-subtitle?tenant=spacemountainlive",
+      "url": "https://streamweaver-new.fly.dev/overlay/translation?tenant=spacemountainlive",
       "sourceApp": "StreamWeaver",
       "role": "event-layer"
     },
@@ -655,7 +655,7 @@ function applyMtmanLounge24x7Layout(input) {
       id: 'sw-translation-subtitle', title: 'Stella Translation Subtitles', kind: 'embed', visible: true,
       locked: true, interactive: false, x: 0, y: 0, width: SCENE_WIDTH, height: SCENE_HEIGHT,
       opacity: 1, zIndex: 248,
-      url: 'https://streamweaver-new.fly.dev/overlay/translation-subtitle?tenant=spacemountainlive',
+      url: 'https://streamweaver-new.fly.dev/overlay/translation?tenant=spacemountainlive',
       sourceApp: 'StreamWeaver', role: 'event-layer',
     }, widgets.length));
   }

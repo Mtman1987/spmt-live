@@ -189,7 +189,7 @@
         applyLoungeMediaLayout();
         for (const id of ['community-lounge-live-spotlight', 'community-lounge-hmo-media']) {
           const frame = sceneEl.querySelector(`[data-tenant-widget="${id}"] iframe`);
-          const active = mode === 'clip' || (mode === 'gif' && id === 'community-lounge-live-spotlight');
+          const active = mode !== 'off';
           frame?.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active }, id === 'community-lounge-live-spotlight' ? 'https://spmt.live' : 'https://hearmeout-main.fly.dev');
         }
       }
@@ -212,7 +212,7 @@
         if (brbMode === 'off' || !(event.target instanceof HTMLIFrameElement)) return;
         const id = event.target.parentElement?.dataset.tenantWidget;
         if (!['community-lounge-live-spotlight', 'community-lounge-hmo-media'].includes(id)) return;
-        const active = brbMode === 'clip' || (brbMode === 'gif' && id === 'community-lounge-live-spotlight');
+        const active = brbMode !== 'off';
         event.target.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active }, id === 'community-lounge-live-spotlight' ? 'https://spmt.live' : 'https://hearmeout-main.fly.dev');
       }, true);
 
@@ -297,6 +297,11 @@
         if (output !== 'lounge' || tenant !== 'mtman1987') return;
         const stream = sceneEl.querySelector('[data-tenant-widget="community-lounge-live-spotlight"]');
         const media = sceneEl.querySelector('[data-tenant-widget="community-lounge-hmo-media"]');
+        const brb = sceneEl.querySelector('[data-tenant-widget="community-lounge-brb"]');
+        // BRB covers only the program window. Alerts, games, Stella and the
+        // neon frame keep their own layers above the fallback.
+        placeLoungeProgram(brb, 'main');
+        if (brb) brb.style.zIndex = '80';
         const mediaIsMain = state.loungeMediaMode === 'media';
         placeLoungeProgram(stream, mediaIsMain ? 'media' : 'main');
         placeLoungeProgram(media, mediaIsMain ? 'main' : 'media');

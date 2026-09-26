@@ -291,30 +291,10 @@
         }
       }
 
-      let lastRestartNonce = null;
-      async function refreshControl() {
-        try {
-          const response = await fetch('https://streamweaver-new.fly.dev/api/lounge/spotlight-control', { cache: 'no-store' });
-          if (!response.ok) return;
-          const payload = await response.json();
-          const nonce = Number(payload?.data?.restartNonce ?? payload?.restartNonce ?? 0);
-          if (!Number.isFinite(nonce)) return;
-          if (lastRestartNonce === null) { lastRestartNonce = nonce; return; }
-          if (nonce !== lastRestartNonce) {
-            lastRestartNonce = nonce;
-            try { player?.pause?.(); } catch {}
-            setStatus('Restarting Spotlight…');
-            setTimeout(() => location.reload(), 250);
-          }
-        } catch {}
-      }
-
       addEventListener('beforeunload', () => { stopped = true; });
       void refresh();
       void refreshBroadcastMix();
-      void refreshControl();
       setInterval(refresh, 15000);
-      setInterval(refreshControl, 2000);
       setInterval(refreshBroadcastMix, 3000);
     })();
   </script>

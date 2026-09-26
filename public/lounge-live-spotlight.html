@@ -40,6 +40,7 @@
       let isPlaying = false;
       let brbMuted = false;
       let brbVodActive = false;
+      let brbReturnToLive = false;
       let pendingLogin = '';
       let missingPolls = 0;
       let playbackDeadline = null;
@@ -235,11 +236,11 @@
       window.addEventListener('message', (event) => {
         if (event.origin !== 'https://spmt.live' || event.source !== window.parent
           || event.data?.type !== 'spmt-lounge-brb-audio') return;
-        const wasVod = brbVodActive;
         const nextVod = event.data.active === true && event.data.mode === 'vod'
           && /^\d+$/.test(String(event.data.videoId || ''))
           && Number.isFinite(Number(event.data.vodOffset)) && Number(event.data.vodOffset) >= 0;
         brbVodActive = nextVod;
+        if (nextVod) brbReturnToLive = true;
         brbMuted = event.data.active === true && !nextVod;
         if (nextVod) {
           if (playbackDeadline) clearTimeout(playbackDeadline);
@@ -251,7 +252,8 @@
           clearFallback();
           isPlaying = false;
           try { player?.pause?.(); } catch {}
-        } else if (wasVod) {
+        } else if (brbReturnToLive && event.data.active !== true) {
+          brbReturnToLive = false;
           const login = pendingLogin || currentLogin;
           pendingLogin = '';
           currentLogin = '';

@@ -366,7 +366,13 @@
         // BRB covers only the program window. Alerts, games, Stella and the
         // neon frame keep their own layers above the fallback.
         placeLoungeProgram(brb, 'main');
-        if (brb) brb.style.zIndex = '80';
+        if (brb) {
+          brb.style.zIndex = '80';
+          // A saved widget opacity must not fade a full-screen BRB clip.
+          // When BRB is off its iframe stays mounted but cannot cover Spotlight.
+          brb.style.opacity = '1';
+          brb.style.visibility = state.brbMode === 'off' ? 'hidden' : 'visible';
+        }
         const mediaIsMain = state.loungeMediaMode === 'media';
         placeLoungeProgram(stream, mediaIsMain ? 'media' : 'main');
         placeLoungeProgram(media, mediaIsMain ? 'main' : 'media');

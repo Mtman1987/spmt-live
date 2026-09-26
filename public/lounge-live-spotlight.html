@@ -51,7 +51,7 @@
       function checkPlaybackSoon(login) {
         if (playbackDeadline) clearTimeout(playbackDeadline);
         playbackDeadline = setTimeout(() => {
-          if (currentLogin === login && player) reportHealth(false);
+          if (!brbMuted && currentLogin === login && player) reportHealth(false);
         }, 12000);
       }
 
@@ -206,6 +206,7 @@
             return;
           }
           isPlaying = false;
+          if (brbMuted) return;
           playFallback.classList.add('show');
           checkPlaybackSoon(currentLogin);
           if (testMode) setStatus('Playback paused. Tap Play to resume.');
@@ -233,8 +234,13 @@
           || event.data?.type !== 'spmt-lounge-brb-audio') return;
         brbMuted = event.data.active === true;
         if (brbMuted) {
-          try { player?.setMuted(true); } catch {}
+          if (playbackDeadline) clearTimeout(playbackDeadline);
+          clearFallback();
+          isPlaying = false;
+          try { player?.pause?.(); } catch {}
         } else {
+          forcePlay(!userUnlocked);
+          checkPlaybackSoon(currentLogin);
           restoreAudio();
         }
       });

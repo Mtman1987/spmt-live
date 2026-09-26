@@ -141,7 +141,7 @@ test('SpaceMountainLive system tenant resolves to an empty transparent alerts-on
 test('mtman1987 debug Lounge preset contains the complete populated scene', () => {
   const layout = bootstrap._test.personalLoungeDebugLayout();
   assert.equal(layout.template, 'community-lounge-system-v2');
-  assert.equal(layout.widgets.length, 21);
+  assert.equal(layout.widgets.length, 22);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-alerts'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-translation-subtitle'));
@@ -166,13 +166,15 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   );
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.interactive, false);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));
+  assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tts')?.visible, false);
+  assert.match(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tts')?.url || '', /say-player\?tenantId=spacemountainlive&placement=lounge/);
 });
 
 test('mtman1987 24/7 migration preserves sources and assigns the broadcast panels', () => {
   const original = bootstrap._test.personalLoungeDebugLayout();
   const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
   assert.equal(layout.template, 'community-lounge-24x7-v1');
-  assert.equal(layout.lounge24x7LayoutVersion, 12);
+  assert.equal(layout.lounge24x7LayoutVersion, 13);
   assert.equal(layout.widgets.length, original.widgets.length + 5);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-alerts')?.layoutSlot, 'mainAlert');
@@ -187,6 +189,8 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   assert.equal(layout.widgets.find((widget) => widget.id === 'sw-shoutout')?.layoutSlot, 'mainEvent');
   assert.equal(layout.widgets.find((widget) => widget.id === 'sw-shoutout')?.zIndex, 270);
   assert.match(layout.widgets.find((widget) => widget.id === 'sw-shoutout')?.url || '', /shoutout-player\?tenant=spacemountainlive/);
+  assert.match(layout.widgets.find((widget) => widget.id === 'sw-shoutout')?.url || '', /placement=lounge/);
+  assert.match(layout.widgets.find((widget) => widget.id === 'community-lounge-brb')?.url || '', /placement=lounge/);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-partners')?.layoutSlot, 'stats');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-community')?.layoutSlot, 'shoutouts');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-status-strip')?.layoutSlot, 'alerts');

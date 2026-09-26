@@ -443,7 +443,7 @@ function personalLoungeDebugLayout() {
       "height": 540,
       "opacity": 1,
       "zIndex": 270,
-      "url": "https://streamweaver-new.fly.dev/shoutout-player?tenant=spacemountainlive",
+      "url": "https://streamweaver-new.fly.dev/shoutout-player?tenant=spacemountainlive&placement=lounge",
       "sourceApp": "StreamWeaver",
       "role": "event-layer"
     },
@@ -482,6 +482,23 @@ function personalLoungeDebugLayout() {
       "role": "host-avatar-tts"
     },
     {
+      "id": "community-lounge-chat-tts",
+      "title": "Chat TTS · off by default",
+      "kind": "embed",
+      "visible": false,
+      "locked": false,
+      "interactive": false,
+      "x": 0,
+      "y": 0,
+      "width": 24,
+      "height": 24,
+      "opacity": 0,
+      "zIndex": 489,
+      "url": "https://streamweaver-new.fly.dev/say-player?tenantId=spacemountainlive&placement=lounge",
+      "sourceApp": "StreamWeaver",
+      "role": "broadcast-chat-tts"
+    },
+    {
       "id": "community-lounge-leaderboard",
       "title": "DSH Community Leaderboard",
       "kind": "embed",
@@ -511,7 +528,7 @@ function personalLoungeDebugLayout() {
       "height": 540,
       "opacity": 1,
       "zIndex": 500,
-      "url": "https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive",
+      "url": "https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge",
       "sourceApp": "StreamWeaver",
       "role": "full-screen-override"
     }
@@ -524,7 +541,7 @@ function personalLoungeDebugLayout() {
 };
 }
 
-const LOUNGE_24X7_VERSION = 12;
+const LOUNGE_24X7_VERSION = 13;
 const LOUNGE_24X7_SLOTS = Object.freeze({
   main: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   mainAlert: Object.freeze({ x: 6, y: 6, width: 590, height: 150 }),
@@ -584,6 +601,7 @@ function applyMtmanLounge24x7Layout(input) {
         };
       }
       if (widget.id === 'sw-classic-gamble') return { ...widget, visible: false };
+      if (widget.id === 'community-lounge-brb') return { ...widget, url: 'https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge' };
       if (widget.id === 'sw-shoutout') {
         return {
           ...widget,
@@ -591,7 +609,7 @@ function applyMtmanLounge24x7Layout(input) {
           ...LOUNGE_24X7_SLOTS.mainEvent,
           layoutSlot: 'mainEvent',
           zIndex: 270,
-          url: 'https://streamweaver-new.fly.dev/shoutout-player?tenant=spacemountainlive',
+          url: 'https://streamweaver-new.fly.dev/shoutout-player?tenant=spacemountainlive&placement=lounge',
         };
       }
       if (widget.id === 'sw-pokemon-pack') {
@@ -614,6 +632,14 @@ function applyMtmanLounge24x7Layout(input) {
       const slot = slotById.get(widget.id);
       return slot ? { ...widget, ...LOUNGE_24X7_SLOTS[slot], layoutSlot: slot } : widget;
     });
+  if (!widgets.some((widget) => widget.id === 'community-lounge-chat-tts')) {
+    widgets.push(normalizeWidget({
+      id: 'community-lounge-chat-tts', title: 'Chat TTS · off by default', kind: 'embed', visible: false,
+      locked: false, interactive: false, opacity: 0, zIndex: 489,
+      x: 0, y: 0, width: 24, height: 24,
+      url: 'https://streamweaver-new.fly.dev/say-player?tenantId=spacemountainlive&placement=lounge', sourceApp: 'StreamWeaver', role: 'broadcast-chat-tts',
+    }, widgets.length));
+  }
   if (!widgets.some((widget) => widget.id === 'sw-leaderboard-command')) {
     widgets.push(normalizeWidget({
       id: 'sw-leaderboard-command', title: 'Command Leaderboard', kind: 'embed', visible: true,

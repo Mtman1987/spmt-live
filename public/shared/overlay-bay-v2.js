@@ -451,7 +451,8 @@
           if (item.id === 'community-lounge-nebula-stage') return { ...item, title: 'NebulaBay Activity Games', url: 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity', ...slots.activity, layoutSlot: 'activity', zIndex: 90, role: 'activity-game-stage' };
           if (item.id === 'sw-gamble') return { ...item, ...slots.games, layoutSlot: 'games', zIndex: 276, url: 'https://streamweaver-new.fly.dev/gamble-overlay?tenant=spacemountainlive&placement=lounge-tag' };
           if (item.id === 'sw-classic-gamble') return { ...item, visible: false };
-          if (item.id === 'sw-shoutout') return { ...item, visible: true, ...slots.mainEvent, layoutSlot: 'mainEvent', zIndex: 270, url: 'https://streamweaver-new.fly.dev/shoutout-player?tenant=spacemountainlive' };
+          if (item.id === 'sw-shoutout') return { ...item, visible: true, ...slots.mainEvent, layoutSlot: 'mainEvent', zIndex: 270, url: 'https://streamweaver-new.fly.dev/shoutout-player?tenant=spacemountainlive&placement=lounge' };
+          if (item.id === 'community-lounge-brb') return { ...item, url: 'https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge' };
           if (item.id === 'sw-pokemon-pack') return { ...item, ...slots.mainEvent, layoutSlot: 'mainEvent', url: 'https://streamweaver-new.fly.dev/overlay/card-pack?tenant=spacemountainlive&placement=lounge-main' };
           const slot = slotById.get(item.id);
           return slot ? { ...item, ...slots[slot], layoutSlot: slot } : item;
@@ -469,6 +470,13 @@
           locked: true, interactive: false, zIndex: source.zIndex || 64, role: source.role,
         }));
       });
+      if (!state.overlay.widgets.some((item) => item.id === 'community-lounge-chat-tts')) {
+        state.overlay.widgets.push(commonWidget('embed', 'Chat TTS · off by default', {
+          id: 'community-lounge-chat-tts', url: 'https://streamweaver-new.fly.dev/say-player?tenantId=spacemountainlive&placement=lounge',
+          x: 0, y: 0, width: 24, height: 24, opacity: 0, visible: false, locked: false,
+          interactive: false, zIndex: 489, role: 'broadcast-chat-tts',
+        }));
+      }
       state.overlay.widgets.unshift(commonWidget('video', '24/7 Starfield', {
         id: 'community-lounge-starfield-24x7', url: '/assets/overlay-bay/starfield-pingpong.mp4', x: 0, y: 0,
         width: 960, height: 540, fit: 'cover', muted: true, loop: true, locked: true, interactive: false,
@@ -479,7 +487,7 @@
         locked: true, interactive: false, zIndex: 480, role: 'broadcast-frame',
       }));
       state.overlay.template = 'community-lounge-24x7-v1';
-      state.overlay.lounge24x7LayoutVersion = 11;
+      state.overlay.lounge24x7LayoutVersion = 13;
       state.overlayDirty = true;
       renderOverlays();
       setStatus?.('24/7 layout applied to this Lounge. Save overlay to keep it.', 'ok');

@@ -76,21 +76,39 @@
         try { player?.pause?.(); } catch {}
       }
 
-      const TARGET_VOLUME = 0.58;
-
+      let groupLevel = 0.58;
+      let masterLevel = 1;
+      let sourceVolume = 1;
+      let sourceMuted = false;
+      function effectiveVolume() {
+        return groupLevel * masterLevel * sourceVolume;
+      }
+      function restoreAudio() {
+        if (!player) return;
+        try { player.setVolume(effectiveVolume()); } catch {}
+        try { player.setMuted(!userUnlocked || brbMuted || sourceMuted || effectiveVolume() === 0); } catch {}
+      }
       function forcePlay(mutedBootstrap = false) {
         if (!player) return;
-        try { player.setVolume(TARGET_VOLUME); } catch {}
-        if (mutedBootstrap) {
+        try { player.setVolume(effectiveVolume()); } catch {}
+        if (mutedBootstrap || brbMuted || sourceMuted || effectiveVolume() === 0) {
           try { player.setMuted(true); } catch {}
         }
         try { player.play(); } catch {}
       }
-
-      function restoreAudio() {
-        if (!player || !userUnlocked || brbMuted) return;
-        try { player.setVolume(TARGET_VOLUME); } catch {}
-        try { player.setMuted(false); } catch {}
+      async function refreshBroadcastMix() {
+        try {
+          const response = await fetch('https://streamweaver-new.fly.dev/api/lounge/audio-mix', { cache: 'no-store' });
+          if (!response.ok) return;
+          const levels = (await response.json())?.levels;
+          const spotlight = Number(levels?.spotlight);
+          const all = levels?.all === undefined ? 100 : Number(levels.all);
+          if (!Number.isInteger(spotlight) || spotlight < 0 || spotlight > 100
+            || !Number.isInteger(all) || all < 0 || all > 100) return;
+          groupLevel = spotlight / 100;
+          masterLevel = all / 100;
+          restoreAudio();
+        } catch {}
       }
 
       function unlockAudioFromGesture() {
@@ -202,6 +220,16 @@
 
       window.addEventListener('message', (event) => {
         if (event.origin !== 'https://spmt.live' || event.source !== window.parent
+          || event.data?.type !== 'spmt.obspmt.audio') return;
+        const volume = Number(event.data.volume);
+        if (!Number.isFinite(volume) || volume < 0 || volume > 1 || typeof event.data.muted !== 'boolean') return;
+        sourceVolume = volume;
+        sourceMuted = event.data.muted;
+        restoreAudio();
+      });
+
+      window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://spmt.live' || event.source !== window.parent
           || event.data?.type !== 'spmt-lounge-brb-audio') return;
         brbMuted = event.data.active === true;
         if (brbMuted) {
@@ -237,7 +265,9 @@
 
       addEventListener('beforeunload', () => { stopped = true; });
       void refresh();
+      void refreshBroadcastMix();
       setInterval(refresh, 15000);
+      setInterval(refreshBroadcastMix, 3000);
     })();
   </script>
 </body>

@@ -44,8 +44,10 @@ test('Lounge Twitch player preserves one viewer unlock across polling and channe
   assert.match(spotlight, /forcePlay\(!userUnlocked\)/);
   assert.match(spotlight, /if \(userUnlocked\) restoreAudio\(\)/);
   assert.match(spotlight, /controls: true/);
-  assert.match(spotlight, /setVolume\(TARGET_VOLUME\)/);
-  assert.match(spotlight, /setMuted\(false\)/);
+  assert.match(spotlight, /setVolume\(effectiveVolume\(\)\)/);
+  assert.match(spotlight, /setMuted\(!userUnlocked \|\| brbMuted \|\| sourceMuted \|\| effectiveVolume\(\) === 0\)/);
+  assert.match(spotlight, /masterLevel = all \/ 100/);
+  assert.match(spotlight, /type !== 'spmt\.obspmt\.audio'/);
   assert.match(spotlight, /Twitch volume controls/);
   assert.match(spotlight, /player\.setChannel\(clean\)/);
   assert.match(spotlight, /switchingChannel = true/);
@@ -100,6 +102,6 @@ test('tenant output passes clicks only to explicitly interactive layers', () => 
 test('Lounge saved media sources use passive canonical viewers only', () => {
   const bootstrap = fs.readFileSync('tenant-overlay-bootstrap.cjs', 'utf8');
   assert.match(bootstrap, /https:\/\/hearmeout-main\.fly\.dev\/lounge-media\/player\?v=live-lounge-1/);
-  assert.match(bootstrap, /https:\/\/hearmeout-main\.fly\.dev\/spotlight-media\/player\?v=live-spotlight-1/);
+  assert.match(bootstrap, /https:\/\/spmt\.live\/lounge-live-spotlight\.html\?v=direct-twitch-1/);
   assert.doesNotMatch(bootstrap, /watch\?consumer=1&embed=1&appRoomId=system-spacemountainlive-lounge/);
 });

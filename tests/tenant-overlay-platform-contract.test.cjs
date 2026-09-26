@@ -180,7 +180,7 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-leaderboard-command'));
   assert.equal(
     layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.url,
-    'https://hearmeout-main.fly.dev/spotlight-media/player?v=live-spotlight-3',
+    'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1',
   );
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.interactive, false);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));

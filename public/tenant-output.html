@@ -180,6 +180,34 @@
         return '';
       }
 
+      // Keep both shared media viewers mounted through BRB. Only their local
+      // audio changes; the worker streams and browser iframe sessions continue.
+      let brbMode = 'off';
+      function relayBRBAudio(mode) {
+        brbMode = mode;
+        state.brbMode = mode;
+        applyLoungeMediaLayout();
+        for (const id of ['community-lounge-live-spotlight', 'community-lounge-hmo-media']) {
+          const frame = sceneEl.querySelector(`[data-tenant-widget="${id}"] iframe`);
+          const active = mode === 'clip' || (mode === 'spotlight' && id === 'community-lounge-hmo-media');
+          frame?.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active }, 'https://hearmeout-main.fly.dev');
+        }
+      }
+      window.addEventListener('message', (event) => {
+        if (output !== 'lounge' || tenant !== 'mtman1987' || event.origin !== 'https://streamweaver-new.fly.dev') return;
+        const brb = sceneEl.querySelector('[data-tenant-widget="community-lounge-brb"] iframe');
+        if (event.source !== brb?.contentWindow || event.data?.type !== 'spmt-lounge-brb-audio' || typeof event.data.active !== 'boolean') return;
+        const mode = event.data.active ? (event.data.mode === 'spotlight' ? 'spotlight' : 'clip') : 'off';
+        relayBRBAudio(mode);
+      });
+      sceneEl.addEventListener('load', (event) => {
+        if (brbMode === 'off' || !(event.target instanceof HTMLIFrameElement)) return;
+        const id = event.target.parentElement?.dataset.tenantWidget;
+        if (!['community-lounge-live-spotlight', 'community-lounge-hmo-media'].includes(id)) return;
+        const active = brbMode === 'clip' || (brbMode === 'spotlight' && id === 'community-lounge-hmo-media');
+        event.target.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active }, 'https://hearmeout-main.fly.dev');
+      }, true);
+
       function renderScene() {
         const layout = state.layout;
         if (layout.enabled === false) {
@@ -264,6 +292,15 @@
         const mediaIsMain = state.loungeMediaMode === 'media';
         placeLoungeProgram(stream, mediaIsMain ? 'media' : 'main');
         placeLoungeProgram(media, mediaIsMain ? 'main' : 'media');
+        // Promote the existing Spotlight iframe for BRB, retaining its user
+        // activation and playback. Never recreate or navigate the player.
+        if (stream) {
+          stream.style.zIndex = state.brbMode === 'spotlight' ? '499' : String(state.layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.zIndex ?? 0);
+          if (state.brbMode === 'spotlight') {
+            stream.style.left = '0'; stream.style.top = '0';
+            stream.style.width = '960px'; stream.style.height = '540px';
+          }
+        }
       }
 
       async function refreshLoungeMediaLayout() {

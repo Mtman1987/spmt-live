@@ -54,6 +54,28 @@
     document.head.append(style);
   }
 
+  function ecosystemHeaderHeight() {
+    const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--spmt-ecosystem-header-height'));
+    return Number.isFinite(value) && value > 0 ? Math.ceil(value) : 40;
+  }
+
+  function reserveNativeTopChrome() {
+    const height = ecosystemHeaderHeight();
+    document.querySelectorAll('header,nav,[role="banner"]').forEach((node) => {
+      if (!(node instanceof HTMLElement) || node.id === 'spmt-ecosystem-header' || node.closest('#spmt-ecosystem-header')) return;
+      if (node.dataset.spmtHeaderOffset === '1') return;
+      const style = getComputedStyle(node);
+      if (!['fixed', 'sticky'].includes(style.position)) return;
+      const rect = node.getBoundingClientRect();
+      if (rect.height < 18 || rect.height > 180) return;
+      const configuredTop = Number.parseFloat(style.top);
+      if (Number.isFinite(configuredTop) && Math.abs(configuredTop) > 6) return;
+      if (rect.top > height + 6) return;
+      node.dataset.spmtHeaderOffset = '1';
+      node.style.setProperty('top', 'var(--spmt-ecosystem-header-height, 40px)', 'important');
+    });
+  }
+
   function findPanel() {
     const nativeTray = document.getElementById('spmt-workspace-tray');
     if (nativeTray instanceof HTMLElement && nativeTray.querySelector('.spmt-tray-panel')) return nativeTray;
@@ -149,7 +171,7 @@
   function scheduleApply() {
     if (framePending) return;
     framePending = true;
-    requestAnimationFrame(() => { framePending = false; applyPanelState(); });
+    requestAnimationFrame(() => { framePending = false; reserveNativeTopChrome(); applyPanelState(); });
   }
 
   async function assignNativeSlot(detail) {
@@ -207,9 +229,10 @@
     });
   }
 
-  installController(); scheduleApply();
+  installController(); reserveNativeTopChrome(); scheduleApply();
   const observer = new MutationObserver(scheduleApply);
   observer.observe(document.body, { childList: true, subtree: true });
   window.addEventListener('resize', scheduleApply);
   window.addEventListener('focus', scheduleApply);
+  window.addEventListener('spmt:ecosystem-header-mounted', scheduleApply);
 })();

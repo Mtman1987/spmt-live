@@ -91,7 +91,7 @@
         if (!player) return;
         try { player.setVolume(effectiveVolume()); } catch {}
         // A test BRB channel switch must remain muted until Twitch reports playback.
-        try { player.setMuted(brbMuted || sourceMuted || effectiveVolume() === 0 || (brbStreamActive && switchingChannel && !isPlaying && !userUnlocked)); } catch {}
+        try { player.setMuted(brbMuted || sourceMuted || effectiveVolume() === 0 || (brbStreamActive && !userUnlocked)); } catch {}
       }
       function forcePlay(mutedBootstrap = false) {
         if (!player) return;
@@ -112,6 +112,11 @@
             || !Number.isInteger(all) || all < 0 || all > 100) return;
           groupLevel = spotlight / 100;
           masterLevel = all / 100;
+          // A click inside Twitch's own controls can unmute its nested iframe.
+          // Remember that gesture before our regular mix refresh can re-mute it.
+          if (brbStreamActive && !userUnlocked && effectiveVolume() > 0) {
+            try { if (player?.getMuted() === false) userUnlocked = true; } catch {}
+          }
           restoreAudio();
         } catch {}
       }
@@ -186,7 +191,7 @@
           if (testMode) setStatus('Loaded @' + clean + '. If autoplay is blocked, use the Play button.');
           clearFallback();
           fallbackTimer = setTimeout(() => {
-            if (!isPlaying && !brbMuted && !brbVodActive) playFallback.classList.add('show');
+            if ((!isPlaying || (brbStreamActive && !userUnlocked)) && !brbMuted && !brbVodActive) playFallback.classList.add('show');
           }, 1800);
         });
         player.addEventListener(window.Twitch.Player.PLAY, () => {
@@ -200,9 +205,10 @@
           missingPolls = 0;
           if (!brbVodActive && !brbStreamActive) reportHealth(true);
           clearFallback();
-          // Twitch starts muted for autoplay. Once playback is running, try
-          // restoring the broadcast mix without requiring an extra click.
+          // BRB must complete muted autoplay before the one-time sound gesture.
+          // Unmuting in PLAYING can make the browser block playback entirely.
           restoreAudio();
+          if (brbStreamActive && !userUnlocked) playFallback.classList.add('show');
           // The initial muted bootstrap can finish after PLAYING. Once Twitch
           // reports the player unmuted, retain that session for later channels.
           const restoreAndRemember = () => {

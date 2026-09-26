@@ -214,8 +214,17 @@
         if (event.source !== brb?.contentWindow || event.data?.type !== 'spmt-lounge-brb-audio' || typeof event.data.active !== 'boolean') return;
         const vod = /^\d+$/.test(String(event.data.videoId || '')) && Number.isFinite(Number(event.data.vodOffset)) && Number(event.data.vodOffset) >= 0
           ? { videoId: String(event.data.videoId), vodOffset: Number(event.data.vodOffset) } : null;
-        const mode = event.data.active ? (event.data.mode === 'vod' && vod ? 'vod' : event.data.mode === 'gif' ? 'gif' : 'clip') : 'off';
+        const mode = event.data.active ? (event.data.mode === 'vod' && vod ? 'vod' : event.data.mode === 'stream' ? 'stream' : event.data.mode === 'gif' ? 'gif' : 'clip') : 'off';
         relayBRBAudio(mode, vod);
+      });
+      window.addEventListener('message', (event) => {
+        if (output !== 'lounge' || tenant !== 'mtman1987' || event.origin !== 'https://streamweaver-new.fly.dev') return;
+        const brb = sceneEl.querySelector('[data-tenant-widget="community-lounge-brb"] iframe');
+        const spotlight = sceneEl.querySelector('[data-tenant-widget="community-lounge-live-spotlight"] iframe');
+        if (event.source !== brb?.contentWindow || event.data?.type !== 'spmt-lounge-testbrb' || brbMode !== 'stream') return;
+        const channel = String(event.data.channel || '').toLowerCase();
+        if (!/^[a-z0-9_]{3,25}$/.test(channel)) return;
+        spotlight?.contentWindow?.postMessage({ type: 'spmt-lounge-testbrb', channel }, 'https://spmt.live');
       });
       sceneEl.addEventListener('load', (event) => {
         if (brbMode === 'off' || !(event.target instanceof HTMLIFrameElement)) return;
@@ -381,7 +390,7 @@
         placeLoungeProgram(media, mediaIsMain ? 'main' : 'media');
         // Both program sources stay in fixed slots. BRB turns on above the
         // program; the Spotlight player is paused and hidden until BRB ends.
-        if (stream) stream.style.visibility = state.brbMode === 'off' || state.brbMode === 'vod' ? 'visible' : 'hidden';
+        if (stream) stream.style.visibility = state.brbMode === 'off' || state.brbMode === 'vod' || state.brbMode === 'stream' ? 'visible' : 'hidden';
       }
 
       async function refreshLoungeMediaLayout() {

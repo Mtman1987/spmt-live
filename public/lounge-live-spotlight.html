@@ -91,7 +91,7 @@
         if (!player) return;
         try { player.setVolume(effectiveVolume()); } catch {}
         // A test BRB channel switch must remain muted until Twitch reports playback.
-        try { player.setMuted(brbMuted || sourceMuted || effectiveVolume() === 0 || (brbStreamActive && switchingChannel && !isPlaying)); } catch {}
+        try { player.setMuted(brbMuted || sourceMuted || effectiveVolume() === 0 || (brbStreamActive && switchingChannel && !isPlaying && !userUnlocked)); } catch {}
       }
       function forcePlay(mutedBootstrap = false) {
         if (!player) return;
@@ -141,17 +141,25 @@
         // the iframe loses the browser's prior user activation and forces a
         // fresh click every time the community spotlight rotates.
         if (player) {
+          // Preserve an audible session across channel changes. Twitch's own
+          // controls live in a nested iframe, so their clicks do not reach our button.
+          if (effectiveVolume() > 0) {
+            try { if (player.getMuted() === false) userUnlocked = true; } catch {}
+          }
           currentLogin = clean;
           switchingChannel = true;
           isPlaying = false;
           checkPlaybackSoon(clean);
           clearFallback();
           if (testMode) setStatus('Switching to @' + clean + '…');
-          if (brbStreamActive) try { player.setMuted(true); } catch {}
+          // A second muted play() resets Twitch's audible player and makes the
+          // broadcaster click again at each rotation. Bootstrap muted only until
+          // the first channel has actually become audible.
+          if (!userUnlocked) try { player.setMuted(true); } catch {}
           try { player.setChannel(clean); } catch {}
-          forcePlay(brbStreamActive || !userUnlocked);
+          forcePlay(!userUnlocked);
           [350, 1200, 2500, 4000].forEach((delay) =>
-            setTimeout(() => { if (!isPlaying) forcePlay(brbStreamActive || !userUnlocked); }, delay),
+            setTimeout(() => { if (!isPlaying) forcePlay(!userUnlocked); }, delay),
           );
           return;
         }
@@ -195,8 +203,16 @@
           // Twitch starts muted for autoplay. Once playback is running, try
           // restoring the broadcast mix without requiring an extra click.
           restoreAudio();
-          setTimeout(restoreAudio, 250);
-          setTimeout(restoreAudio, 1000);
+          // The initial muted bootstrap can finish after PLAYING. Once Twitch
+          // reports the player unmuted, retain that session for later channels.
+          const restoreAndRemember = () => {
+            restoreAudio();
+            if (effectiveVolume() > 0 && !sourceMuted && !brbMuted) {
+              try { if (player.getMuted() === false) userUnlocked = true; } catch {}
+            }
+          };
+          setTimeout(restoreAndRemember, 250);
+          setTimeout(restoreAndRemember, 1000);
         });
         if (window.Twitch.Player.PLAYBACK_BLOCKED) {
           player.addEventListener(window.Twitch.Player.PLAYBACK_BLOCKED, () => {

@@ -38,6 +38,7 @@
       let userUnlocked = false;
       let switchingChannel = false;
       let isPlaying = false;
+      let brbMuted = false;
       let missingPolls = 0;
       let playbackDeadline = null;
 
@@ -87,7 +88,7 @@
       }
 
       function restoreAudio() {
-        if (!player || !userUnlocked) return;
+        if (!player || !userUnlocked || brbMuted) return;
         try { player.setVolume(TARGET_VOLUME); } catch {}
         try { player.setMuted(false); } catch {}
       }
@@ -198,6 +199,17 @@
           if (testMode) setStatus('@' + clean + ' is offline. Use ?channel=ANOTHER_LIVE_CHANNEL&test=1 to test playback.');
         });
       }
+
+      window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://spmt.live' || event.source !== window.parent
+          || event.data?.type !== 'spmt-lounge-brb-audio') return;
+        brbMuted = event.data.active === true;
+        if (brbMuted) {
+          try { player?.setMuted(true); } catch {}
+        } else {
+          restoreAudio();
+        }
+      });
 
       playFallback.addEventListener('click', () => {
         unlockAudioFromGesture();

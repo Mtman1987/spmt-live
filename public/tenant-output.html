@@ -194,6 +194,14 @@
         }
       }
       window.addEventListener('message', (event) => {
+        if (output !== 'lounge' || tenant !== 'mtman1987' || event.origin !== 'https://spmt.live') return;
+        const spotlight = sceneEl.querySelector('[data-tenant-widget="community-lounge-live-spotlight"] iframe');
+        const brb = sceneEl.querySelector('[data-tenant-widget="community-lounge-brb"] iframe');
+        if (event.source !== spotlight?.contentWindow || event.data?.type !== 'spmt-lounge-spotlight-health'
+          || typeof event.data.healthy !== 'boolean') return;
+        brb?.contentWindow?.postMessage(event.data, 'https://streamweaver-new.fly.dev');
+      });
+      window.addEventListener('message', (event) => {
         if (output !== 'lounge' || tenant !== 'mtman1987' || event.origin !== 'https://streamweaver-new.fly.dev') return;
         const brb = sceneEl.querySelector('[data-tenant-widget="community-lounge-brb"] iframe');
         if (event.source !== brb?.contentWindow || event.data?.type !== 'spmt-lounge-brb-audio' || typeof event.data.active !== 'boolean') return;

@@ -37,6 +37,22 @@
       let fallbackTimer = null;
       let userUnlocked = false;
       let switchingChannel = false;
+      let isPlaying = false;
+      let missingPolls = 0;
+      let playbackDeadline = null;
+
+      function reportHealth(healthy) {
+        if (window.parent !== window) {
+          window.parent.postMessage({ type: 'spmt-lounge-spotlight-health', healthy }, 'https://spmt.live');
+        }
+      }
+
+      function checkPlaybackSoon(login) {
+        if (playbackDeadline) clearTimeout(playbackDeadline);
+        playbackDeadline = setTimeout(() => {
+          if (currentLogin === login && player) reportHealth(false);
+        }, 12000);
+      }
 
       function setStatus(message) {
         statusEl.textContent = String(message || '');
@@ -53,6 +69,7 @@
 
       function clear() {
         currentLogin = '';
+        isPlaying = false;
         clearFallback();
         if (!testMode) setStatus('');
         try { player?.pause?.(); } catch {}
@@ -89,6 +106,7 @@
         if (!clean) {
           clear();
           if (testMode) setStatus('No featured live channel is available right now.');
+          if (++missingPolls >= 2) reportHealth(false);
           return;
         }
         // The 15-second spotlight poll must not restart or re-mute the same
@@ -101,6 +119,7 @@
         if (player) {
           currentLogin = clean;
           switchingChannel = true;
+          checkPlaybackSoon(clean);
           clearFallback();
           if (testMode) setStatus('Switching to @' + clean + '…');
           try { player.setChannel(clean); } catch {}
@@ -114,6 +133,7 @@
 
         clear();
         currentLogin = clean;
+        checkPlaybackSoon(clean);
         if (!window.Twitch?.Player) return;
 
         if (testMode) setStatus('Loading @' + clean + '…');
@@ -148,6 +168,10 @@
         });
         player.addEventListener(window.Twitch.Player.PLAYING, () => {
           switchingChannel = false;
+          isPlaying = true;
+          if (playbackDeadline) clearTimeout(playbackDeadline);
+          missingPolls = 0;
+          reportHealth(true);
           if (userUnlocked) {
             clearFallback();
             restoreAudio();
@@ -162,10 +186,13 @@
             setTimeout(() => forcePlay(!userUnlocked), 300);
             return;
           }
+          isPlaying = false;
           playFallback.classList.add('show');
+          checkPlaybackSoon(currentLogin);
           if (testMode) setStatus('Playback paused. Tap Play to resume.');
         });
         player.addEventListener(window.Twitch.Player.OFFLINE, () => {
+          reportHealth(false);
           currentLogin = '';
           clearFallback();
           if (testMode) setStatus('@' + clean + ' is offline. Use ?channel=ANOTHER_LIVE_CHANNEL&test=1 to test playback.');
@@ -192,7 +219,7 @@
           const login = data?.spotlight?.twitchLogin || data?.spotlight?.user?.twitchLogin || '';
           mount(login);
         } catch {
-          clear();
+          if (++missingPolls >= 2 && !isPlaying) reportHealth(false);
         }
       }
 

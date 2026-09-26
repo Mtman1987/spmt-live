@@ -190,7 +190,7 @@ function personalLoungeDebugLayout() {
       "height": 540,
       "opacity": 1,
       "zIndex": 0,
-      "url": "https://hearmeout-main.fly.dev/spotlight-media/player?v=live-spotlight-3",
+      "url": "https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1",
       "sourceApp": "DiscordStreamHub",
       "role": "community-program"
     },

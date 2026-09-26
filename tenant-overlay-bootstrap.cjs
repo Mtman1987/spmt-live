@@ -805,7 +805,7 @@ function readTenantRecord(user, create = true) {
 
         record.outputs.lounge.widgets = record.outputs.lounge.widgets.map((widget) => {
           if (widget.id === 'community-lounge-live-spotlight') {
-            const nextUrl = 'https://hearmeout-main.fly.dev/spotlight-media/player?v=live-spotlight-3';
+            const nextUrl = 'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1';
             const next = { ...widget, url: nextUrl, title: 'DSH Live Community Spotlight', interactive: false, interactionMode: undefined };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;

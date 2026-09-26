@@ -90,7 +90,8 @@
       function restoreAudio() {
         if (!player) return;
         try { player.setVolume(effectiveVolume()); } catch {}
-        try { player.setMuted(brbMuted || sourceMuted || effectiveVolume() === 0); } catch {}
+        // A test BRB channel switch must remain muted until Twitch reports playback.
+        try { player.setMuted(brbMuted || sourceMuted || effectiveVolume() === 0 || (brbStreamActive && switchingChannel && !isPlaying)); } catch {}
       }
       function forcePlay(mutedBootstrap = false) {
         if (!player) return;
@@ -146,10 +147,11 @@
           checkPlaybackSoon(clean);
           clearFallback();
           if (testMode) setStatus('Switching to @' + clean + '…');
+          if (brbStreamActive) try { player.setMuted(true); } catch {}
           try { player.setChannel(clean); } catch {}
-          forcePlay(!userUnlocked);
+          forcePlay(brbStreamActive || !userUnlocked);
           [350, 1200, 2500, 4000].forEach((delay) =>
-            setTimeout(() => { if (!isPlaying) forcePlay(!userUnlocked); }, delay),
+            setTimeout(() => { if (!isPlaying) forcePlay(brbStreamActive || !userUnlocked); }, delay),
           );
           return;
         }
@@ -207,7 +209,7 @@
         }
         player.addEventListener(window.Twitch.Player.PAUSE, () => {
           if (switchingChannel) {
-            setTimeout(() => forcePlay(!userUnlocked), 300);
+            setTimeout(() => forcePlay(brbStreamActive || !userUnlocked), 300);
             return;
           }
           isPlaying = false;

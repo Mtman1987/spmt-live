@@ -45,6 +45,24 @@ test('canonical widget contract standardizes geometry, opacity and media fit', (
   assert.equal(full.fit, 'cover');
 });
 
+test('OBSpmt audio settings persist and opt-out is respected', () => {
+  const context = { window: {}, structuredClone: global.structuredClone, JSON, Date };
+  vm.createContext(context);
+  vm.runInContext(read('public/shared/overlay-widget-contract.js'), context);
+  const normalize = context.window.SPMTOverlayWidgets.normalizeWidget;
+  const previous = normalize({ id: 'community-lounge-hmo-media', kind: 'embed' });
+  assert.equal(previous.controlAudioViaOBSpmt, true);
+  assert.equal(previous.audioVolume, 100);
+  const disabled = normalize({ id: previous.id, kind: 'embed', controlAudioViaOBSpmt: false });
+  assert.equal(disabled.controlAudioViaOBSpmt, false);
+  const saved = normalize({ id: 'other', kind: 'video', controlAudioViaOBSpmt: true, audioVolume: 17, audioMuted: true });
+  assert.equal(saved.audioVolume, 17);
+  assert.equal(saved.audioMuted, true);
+  assert.equal(normalize({ ...saved, audioVolume: 500 }).audioVolume, 100);
+  assert.match(read('public/shared/overlay-platform-v3.js'), /Control audio via OBSpmt/);
+  assert.match(read('public/tenant-output.html'), /type: 'spmt\.obspmt\.audio'/);
+});
+
 test('tenant output is transparent and renders saved zIndex instead of inventing layer order', () => {
   const source = read('public/tenant-output.html');
   assert.match(source, /background:transparent!important/);

@@ -181,6 +181,69 @@
     return widget;
   }
 
+  function audioSources() {
+    return (state.overlay?.widgets || []).filter((widget) => ['embed', 'video', 'camera', 'screen'].includes(widget.kind));
+  }
+
+  function mixerMarkup() {
+    const sources = audioSources();
+    return `<section class="obv3-mixer" aria-label="OBSpmt audio mixer"><div class="obv3-mixer-head"><strong>OBSpmt audio mixer</strong><small>Saved with this ${escapeHtml(outputLabel())} scene</small></div>${sources.length ? sources.map((widget) => {
+      const enabled = widget.controlAudioViaOBSpmt === true;
+      const level = Number.isFinite(Number(widget.audioVolume)) ? Math.max(0, Math.min(100, Number(widget.audioVolume))) : 100;
+      return `<div class="obv3-mixer-source" data-audio-source="${escapeHtml(widget.id)}"><label class="obv3-mixer-enable"><input type="checkbox" data-audio-enable ${enabled ? 'checked' : ''}><span>Control audio via OBSpmt</span></label><div class="obv3-mixer-line"><strong title="${escapeHtml(widget.title || '')}">${escapeHtml(widget.title || widget.id)}</strong><input type="range" min="0" max="100" step="1" value="${level}" data-audio-level aria-label="${escapeHtml(widget.title || widget.id)} volume" ${enabled ? '' : 'disabled'}><output data-audio-value>${level}%</output><button type="button" data-audio-mute aria-label="${escapeHtml(widget.title || widget.id)} mute" aria-pressed="${widget.audioMuted === true}" ${enabled ? '' : 'disabled'}>${widget.audioMuted === true ? 'Unmute' : 'Mute'}</button></div></div>`;
+    }).join('') : '<p>Add a video or web source to control its audio.</p>'}<small>Web sources need an OBSpmt compatible player to accept volume updates. Other sites may keep their own volume.</small></section>`;
+  }
+
+  function sendPreviewAudio(widget, reset = false) {
+    if (widget.controlAudioViaOBSpmt !== true && !reset) return;
+    const section = document.querySelector(`[data-overlay-widget="${CSS.escape(widget.id)}"]`);
+    const volume = reset ? 1 : Math.max(0, Math.min(100, Number(widget.audioVolume) || 0)) / 100;
+    const media = section?.querySelector('video,audio');
+    if (media) {
+      media.volume = volume;
+      media.muted = reset ? widget.muted === true : widget.audioMuted === true;
+    }
+    const frame = section?.querySelector('iframe');
+    if (frame && /^https?:$/.test(new URL(frame.src).protocol)) {
+      frame.contentWindow?.postMessage({ type: 'spmt.obspmt.audio', volume, muted: reset ? widget.muted === true : widget.audioMuted === true }, new URL(frame.src).origin);
+    }
+  }
+
+  function wireMixer() {
+    document.querySelectorAll('[data-audio-source]').forEach((row) => {
+      const widget = state.overlay?.widgets?.find((item) => item.id === row.dataset.audioSource);
+      if (!widget) return;
+      row.querySelector('[data-audio-enable]')?.addEventListener('change', (event) => {
+        widget.controlAudioViaOBSpmt = event.target.checked;
+        row.querySelector('[data-audio-level]').disabled = !event.target.checked;
+        row.querySelector('[data-audio-mute]').disabled = !event.target.checked;
+        markDirty();
+        sendPreviewAudio(widget, !event.target.checked);
+      });
+      row.querySelector('[data-audio-level]')?.addEventListener('input', (event) => {
+        widget.audioVolume = Math.max(0, Math.min(100, Number(event.target.value) || 0));
+        row.querySelector('[data-audio-value]').textContent = `${widget.audioVolume}%`;
+        markDirty();
+        sendPreviewAudio(widget);
+      });
+      row.querySelector('[data-audio-mute]')?.addEventListener('click', (event) => {
+        widget.audioMuted = widget.audioMuted !== true;
+        event.target.textContent = widget.audioMuted ? 'Unmute' : 'Mute';
+        event.target.setAttribute('aria-pressed', String(widget.audioMuted));
+        markDirty();
+        sendPreviewAudio(widget);
+      });
+    });
+    document.querySelectorAll('.obv3-stage-viewport iframe').forEach((frame) => {
+      frame.addEventListener('load', () => {
+        const id = frame.closest('[data-overlay-widget]')?.dataset.overlayWidget;
+        const widget = state.overlay?.widgets?.find((item) => item.id === id);
+        if (widget) sendPreviewAudio(widget);
+      });
+    });
+    audioSources().forEach(sendPreviewAudio);
+  }
+
   function inspectorMarkup() {
     const widget = selectedWidget();
     if (!widget) return '<aside class="obv3-inspector" data-obv3-inspector><div class="obv3-empty-inspector">Select or add a source to edit its standardized controls.</div></aside>';
@@ -381,6 +444,7 @@
         canvas.before(grid);
         viewport.append(canvas);
         shell.append(viewport);
+        shell.insertAdjacentHTML('beforeend', mixerMarkup());
         grid.append(shell);
         const inspectorHost = document.createElement('div');
         inspectorHost.innerHTML = inspectorMarkup();
@@ -398,6 +462,7 @@
       applyInteractionMode();
       wireOutputBar();
       wireInspector();
+      wireMixer();
       document.querySelectorAll('[data-layer-id]').forEach((row) => row.addEventListener('click', (event) => {
         if (event.target.closest('button,input,select,a')) return;
         selectWidget(row.dataset.layerId);

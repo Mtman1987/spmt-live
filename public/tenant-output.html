@@ -216,6 +216,37 @@
         event.target.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active }, id === 'community-lounge-live-spotlight' ? 'https://spmt.live' : 'https://hearmeout-main.fly.dev');
       }, true);
 
+      const controlledSources = new Set();
+      function applySourceAudio(widget) {
+        const enabled = widget.controlAudioViaOBSpmt === true;
+        if (!enabled && !controlledSources.has(widget.id)) return;
+        const element = sceneEl.querySelector(`[data-tenant-widget="${CSS.escape(widget.id)}"]`);
+        if (!element) return;
+        if (enabled) controlledSources.add(widget.id);
+        else controlledSources.delete(widget.id);
+        const level = enabled ? Math.max(0, Math.min(100, Number(widget.audioVolume) || 0)) / 100 : 1;
+        const muted = enabled ? widget.audioMuted === true : widget.muted === true;
+        const media = element.querySelector('video,audio');
+        if (media) {
+          media.volume = level;
+          media.muted = muted;
+        }
+        const frame = element.querySelector('iframe');
+        if (!frame) return;
+        try {
+          const target = new URL(frame.src);
+          if (!['https:', 'http:'].includes(target.protocol)) return;
+          frame.contentWindow?.postMessage({ type: 'spmt.obspmt.audio', volume: level, muted }, target.origin);
+        } catch {}
+      }
+
+      sceneEl.addEventListener('load', (event) => {
+        if (!(event.target instanceof HTMLIFrameElement)) return;
+        const id = event.target.closest('[data-tenant-widget]')?.dataset.tenantWidget;
+        const widget = state.layout.widgets.find((item) => item.id === id);
+        if (widget) applySourceAudio(widget);
+      }, true);
+
       function renderScene() {
         const layout = state.layout;
         if (layout.enabled === false) {
@@ -260,6 +291,7 @@
         [...sceneEl.children].forEach((element) => {
           if (!nextIds.has(element.dataset.tenantWidget)) element.remove();
         });
+        visibleWidgets.forEach(applySourceAudio);
         applyLoungeMediaLayout();
         applyActivityRotation();
         applyXboxVisibility();

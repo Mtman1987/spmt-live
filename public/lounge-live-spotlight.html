@@ -40,6 +40,7 @@
       let isPlaying = false;
       let brbMuted = false;
       let brbVodActive = false;
+      let brbStreamActive = false;
       let brbReturnToLive = false;
       let pendingLogin = '';
       let missingPolls = 0;
@@ -54,7 +55,7 @@
       function checkPlaybackSoon(login) {
         if (playbackDeadline) clearTimeout(playbackDeadline);
         playbackDeadline = setTimeout(() => {
-          if (!brbMuted && !brbVodActive && currentLogin === login && player) reportHealth(false);
+          if (!brbMuted && !brbVodActive && !brbStreamActive && currentLogin === login && player) reportHealth(false);
         }, 12000);
       }
 
@@ -187,7 +188,7 @@
           isPlaying = true;
           if (playbackDeadline) clearTimeout(playbackDeadline);
           missingPolls = 0;
-          if (!brbVodActive) reportHealth(true);
+          if (!brbVodActive && !brbStreamActive) reportHealth(true);
           clearFallback();
           // Twitch starts muted for autoplay. Once playback is running, try
           // restoring the broadcast mix without requiring an extra click.
@@ -197,7 +198,7 @@
         });
         if (window.Twitch.Player.PLAYBACK_BLOCKED) {
           player.addEventListener(window.Twitch.Player.PLAYBACK_BLOCKED, () => {
-            if (!brbMuted && !brbVodActive) {
+            if (!brbMuted && !brbVodActive && !brbStreamActive) {
               isPlaying = false;
               reportHealth(false);
               playFallback.classList.add('show');
@@ -210,13 +211,13 @@
             return;
           }
           isPlaying = false;
-          if (brbMuted || brbVodActive) return;
+          if (brbMuted || brbVodActive || brbStreamActive) return;
           playFallback.classList.add('show');
           checkPlaybackSoon(currentLogin);
           if (testMode) setStatus('Playback paused. Tap Play to resume.');
         });
         player.addEventListener(window.Twitch.Player.OFFLINE, () => {
-          if (brbVodActive) return;
+          if (brbVodActive || brbStreamActive) return;
           reportHealth(false);
           currentLogin = '';
           clearFallback();
@@ -240,13 +241,19 @@
         const nextVod = event.data.active === true && event.data.mode === 'vod'
           && /^\d+$/.test(String(event.data.videoId || ''))
           && Number.isFinite(Number(event.data.vodOffset)) && Number(event.data.vodOffset) >= 0;
+        const nextStream = event.data.active === true && event.data.mode === 'stream';
         brbVodActive = nextVod;
-        if (nextVod) brbReturnToLive = true;
-        brbMuted = event.data.active === true && !nextVod;
+        brbStreamActive = nextStream;
+        if (nextVod || nextStream) brbReturnToLive = true;
+        brbMuted = event.data.active === true && !nextVod && !nextStream;
         if (nextVod) {
           if (playbackDeadline) clearTimeout(playbackDeadline);
           clearFallback();
           try { player?.setVideo?.('v' + event.data.videoId, Number(event.data.vodOffset)); } catch {}
+          restoreAudio();
+        } else if (nextStream) {
+          if (playbackDeadline) clearTimeout(playbackDeadline);
+          clearFallback();
           restoreAudio();
         } else if (brbMuted) {
           if (playbackDeadline) clearTimeout(playbackDeadline);
@@ -264,6 +271,15 @@
           checkPlaybackSoon(currentLogin);
           restoreAudio();
         }
+      });
+
+      window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://spmt.live' || event.source !== window.parent
+          || event.data?.type !== 'spmt-lounge-testbrb' || !brbStreamActive) return;
+        const channel = String(event.data.channel || '').toLowerCase();
+        if (!/^[a-z0-9_]{3,25}$/.test(channel)) return;
+        if (channel === currentLogin && player) forcePlay(!userUnlocked);
+        else mount(channel);
       });
 
       playFallback.addEventListener('click', () => {
@@ -284,10 +300,10 @@
           if (!response.ok) throw new Error('spotlight ' + response.status);
           const data = await response.json();
           const login = data?.spotlight?.twitchLogin || data?.spotlight?.user?.twitchLogin || '';
-          if (brbVodActive) pendingLogin = login;
+          if (brbVodActive || brbStreamActive) pendingLogin = login;
           else mount(login);
         } catch {
-          if (++missingPolls >= 2 && !isPlaying && !brbVodActive && !brbMuted) reportHealth(false);
+          if (++missingPolls >= 2 && !isPlaying && !brbVodActive && !brbStreamActive && !brbMuted) reportHealth(false);
         }
       }
 

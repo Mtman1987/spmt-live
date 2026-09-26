@@ -87,12 +87,10 @@
       function effectiveVolume() {
         return groupLevel * masterLevel * sourceVolume;
       }
-      function restoreAudio(allowBeforePlaying = false) {
+      function restoreAudio() {
         if (!player) return;
         try { player.setVolume(effectiveVolume()); } catch {}
-        // Automatic source switches must begin muted; starting a new stream
-        // unmuted can make Twitch block playback even after an earlier click.
-        try { player.setMuted(brbMuted || sourceMuted || effectiveVolume() === 0 || (!isPlaying && !allowBeforePlaying)); } catch {}
+        try { player.setMuted(brbMuted || sourceMuted || effectiveVolume() === 0); } catch {}
       }
       function forcePlay(mutedBootstrap = false) {
         if (!player) return;
@@ -121,7 +119,7 @@
         userUnlocked = true;
         switchingChannel = false;
         forcePlay(false);
-        restoreAudio(true);
+        restoreAudio();
         [150, 500, 1000].forEach((delay) => setTimeout(restoreAudio, delay));
         clearFallback();
       }
@@ -148,11 +146,10 @@
           checkPlaybackSoon(clean);
           clearFallback();
           if (testMode) setStatus('Switching to @' + clean + '…');
-          try { player.setMuted(true); } catch {}
           try { player.setChannel(clean); } catch {}
-          forcePlay(true);
+          forcePlay(!userUnlocked);
           [350, 1200, 2500, 4000].forEach((delay) =>
-            setTimeout(() => { if (!isPlaying) forcePlay(true); }, delay),
+            setTimeout(() => { if (!isPlaying) forcePlay(!userUnlocked); }, delay),
           );
           return;
         }
@@ -210,7 +207,7 @@
         }
         player.addEventListener(window.Twitch.Player.PAUSE, () => {
           if (switchingChannel) {
-            setTimeout(() => forcePlay(true), 300);
+            setTimeout(() => forcePlay(!userUnlocked), 300);
             return;
           }
           isPlaying = false;
@@ -270,7 +267,7 @@
           currentLogin = '';
           mount(login);
         } else {
-          forcePlay(true);
+          forcePlay(!userUnlocked);
           checkPlaybackSoon(currentLogin);
           restoreAudio();
         }
@@ -281,7 +278,7 @@
           || event.data?.type !== 'spmt-lounge-testbrb' || !brbStreamActive) return;
         const channel = String(event.data.channel || '').toLowerCase();
         if (!/^[a-z0-9_]{3,25}$/.test(channel)) return;
-        if (channel === currentLogin && player) forcePlay(true);
+        if (channel === currentLogin && player) forcePlay(!userUnlocked);
         else mount(channel);
       });
 

@@ -51,8 +51,8 @@
       const output = ['public', 'personal', 'lounge'].includes(pathParts[2]) ? pathParts[2] : 'public';
       const query = new URLSearchParams(location.search);
       const testMode = output === 'lounge' && query.get('test') === '1';
-      // This is the pre-live control view. The normal broadcast URL remains click-through.
-      const spotlightInteractMode = output === 'lounge' && tenant === 'mtman1987' && query.get('interact') === 'spotlight';
+      // Let the live lounge's persistent Spotlight player receive a real click.
+      const spotlightInteractMode = output === 'lounge' && tenant === 'mtman1987';
       const state = {
         layout: contract.emptyLayout(),
         signature: '',
@@ -385,6 +385,10 @@
           // When BRB is off its iframe stays mounted but cannot cover Spotlight.
           brb.style.opacity = '1';
           brb.style.visibility = state.brbMode === 'off' ? 'hidden' : 'visible';
+          const brbHasTransparentPlayer = state.brbMode === 'stream' || state.brbMode === 'vod';
+          brb.style.pointerEvents = brbHasTransparentPlayer ? 'none' : '';
+          const brbFrame = brb.querySelector('iframe');
+          if (brbFrame) brbFrame.style.pointerEvents = brbHasTransparentPlayer ? 'none' : '';
         }
         const mediaIsMain = state.loungeMediaMode === 'media';
         placeLoungeProgram(stream, mediaIsMain ? 'media' : 'main');

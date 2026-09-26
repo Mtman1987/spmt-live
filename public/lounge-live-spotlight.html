@@ -182,7 +182,7 @@
           }, 1800);
         });
         player.addEventListener(window.Twitch.Player.PLAY, () => {
-          switchingChannel = false;
+          if (!brbStreamActive) switchingChannel = false;
           if (testMode) setStatus('Playing @' + clean + ' — use the Twitch volume controls in the player.');
         });
         player.addEventListener(window.Twitch.Player.PLAYING, () => {

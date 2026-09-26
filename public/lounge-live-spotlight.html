@@ -89,7 +89,7 @@
       function restoreAudio() {
         if (!player) return;
         try { player.setVolume(effectiveVolume()); } catch {}
-        try { player.setMuted(!userUnlocked || brbMuted || sourceMuted || effectiveVolume() === 0); } catch {}
+        try { player.setMuted(brbMuted || sourceMuted || effectiveVolume() === 0); } catch {}
       }
       function forcePlay(mutedBootstrap = false) {
         if (!player) return;
@@ -141,15 +141,15 @@
         if (player) {
           currentLogin = clean;
           switchingChannel = true;
+          isPlaying = false;
           checkPlaybackSoon(clean);
           clearFallback();
           if (testMode) setStatus('Switching to @' + clean + '…');
           try { player.setChannel(clean); } catch {}
           forcePlay(!userUnlocked);
           [350, 1200, 2500, 4000].forEach((delay) =>
-            setTimeout(() => forcePlay(!userUnlocked), delay),
+            setTimeout(() => { if (!isPlaying) forcePlay(!userUnlocked); }, delay),
           );
-          if (userUnlocked) restoreAudio();
           return;
         }
 
@@ -175,17 +175,11 @@
           if (testMode) setStatus('Loaded @' + clean + '. If autoplay is blocked, use the Play button.');
           clearFallback();
           fallbackTimer = setTimeout(() => {
-            playFallback.classList.add('show');
+            if (!isPlaying && !brbMuted && !brbVodActive) playFallback.classList.add('show');
           }, 1800);
         });
         player.addEventListener(window.Twitch.Player.PLAY, () => {
           switchingChannel = false;
-          if (userUnlocked) {
-            clearFallback();
-            restoreAudio();
-          } else {
-            playFallback.classList.add('show');
-          }
           if (testMode) setStatus('Playing @' + clean + ' — use the Twitch volume controls in the player.');
         });
         player.addEventListener(window.Twitch.Player.PLAYING, () => {
@@ -194,15 +188,22 @@
           if (playbackDeadline) clearTimeout(playbackDeadline);
           missingPolls = 0;
           if (!brbVodActive) reportHealth(true);
-          if (userUnlocked) {
-            clearFallback();
-            restoreAudio();
-            setTimeout(restoreAudio, 250);
-            setTimeout(restoreAudio, 1000);
-          } else {
-            playFallback.classList.add('show');
-          }
+          clearFallback();
+          // Twitch starts muted for autoplay. Once playback is running, try
+          // restoring the broadcast mix without requiring an extra click.
+          restoreAudio();
+          setTimeout(restoreAudio, 250);
+          setTimeout(restoreAudio, 1000);
         });
+        if (window.Twitch.Player.PLAYBACK_BLOCKED) {
+          player.addEventListener(window.Twitch.Player.PLAYBACK_BLOCKED, () => {
+            if (!brbMuted && !brbVodActive) {
+              isPlaying = false;
+              reportHealth(false);
+              playFallback.classList.add('show');
+            }
+          });
+        }
         player.addEventListener(window.Twitch.Player.PAUSE, () => {
           if (switchingChannel) {
             setTimeout(() => forcePlay(!userUnlocked), 300);

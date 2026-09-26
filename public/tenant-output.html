@@ -190,7 +190,7 @@
         for (const id of ['community-lounge-live-spotlight', 'community-lounge-hmo-media']) {
           const frame = sceneEl.querySelector(`[data-tenant-widget="${id}"] iframe`);
           const active = mode !== 'off';
-          frame?.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active }, id === 'community-lounge-live-spotlight' ? 'https://spmt.live' : 'https://hearmeout-main.fly.dev');
+          frame?.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active, mode }, id === 'community-lounge-live-spotlight' ? 'https://spmt.live' : 'https://hearmeout-main.fly.dev');
         }
       }
       window.addEventListener('message', (event) => {
@@ -213,7 +213,7 @@
         const id = event.target.parentElement?.dataset.tenantWidget;
         if (!['community-lounge-live-spotlight', 'community-lounge-hmo-media'].includes(id)) return;
         const active = brbMode !== 'off';
-        event.target.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active }, id === 'community-lounge-live-spotlight' ? 'https://spmt.live' : 'https://hearmeout-main.fly.dev');
+        event.target.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active, mode: brbMode }, id === 'community-lounge-live-spotlight' ? 'https://spmt.live' : 'https://hearmeout-main.fly.dev');
       }, true);
 
       const controlledSources = new Set();

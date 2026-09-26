@@ -390,7 +390,9 @@
           const brbFrame = brb.querySelector('iframe');
           if (brbFrame) brbFrame.style.pointerEvents = brbHasTransparentPlayer ? 'none' : '';
         }
-        const mediaIsMain = state.loungeMediaMode === 'media';
+        // Twitch requires a full-size visible embed for muted autoplay. Keep
+        // the persistent Spotlight player in the main slot during BRB streams.
+        const mediaIsMain = state.loungeMediaMode === 'media' && state.brbMode !== 'stream' && state.brbMode !== 'vod';
         placeLoungeProgram(stream, mediaIsMain ? 'media' : 'main');
         placeLoungeProgram(media, mediaIsMain ? 'main' : 'media');
         // Both program sources stay in fixed slots. BRB turns on above the

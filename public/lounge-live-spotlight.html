@@ -39,6 +39,8 @@
       let switchingChannel = false;
       let isPlaying = false;
       let brbMuted = false;
+      let brbVodActive = false;
+      let pendingLogin = '';
       let missingPolls = 0;
       let playbackDeadline = null;
 
@@ -51,7 +53,7 @@
       function checkPlaybackSoon(login) {
         if (playbackDeadline) clearTimeout(playbackDeadline);
         playbackDeadline = setTimeout(() => {
-          if (!brbMuted && currentLogin === login && player) reportHealth(false);
+          if (!brbMuted && !brbVodActive && currentLogin === login && player) reportHealth(false);
         }, 12000);
       }
 
@@ -190,7 +192,7 @@
           isPlaying = true;
           if (playbackDeadline) clearTimeout(playbackDeadline);
           missingPolls = 0;
-          reportHealth(true);
+          if (!brbVodActive) reportHealth(true);
           if (userUnlocked) {
             clearFallback();
             restoreAudio();
@@ -206,12 +208,13 @@
             return;
           }
           isPlaying = false;
-          if (brbMuted) return;
+          if (brbMuted || brbVodActive) return;
           playFallback.classList.add('show');
           checkPlaybackSoon(currentLogin);
           if (testMode) setStatus('Playback paused. Tap Play to resume.');
         });
         player.addEventListener(window.Twitch.Player.OFFLINE, () => {
+          if (brbVodActive) return;
           reportHealth(false);
           currentLogin = '';
           clearFallback();
@@ -232,12 +235,27 @@
       window.addEventListener('message', (event) => {
         if (event.origin !== 'https://spmt.live' || event.source !== window.parent
           || event.data?.type !== 'spmt-lounge-brb-audio') return;
-        brbMuted = event.data.active === true;
-        if (brbMuted) {
+        const wasVod = brbVodActive;
+        const nextVod = event.data.active === true && event.data.mode === 'vod'
+          && /^\d+$/.test(String(event.data.videoId || ''))
+          && Number.isFinite(Number(event.data.vodOffset)) && Number(event.data.vodOffset) >= 0;
+        brbVodActive = nextVod;
+        brbMuted = event.data.active === true && !nextVod;
+        if (nextVod) {
+          if (playbackDeadline) clearTimeout(playbackDeadline);
+          clearFallback();
+          try { player?.setVideo?.('v' + event.data.videoId, Number(event.data.vodOffset)); } catch {}
+          restoreAudio();
+        } else if (brbMuted) {
           if (playbackDeadline) clearTimeout(playbackDeadline);
           clearFallback();
           isPlaying = false;
           try { player?.pause?.(); } catch {}
+        } else if (wasVod) {
+          const login = pendingLogin || currentLogin;
+          pendingLogin = '';
+          currentLogin = '';
+          mount(login);
         } else {
           forcePlay(!userUnlocked);
           checkPlaybackSoon(currentLogin);
@@ -263,9 +281,10 @@
           if (!response.ok) throw new Error('spotlight ' + response.status);
           const data = await response.json();
           const login = data?.spotlight?.twitchLogin || data?.spotlight?.user?.twitchLogin || '';
-          mount(login);
+          if (brbVodActive) pendingLogin = login;
+          else mount(login);
         } catch {
-          if (++missingPolls >= 2 && !isPlaying) reportHealth(false);
+          if (++missingPolls >= 2 && !isPlaying && !brbVodActive && !brbMuted) reportHealth(false);
         }
       }
 

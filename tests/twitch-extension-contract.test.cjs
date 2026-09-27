@@ -40,9 +40,9 @@ test('Lounge Spotlight reads the assigned worker feed and recovers viewer playba
   assert.match(spotlight, /MediaSource\.isTypeSupported\(codec\)/);
   assert.match(spotlight, /controller\?\.abort\(\)/);
   assert.match(spotlight, /lastFrame > 15000\) retry\(\)/);
-  assert.match(spotlight, /video\.play\(\)\.catch\(async \(\) =>/);
-  assert.match(spotlight, /policyMuted = true/);
-  assert.match(spotlight, /enableSound\.addEventListener\('click'/);
+  assert.match(spotlight, /video\.play\(\)\.catch\(\(\) => \{\}\)/);
+  assert.match(spotlight, /video\.muted = sourceMuted \|\| brb/);
+  assert.doesNotMatch(spotlight, /enable-sound|policyMuted/);
   assert.doesNotMatch(spotlight, /new (?:window\.)?Twitch\.Player/);
 });
 

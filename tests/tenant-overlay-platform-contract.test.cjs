@@ -214,6 +214,8 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-status-strip')?.layoutSlot, 'alerts');
   assert.match(layout.widgets.find((widget) => widget.id === 'community-lounge-status-strip')?.url || '', /lounge-status-strip/);
   assert.equal(layout.widgets.find((widget) => widget.id === 'sw-partner-checkin')?.layoutSlot, 'mainEvent');
+  assert.ok(layout.widgets.find((widget) => widget.id === 'sw-partner-checkin')?.zIndex > layout.widgets.find((widget) => widget.id === 'sw-shoutout')?.zIndex);
+  assert.ok(layout.widgets.find((widget) => widget.id === 'sw-partner-checkin')?.zIndex > layout.widgets.find((widget) => widget.id === 'community-lounge-alerts')?.zIndex);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tag')?.layoutSlot, 'games');
   assert.equal(layout.widgets.find((widget) => widget.id === 'sw-gamble')?.layoutSlot, 'games');
   assert.equal(layout.widgets.find((widget) => widget.id === 'sw-gamble')?.zIndex, 276);

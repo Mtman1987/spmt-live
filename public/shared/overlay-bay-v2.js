@@ -453,6 +453,7 @@
         .map((item) => {
           if (item.id === 'community-lounge-nebula-stage') return { ...item, title: 'NebulaBay Activity Games', url: 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity', ...slots.activity, layoutSlot: 'activity', zIndex: 90, role: 'activity-game-stage' };
           if (item.id === 'sw-gamble') return { ...item, ...slots.games, layoutSlot: 'games', zIndex: 276, url: 'https://streamweaver-new.fly.dev/gamble-overlay?tenant=spacemountainlive&placement=lounge-tag' };
+          if (item.id === 'sw-partner-checkin') return { ...item, visible: true, ...slots.mainEvent, layoutSlot: 'mainEvent', zIndex: 300 };
           if (item.id === 'sw-classic-gamble') return { ...item, visible: false };
           if (item.id === 'sw-shoutout') return { ...item, visible: true, ...slots.mainEvent, layoutSlot: 'mainEvent', zIndex: 270, url: 'https://streamweaver-new.fly.dev/shoutout-player?tenant=spacemountainlive&placement=lounge' };
           if (item.id === 'community-lounge-brb') return { ...item, url: 'https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge' };

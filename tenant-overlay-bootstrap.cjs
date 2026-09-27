@@ -377,7 +377,7 @@ function personalLoungeDebugLayout() {
       "width": 960,
       "height": 540,
       "opacity": 1,
-      "zIndex": 250,
+      "zIndex": 300,
       "url": "https://streamweaver-new.fly.dev/partner-checkin?tenant=spacemountainlive",
       "sourceApp": "StreamWeaver",
       "role": "event-layer"
@@ -603,6 +603,7 @@ function applyMtmanLounge24x7Layout(input) {
           url: 'https://streamweaver-new.fly.dev/gamble-overlay?tenant=spacemountainlive&placement=lounge-tag',
         };
       }
+      if (widget.id === 'sw-partner-checkin') return { ...widget, visible: true, ...LOUNGE_24X7_SLOTS.mainEvent, layoutSlot: 'mainEvent', zIndex: 300 };
       if (widget.id === 'sw-classic-gamble') return { ...widget, visible: false };
       if (widget.id === 'community-lounge-brb') return { ...widget, url: 'https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge' };
       if (widget.id === 'sw-shoutout') {
@@ -859,6 +860,19 @@ function readTenantRecord(user, create = true) {
             const next = {
               ...widget,
               url: 'https://chat-tag-new.fly.dev/overlay/channel/spacemountainlive?cycle=420&hudOn=45&hudOff=120&compact=lounge',
+            };
+            if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
+            corrected = true;
+            return next;
+          }
+          if (widget.id === 'sw-partner-checkin') {
+            const next = {
+              ...widget,
+              visible: true,
+              zIndex: 300,
+              url: 'https://streamweaver-new.fly.dev/partner-checkin?tenant=spacemountainlive',
+              ...LOUNGE_24X7_SLOTS.mainEvent,
+              layoutSlot: 'mainEvent',
             };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;

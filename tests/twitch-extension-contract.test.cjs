@@ -32,30 +32,18 @@ test('Twitch Extension backend is installed at process startup', () => {
 });
 
 
-test('Lounge Twitch player preserves one viewer unlock across polling and channel changes', () => {
-  const spotlight = fs.readFileSync('public/lounge-live-spotlight.html', 'utf8');
-  assert.match(spotlight, /let userUnlocked = false/);
-  assert.match(spotlight, /playFallback\.addEventListener\('click'/);
-  assert.match(spotlight, /Enable sound/);
-  assert.match(spotlight, /function unlockAudioFromGesture\(\)/);
-  assert.match(spotlight, /unlockAudioFromGesture\(\)/);
-  assert.match(spotlight, /if \(userUnlocked\) \{\s*clearFallback\(\)/);
-  assert.match(spotlight, /playFallback\.classList\.add\('show'\)/);
-  assert.match(spotlight, /forcePlay\(!userUnlocked\)/);
-  assert.match(spotlight, /if \(userUnlocked\) restoreAudio\(\)/);
-  assert.match(spotlight, /controls: true/);
-  assert.match(spotlight, /setVolume\(effectiveVolume\(\)\)/);
-  assert.match(spotlight, /setMuted\(!userUnlocked \|\| brbMuted \|\| sourceMuted \|\| effectiveVolume\(\) === 0\)/);
-  assert.match(spotlight, /masterLevel = all \/ 100/);
-  assert.match(spotlight, /type !== 'spmt\.obspmt\.audio'/);
-  assert.match(spotlight, /Twitch volume controls/);
-  assert.match(spotlight, /player\.setChannel\(clean\)/);
-  assert.match(spotlight, /switchingChannel = true/);
-  assert.match(spotlight, /if \(clean === currentLogin && player\) return/);
-  assert.match(spotlight, /forcePlay\(true\)/);
-  assert.match(spotlight, /userUnlocked = true/);
-  assert.doesNotMatch(spotlight, /inset:0;display:none;place-items:center/);
-  assert.doesNotMatch(spotlight, /player\.destroy\(\)/);
+test('Lounge Spotlight reads the assigned worker feed and recovers viewer playback', () => {
+  const spotlight = fs.readFileSync('public/lounge-worker-spotlight.html', 'utf8');
+  const output = fs.readFileSync('public/tenant-output.html', 'utf8');
+  assert.match(output, /lounge-worker-spotlight\.html\?v=worker-feed-1/);
+  assert.match(spotlight, /hmo-dj-worker\.fly\.dev:4445\/spotlight\/live\.mp4/);
+  assert.match(spotlight, /MediaSource\.isTypeSupported\(codec\)/);
+  assert.match(spotlight, /controller\?\.abort\(\)/);
+  assert.match(spotlight, /lastFrame > 15000\) retry\(\)/);
+  assert.match(spotlight, /video\.play\(\)\.catch\(async \(\) =>/);
+  assert.match(spotlight, /policyMuted = true/);
+  assert.match(spotlight, /enableSound\.addEventListener\('click'/);
+  assert.doesNotMatch(spotlight, /new (?:window\.)?Twitch\.Player/);
 });
 
 test('Lounge rotates idle leaderboard and featured chat without removing event layers', () => {
@@ -79,7 +67,7 @@ test('active Nebula activity games suppress the idle leaderboard and chat layers
 test('Lounge renderer forces the HMO slot to the passive player even if saved state is stale', () => {
   const output = fs.readFileSync('public/tenant-output.html', 'utf8');
   assert.match(output, /widget\.id === 'community-lounge-hmo-media'/);
-  assert.match(output, /https:\/\/hearmeout-main\.fly\.dev\/lounge-media\/player\?v=live-lounge-1/);
+  assert.match(output, /https:\/\/spmt\.live\/lounge-worker-media\.html\?v=worker-feed-1/);
 });
 
 test('Lounge can smoothly swap HearMeOut and the live stream between main and media slots', () => {
@@ -101,7 +89,7 @@ test('tenant output passes clicks only to explicitly interactive layers', () => 
 
 test('Lounge saved media sources use passive canonical viewers only', () => {
   const bootstrap = fs.readFileSync('tenant-overlay-bootstrap.cjs', 'utf8');
-  assert.match(bootstrap, /https:\/\/hearmeout-main\.fly\.dev\/lounge-media\/player\?v=live-lounge-1/);
-  assert.match(bootstrap, /https:\/\/spmt\.live\/lounge-live-spotlight\.html\?v=direct-twitch-1/);
+  assert.match(bootstrap, /https:\/\/spmt\.live\/lounge-worker-media\.html\?v=worker-feed-1/);
+  assert.match(bootstrap, /https:\/\/spmt\.live\/lounge-worker-spotlight\.html\?v=worker-feed-1/);
   assert.doesNotMatch(bootstrap, /watch\?consumer=1&embed=1&appRoomId=system-spacemountainlive-lounge/);
 });

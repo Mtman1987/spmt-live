@@ -164,13 +164,12 @@
           return `<div class="tenant-broadcast-frame">${slots.map(([id, x, y, width, height]) => `<i data-slot="${id}" style="left:${x}%;top:${y}%;width:${width}%;height:${height}%"></i>`).join('')}</div>`;
         }
         if (widget.kind === 'embed') {
-          // Production Lounge Spotlight is one persistent Twitch.Player hosted
-          // directly by spmt.live. Override any stale saved layout URL so an
-          // old HearMeOut worker/player reference cannot come back from DB.
+          // Keep the viewer on spmt.live; read the Spotlight feed directly from
+          // its own worker Machine, independent of the HearMeOut DJ.
           const embedUrl = output === 'lounge' && widget.id === 'community-lounge-live-spotlight'
-            ? 'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1'
+            ? 'https://spmt.live/lounge-worker-spotlight.html?v=worker-feed-1'
             : output === 'lounge' && widget.id === 'community-lounge-hmo-media'
-              ? 'https://hearmeout-main.fly.dev/lounge-media/player?v=live-lounge-1'
+              ? 'https://spmt.live/lounge-worker-media.html?v=worker-feed-1'
               : widget.url;
           return embedUrl ? `<iframe src="${escapeHtml(embedUrl)}" title="${escapeHtml(widget.title)}" allow="autoplay; microphone; camera; fullscreen; clipboard-write; display-capture"></iframe>` : '';
         }
@@ -198,7 +197,7 @@
         for (const id of ['community-lounge-live-spotlight', 'community-lounge-hmo-media']) {
           const frame = sceneEl.querySelector(`[data-tenant-widget="${id}"] iframe`);
           const active = mode !== 'off';
-          frame?.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active, mode, ...(id === 'community-lounge-live-spotlight' && brbVod ? brbVod : {}) }, id === 'community-lounge-live-spotlight' ? 'https://spmt.live' : 'https://hearmeout-main.fly.dev');
+          frame?.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active, mode, ...(id === 'community-lounge-live-spotlight' && brbVod ? brbVod : {}) }, 'https://spmt.live');
         }
       }
       window.addEventListener('message', (event) => {
@@ -232,7 +231,7 @@
         const id = event.target.parentElement?.dataset.tenantWidget;
         if (!['community-lounge-live-spotlight', 'community-lounge-hmo-media'].includes(id)) return;
         const active = brbMode !== 'off';
-        event.target.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active, mode: brbMode, ...(id === 'community-lounge-live-spotlight' && brbVod ? brbVod : {}) }, id === 'community-lounge-live-spotlight' ? 'https://spmt.live' : 'https://hearmeout-main.fly.dev');
+        event.target.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active, mode: brbMode, ...(id === 'community-lounge-live-spotlight' && brbVod ? brbVod : {}) }, 'https://spmt.live');
       }, true);
 
       function applyNativeMaster() {

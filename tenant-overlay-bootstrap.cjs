@@ -190,7 +190,7 @@ function personalLoungeDebugLayout() {
       "height": 540,
       "opacity": 1,
       "zIndex": 0,
-      "url": "https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1",
+      "url": "https://spmt.live/lounge-worker-spotlight.html?v=worker-feed-1",
       "sourceApp": "DiscordStreamHub",
       "role": "community-program"
     },
@@ -207,7 +207,7 @@ function personalLoungeDebugLayout() {
       "height": 169,
       "opacity": 1,
       "zIndex": 35,
-      "url": "https://hearmeout-main.fly.dev/lounge-media/player?v=live-lounge-1",
+      "url": "https://spmt.live/lounge-worker-media.html?v=worker-feed-1",
       "sourceApp": "Hear Me Out",
       "role": "media-mini-player"
     },
@@ -806,14 +806,14 @@ function readTenantRecord(user, create = true) {
 
         record.outputs.lounge.widgets = record.outputs.lounge.widgets.map((widget) => {
           if (widget.id === 'community-lounge-live-spotlight') {
-            const nextUrl = 'https://spmt.live/lounge-live-spotlight.html?v=direct-twitch-1';
+            const nextUrl = 'https://spmt.live/lounge-worker-spotlight.html?v=worker-feed-1';
             const next = { ...widget, url: nextUrl, title: 'DSH Live Community Spotlight', interactive: false, interactionMode: undefined };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;
             return next;
           }
           if (widget.id === 'community-lounge-hmo-media') {
-            const nextUrl = 'https://hearmeout-main.fly.dev/lounge-media/player?v=live-lounge-1';
+            const nextUrl = 'https://spmt.live/lounge-worker-media.html?v=worker-feed-1';
             const next = { ...widget, url: nextUrl, interactive: false, interactionMode: undefined };
             if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
             corrected = true;

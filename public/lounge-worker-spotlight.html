@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SpaceMountain Lounge Spotlight</title>
+  <style>
+    html,body,video{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
+    video{display:block;object-fit:contain}
+    button{display:none;position:absolute;right:14px;top:14px;z-index:2;padding:10px 14px;border:1px solid #fff;border-radius:20px;background:#e66b22;color:#fff;font:700 14px system-ui;cursor:pointer}
+  </style>
+</head>
+<body>
+  <video id="player" autoplay playsinline></video>
+  <button id="enable-sound" type="button">Enable sound</button>
+  <script>
+    (() => {
+      const video = document.getElementById('player');
+      const enableSound = document.getElementById('enable-sound');
+      const feed = 'https://hmo-dj-worker.fly.dev:4445/spotlight/live.mp4';
+      const codec = 'video/mp4; codecs="avc1.42E01F, mp4a.40.2"';
+      let controller, objectUrl, retryTimer, generation = 0, lastFrame = 0;
+      let groupLevel = .58, masterLevel = 1, sourceVolume = 1, sourceMuted = false, brb = false, policyMuted = false;
+      video.volume = groupLevel;
+      function volume() {
+        video.volume = Math.min(1, groupLevel * masterLevel * sourceVolume);
+        video.muted = sourceMuted || brb || policyMuted;
+      }
+      function health(healthy) {
+        if (window.parent !== window)
+          window.parent.postMessage({ type: 'spmt-lounge-spotlight-health', healthy }, location.origin);
+      }
+      window.addEventListener('message', event => {
+        if (event.source !== window.parent || event.origin !== location.origin) return;
+        if (event.data?.type === 'spmt.obspmt.audio') {
+          const level = Number(event.data.volume);
+          if (Number.isFinite(level) && level >= 0 && level <= 1 && typeof event.data.muted === 'boolean') {
+            sourceVolume = level; sourceMuted = event.data.muted; volume();
+          }
+        }
+        if (event.data?.type === 'spmt-lounge-brb-audio' && typeof event.data.active === 'boolean') {
+          brb = event.data.active; volume();
+        }
+      });
+      async function mix() {
+        try {
+          const response = await fetch('https://streamweaver-new.fly.dev/api/lounge/audio-mix', { cache: 'no-store' });
+          if (!response.ok) return;
+          const levels = (await response.json()).levels;
+          const spotlight = Number(levels?.spotlight), all = Number(levels?.all ?? 100);
+          if (spotlight >= 0 && spotlight <= 100 && all >= 0 && all <= 100) {
+            groupLevel = spotlight / 100; masterLevel = all / 100; volume();
+          }
+        } catch {}
+      }
+      function ahead() {
+        for (let i = 0; i < video.buffered.length; i++) {
+          if (video.buffered.start(i) <= video.currentTime + .1 && video.buffered.end(i) > video.currentTime)
+            return video.buffered.end(i) - video.currentTime;
+        }
+        return 0;
+      }
+      function resume() {
+        if (ahead() >= 8 && video.paused) video.play().catch(async () => {
+          // The browser can require a viewer gesture for audible playback.
+          // Keep the worker's video moving while offering sound on that client.
+          policyMuted = true; volume(); enableSound.style.display = 'block';
+          await video.play().catch(() => {});
+        });
+      }
+      enableSound.addEventListener('click', () => {
+        policyMuted = false; volume(); enableSound.style.display = 'none';
+        void video.play().catch(() => {});
+      });
+      function retry() {
+        health(false);
+        if (!retryTimer) retryTimer = setTimeout(() => { retryTimer = 0; void connect(); }, 2000);
+      }
+      async function connect() {
+        const id = ++generation;
+        controller?.abort();
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        video.removeAttribute('src'); video.load();
+        if (!window.MediaSource || !MediaSource.isTypeSupported(codec)) return retry();
+        controller = new AbortController();
+        const media = new MediaSource();
+        objectUrl = URL.createObjectURL(media); video.src = objectUrl;
+        try {
+          await new Promise((resolve, reject) => {
+            media.addEventListener('sourceopen', resolve, { once: true });
+            media.addEventListener('error', reject, { once: true });
+          });
+          if (id !== generation) return;
+          const buffer = media.addSourceBuffer(codec);
+          buffer.mode = 'sequence';
+          const queue = [];
+          let pending = new Uint8Array(0), queuedBytes = 0;
+          function pump() {
+            if (id !== generation || buffer.updating || media.readyState !== 'open') return;
+            if (video.currentTime > 30 && buffer.buffered.length && buffer.buffered.start(0) < video.currentTime - 20) {
+              buffer.remove(0, video.currentTime - 15); return;
+            }
+            if (!queue.length) return;
+            const segment = queue.shift(); queuedBytes -= segment.byteLength;
+            buffer.appendBuffer(segment);
+          }
+          buffer.addEventListener('updateend', () => { pump(); resume(); });
+          buffer.addEventListener('error', retry);
+          const response = await fetch(feed, { cache: 'no-store', signal: controller.signal });
+          if (!response.ok || !response.body) throw Error('Spotlight feed unavailable');
+          const reader = response.body.getReader(); lastFrame = Date.now();
+          while (id === generation) {
+            const result = await reader.read(); if (result.done) break;
+            const combined = new Uint8Array(pending.length + result.value.length);
+            combined.set(pending); combined.set(result.value, pending.length); pending = combined;
+            while (pending.length >= 4) {
+              const size = new DataView(pending.buffer, pending.byteOffset, 4).getUint32(0);
+              if (size < 8 || size > 16 * 1024 * 1024) throw Error('Invalid Spotlight frame');
+              if (pending.length < size + 4) break;
+              const segment = pending.slice(4, size + 4); pending = pending.slice(size + 4);
+              queue.push(segment); queuedBytes += segment.length; lastFrame = Date.now();
+              if (queuedBytes > 8 * 1024 * 1024) throw Error('Spotlight viewer fell behind');
+              pump(); resume();
+            }
+          }
+          if (id === generation) retry();
+        } catch { if (!controller.signal.aborted && id === generation) retry(); }
+      }
+      video.addEventListener('playing', () => health(true));
+      video.addEventListener('waiting', () => { if (ahead() < 2) video.pause(); });
+      video.addEventListener('progress', resume);
+      video.addEventListener('canplay', resume);
+      video.addEventListener('error', retry);
+      setInterval(() => { if (lastFrame && Date.now() - lastFrame > 15000) retry(); }, 5000);
+      void mix(); setInterval(mix, 3000);
+      void connect();
+    })();
+  </script>
+</body>
+</html>

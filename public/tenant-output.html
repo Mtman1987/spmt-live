@@ -167,9 +167,9 @@
           // Keep the viewer on spmt.live; read the Spotlight feed directly from
           // its own worker Machine, independent of the HearMeOut DJ.
           const embedUrl = output === 'lounge' && widget.id === 'community-lounge-live-spotlight'
-            ? 'https://spmt.live/lounge-worker-spotlight.html?v=worker-feed-1'
+            ? 'https://hearmeout-main.fly.dev/lounge-worker-spotlight.html?v=worker-feed-2'
             : output === 'lounge' && widget.id === 'community-lounge-hmo-media'
-              ? 'https://spmt.live/lounge-worker-media.html?v=worker-feed-1'
+              ? 'https://hearmeout-main.fly.dev/lounge-worker-media.html?v=worker-feed-2'
               : widget.url;
           return embedUrl ? `<iframe src="${escapeHtml(embedUrl)}" title="${escapeHtml(widget.title)}" allow="autoplay; microphone; camera; fullscreen; clipboard-write; display-capture"></iframe>` : '';
         }

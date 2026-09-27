@@ -8,8 +8,8 @@
   const worker = 'https://hmo-dj-worker.fly.dev:4444';
   const video = document.getElementById('player');
   const status = document.getElementById('status');
-  let hls, selection = '', mix = .85, master = 1, source = 1, muted = false, brb = false, epoch = 0;
-  function volume(){video.volume = Math.min(1, mix * master * source);video.muted = muted || brb;}
+  let hls, selection = '', mix = .85, master = 1, source = 1, programLevel = 1, muted = false, programMuted = false, brb = false, epoch = 0;
+  function volume(){video.volume = Math.min(1, mix * master * source * programLevel);video.muted = muted || programMuted || brb;}
   volume();
   window.addEventListener('message', event => {
     if (event.source !== window.parent || event.origin !== location.origin) return;
@@ -50,6 +50,9 @@
       const program = await response.json();
       const lane = program.movie?.current && program.movie.playback?.status === 'playing' ? 'movie'
         : program.music?.current && program.music.playback?.status === 'playing' ? 'music' : '';
+      programLevel = lane ? Math.max(0, Math.min(1, Number(program[lane].playback?.volume ?? 100) / 100)) : 1;
+      programMuted = lane ? !!program[lane].playback?.muted : false;
+      volume();
       const item = lane && program[lane].current;
       const next = item ? lane+':'+item.requestId : '';
       if (!next) { if (selection) { selection='';hls?.destroy();video.pause();video.removeAttribute('src');video.load();} status.hidden=false;status.textContent='Waiting for a Lounge request';return; }

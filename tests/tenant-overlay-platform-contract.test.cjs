@@ -180,7 +180,7 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-leaderboard-command'));
   assert.equal(
     layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.url,
-    'https://hearmeout-main.fly.dev/lounge-worker-spotlight.html?v=worker-feed-2',
+    'https://hearmeout-main.fly.dev/spotlight-media/worker-spotlight.html?v=worker-feed-2',
   );
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.interactive, false);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));
@@ -237,7 +237,7 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   );
   assert.ok((activity.y / 100 * 540) + activity.height <= 503, 'activity panel must stop at the fixed-height footer edge');
   const media = layout.widgets.find((widget) => widget.id === 'community-lounge-hmo-media');
-  assert.equal(media?.url, 'https://hearmeout-main.fly.dev/lounge-worker-media.html?v=worker-feed-2');
+  assert.equal(media?.url, 'https://hearmeout-main.fly.dev/lounge-media/worker-media.html?v=worker-feed-2');
   assert.doesNotMatch(media?.url || '', /\/watch\?/);
   assert.doesNotMatch(media?.url || '', /\/overlay\//);
   const status = layout.widgets.find((widget) => widget.id === 'community-lounge-status-strip');

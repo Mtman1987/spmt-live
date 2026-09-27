@@ -36,12 +36,11 @@ test('Lounge Spotlight reads the assigned worker feed and recovers viewer playba
   const spotlight = fs.readFileSync('public/lounge-worker-spotlight.html', 'utf8');
   const output = fs.readFileSync('public/tenant-output.html', 'utf8');
   assert.match(output, /lounge-worker-spotlight\.html\?v=worker-feed-1/);
-  assert.match(spotlight, /hmo-dj-worker\.fly\.dev:4445\/spotlight\/live\.mp4/);
-  assert.match(spotlight, /MediaSource\.isTypeSupported\(codec\)/);
-  assert.match(spotlight, /controller\?\.abort\(\)/);
-  assert.match(spotlight, /lastFrame > 15000\) retry\(\)/);
-  assert.match(spotlight, /video\.play\(\)\.catch\(\(\) => \{\}\)/);
-  assert.match(spotlight, /video\.muted = sourceMuted \|\| brb/);
+  assert.match(spotlight, /hmo-dj-worker\.fly\.dev:4445\/spotlight\/hls\.js/);
+  assert.match(spotlight, /worker\+'\/spotlight\/program'/);
+  assert.match(spotlight, /\/spotlight\/hls\/.*\/index\.m3u8/);
+  assert.match(spotlight, /video\.play\(\)\.catch/);
+  assert.match(spotlight, /video\.muted=sourceMuted\|\|brb/);
   assert.doesNotMatch(spotlight, /enable-sound|policyMuted/);
   assert.doesNotMatch(spotlight, /new (?:window\.)?Twitch\.Player/);
 });

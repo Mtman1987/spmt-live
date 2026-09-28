@@ -52,3 +52,12 @@ test('canonical presence service owns ecosystem and workspace presence while LIV
   assert.match(start, /installPresenceBootstrap/);
   assert.match(dockerfile, /COPY presence-bootstrap\.cjs \.\/presence-bootstrap\.cjs/);
 });
+
+
+test('shared workspace controller mounts controls into app footer when provided', () => {
+  const controller = read('public/shared/workspace-controller.js');
+  assert.match(controller, /data-spmt-workspace-controls-slot/);
+  assert.match(controller, /controller\.dataset\.footerMounted = 'true'/);
+  assert.match(controller, /controller\.parentElement !== footerSlot/);
+  assert.match(controller, /#spmt-workspace-controller\[data-footer-mounted="true"\]/);
+});

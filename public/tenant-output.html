@@ -536,6 +536,13 @@
             return;
           }
           if (requestedAt <= loungeRefreshSeen) return;
+          // Keep the current picture through a spmt-live outage. Retry this
+          // request when its page host is healthy enough to serve the reload.
+          const health = await fetch('/api/health', {
+            cache: 'no-store',
+            signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(5000) : undefined,
+          });
+          if (!health.ok) return;
           loungeRefreshSeen = requestedAt;
           location.reload();
         } catch {

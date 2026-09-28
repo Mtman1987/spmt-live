@@ -40,6 +40,12 @@ function authUser(req) {
   }
 }
 
+function normalizeCloudBrowserMode(value) {
+  if (value === 'remote-play') return 'remote-play';
+  if (value === 'restream') return 'restream';
+  return 'cloud-gaming';
+}
+
 function authenticateCloudXbox(req, res, next) {
   const user = authUser(req);
   if (!user) return safeJson(res, 401, { error: 'Not authenticated' });
@@ -113,7 +119,7 @@ function installRoutes(app, express) {
   app.post('/api/cloud-xbox/session', authenticateCloudXbox, requireSameOrigin, jsonBody, async (req, res) => {
     try {
       await relayJson(res, await workerRequest(req.cloudXboxUser.id, 'POST', '/v1/session', {
-        mode: req.body?.mode === 'remote-play' ? 'remote-play' : 'cloud-gaming',
+        mode: normalizeCloudBrowserMode(req.body?.mode),
       }, 45000));
     } catch (error) {
       safeJson(res, 503, { error: error.message });
@@ -123,7 +129,7 @@ function installRoutes(app, express) {
   app.post('/api/cloud-xbox/navigate', authenticateCloudXbox, requireSameOrigin, jsonBody, async (req, res) => {
     try {
       await relayJson(res, await workerRequest(req.cloudXboxUser.id, 'POST', '/v1/navigate', {
-        mode: req.body?.mode === 'remote-play' ? 'remote-play' : 'cloud-gaming',
+        mode: normalizeCloudBrowserMode(req.body?.mode),
       }));
     } catch (error) {
       safeJson(res, 503, { error: error.message });

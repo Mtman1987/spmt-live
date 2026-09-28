@@ -145,6 +145,7 @@ test('dedicated cloud browser supports a persistent Restream Studio host mode', 
   assert.match(worker, /--use-fake-device-for-media-stream/);
   assert.match(worker, /session\.mode === 'restream'/);
   assert.match(worker, /idleTimeoutDisabled: session\.mode === 'restream'/);
+  assert.match(worker, /session\.mode === 'restream'[\s\S]*videoTracks: 0[\s\S]*: await mediaProbe\(session\)/);
   assert.match(worker, /HOST_LOCKED/);
   assert.match(backend, /normalizeCloudBrowserMode/);
   assert.match(backend, /value === 'restream'/);

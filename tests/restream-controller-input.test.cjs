@@ -81,3 +81,11 @@ test('running preview removes the loading overlay and fallback typing stays mask
   await tick();
   assert.equal(c.calls[0].body.text, 'fixture only');
 });
+
+
+test('transient Restream status timeouts do not mark a running host as stopped', () => {
+  assert.match(html, /if\(running\)\{\s*setStatus\('Restream host still running/);
+  assert.doesNotMatch(html, /catch\(error\)\{running=false;setStatus\(error\.message,true\)/);
+  assert.match(html, /if\(!running\|\|frameBusy\)return/);
+  assert.match(html, /statusTimer=setInterval\(status,5000\);frameTimer=setInterval\(refreshFrame,1200\)/);
+});

@@ -104,3 +104,12 @@ test('interactive Lounge viewers get one local audio unlock control without chan
   assert.match(output, /pointermove/);
   assert.match(output, /\['obs', 'browser-source', 'overlay', 'embed'\]/);
 });
+
+
+test('OBS Lounge keeps an invisible click target so Interact can unlock audio without showing on stream', () => {
+  const output = fs.readFileSync('public/tenant-output.html', 'utf8');
+  assert.match(output, /loungeAudioInteractionOnly/);
+  assert.match(output, /interaction-only/);
+  assert.match(output, /opacity:0/);
+  assert.match(output, /if \(loungeAudioInteractionOnly\) return/);
+});

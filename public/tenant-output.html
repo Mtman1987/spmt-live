@@ -35,6 +35,7 @@
     .tenant-test-marker{position:absolute;inset:0;border:3px dashed #22d3ee;background:rgba(34,211,238,.09);display:flex;align-items:flex-start;justify-content:flex-start;padding:6px;z-index:2147483647;pointer-events:none}
     .tenant-test-marker span{display:inline-block;max-width:100%;padding:3px 6px;border-radius:5px;background:rgba(0,0,0,.82);color:#fff;font-size:11px;font-weight:900;line-height:1.15;white-space:normal}
     #lounge-audio-unlock{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483647;display:flex;align-items:center;gap:8px;padding:11px 16px;border:1px solid rgba(255,255,255,.34);border-radius:999px;background:rgba(5,8,18,.92);box-shadow:0 12px 36px rgba(0,0,0,.55),0 0 22px rgba(33,230,255,.24);color:#fff;font:800 14px/1 system-ui,sans-serif;cursor:pointer;pointer-events:auto}
+    #lounge-audio-unlock.interaction-only{left:0;top:0;right:0;bottom:0;width:100%;height:100%;transform:none;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:transparent;opacity:0;cursor:pointer}
     #lounge-audio-unlock[hidden]{display:none}
     #lounge-audio-note{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);z-index:2147483647;max-width:min(620px,88vw);padding:8px 12px;border-radius:10px;background:rgba(5,8,18,.9);color:#e9f7ff;font:700 12px/1.35 system-ui,sans-serif;text-align:center;pointer-events:none}
     #lounge-audio-note[hidden]{display:none}
@@ -60,9 +61,9 @@
       const loungeAudioUnlock = document.getElementById('lounge-audio-unlock');
       const loungeAudioNote = document.getElementById('lounge-audio-note');
       const renderMode = String(query.get('mode') || '').toLowerCase();
-      const loungeAudioUnlockEligible = output === 'lounge' && tenant === 'mtman1987'
-        && !['obs', 'browser-source', 'overlay', 'embed'].includes(renderMode)
-        && query.get('broadcast') !== '1';
+      const loungeAudioUnlockEligible = output === 'lounge' && tenant === 'mtman1987';
+      const loungeAudioInteractionOnly = loungeAudioUnlockEligible
+        && (['obs', 'browser-source', 'overlay', 'embed'].includes(renderMode) || query.get('broadcast') === '1');
       // Let the live lounge's persistent Spotlight player receive a real click.
       const spotlightInteractMode = output === 'lounge' && tenant === 'mtman1987';
       const state = {
@@ -297,7 +298,7 @@
       }
 
       function armLoungeAudioUnlock() {
-        if (!loungeAudioUnlockEligible || !loungeAudioUnlock) return;
+        if (!loungeAudioUnlockEligible || !loungeAudioUnlock || loungeAudioInteractionOnly) return;
         loungeAudioUnlock.hidden = false;
         window.removeEventListener('pointermove', armLoungeAudioUnlock);
         window.removeEventListener('touchstart', armLoungeAudioUnlock);
@@ -305,11 +306,17 @@
       }
 
       if (loungeAudioUnlockEligible && loungeAudioUnlock) {
-        window.addEventListener('pointermove', armLoungeAudioUnlock, { once: true, passive: true });
-        window.addEventListener('touchstart', armLoungeAudioUnlock, { once: true, passive: true });
-        window.addEventListener('keydown', armLoungeAudioUnlock, { once: true });
+        if (loungeAudioInteractionOnly) {
+          loungeAudioUnlock.classList.add('interaction-only');
+          loungeAudioUnlock.hidden = false;
+        } else {
+          window.addEventListener('pointermove', armLoungeAudioUnlock, { once: true, passive: true });
+          window.addEventListener('touchstart', armLoungeAudioUnlock, { once: true, passive: true });
+          window.addEventListener('keydown', armLoungeAudioUnlock, { once: true });
+        }
         loungeAudioUnlock.addEventListener('click', () => {
           pulseLocalLoungeAudioUnlock();
+          if (loungeAudioInteractionOnly) return;
           loungeAudioUnlock.hidden = true;
           if (loungeAudioNote) {
             loungeAudioNote.textContent = 'Audio enabled. Still silent? Open browser Site settings and set Sound to Allow.';

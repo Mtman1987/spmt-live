@@ -129,3 +129,15 @@ test('production boot loads the proxy and Overlay Bay frontend', () => {
   assert.match(docker, /COPY xbox-worker\.cjs/);
   assert.match(docker, /COPY xbox-worker-guard\.cjs/);
 });
+
+
+test('dedicated cloud browser supports a persistent Restream Studio host mode', () => {
+  assert.match(worker, /restream[^\n]+https:\/\/studio\.restream\.io\//);
+  assert.match(worker, /--use-fake-ui-for-media-stream/);
+  assert.match(worker, /--use-fake-device-for-media-stream/);
+  assert.match(worker, /session\.mode === 'restream'/);
+  assert.match(worker, /idleTimeoutDisabled: session\.mode === 'restream'/);
+  assert.match(worker, /HOST_LOCKED/);
+  assert.match(backend, /normalizeCloudBrowserMode/);
+  assert.match(backend, /value === 'restream'/);
+});

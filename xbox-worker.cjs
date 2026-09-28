@@ -563,7 +563,9 @@ async function sessionStatus(userId) {
   }
   session.lastActivityAt = Date.now();
   try { await ensurePage(session); } catch {}
-  const media = await mediaProbe(session);
+  const media = session.mode === 'restream'
+    ? { videoTracks: 0, audioTracks: 0, width: null, height: null, frameRate: null }
+    : await mediaProbe(session);
   return {
     running: true,
     worker: 'dedicated',

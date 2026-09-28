@@ -133,6 +133,14 @@ test('production boot loads the proxy and Overlay Bay frontend', () => {
 
 test('dedicated cloud browser supports a persistent Restream Studio host mode', () => {
   assert.match(worker, /restream[^\n]+https:\/\/studio\.restream\.io\//);
+  assert.match(docker, /\bxvfb\b/);
+  assert.match(worker, /function findXvfb\(/);
+  assert.match(worker, /function startVirtualDisplay\(/);
+  assert.match(worker, /mode === 'restream' \? await startVirtualDisplay\(\) : null/);
+  assert.match(worker, /mode === 'restream' \? \[\] : \['--headless=new'\]/);
+  assert.match(worker, /mode === 'restream' \? \[\] : \['--disable-sync'\]/);
+  assert.match(worker, /DISPLAY:/);
+  assert.match(worker, /browserPresentation: session\.mode === 'restream' \? 'headed-xvfb' : 'headless'/);
   assert.match(worker, /--use-fake-ui-for-media-stream/);
   assert.match(worker, /--use-fake-device-for-media-stream/);
   assert.match(worker, /session\.mode === 'restream'/);

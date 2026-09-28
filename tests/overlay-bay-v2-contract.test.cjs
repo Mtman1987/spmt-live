@@ -10,12 +10,14 @@ const bridgePath = path.join(root, 'public', 'shared', 'xbox-bridge-runtime.js')
 const directPagePath = path.join(root, 'public', 'overlay-bay.html');
 const launcherPath = path.join(root, 'public', 'downloads', 'xbox-overlay-bay-test.py');
 const batchPath = path.join(root, 'public', 'downloads', 'RUN_XBOX_OVERLAY_BAY_TEST.bat');
+const restreamControlPath = path.join(root, 'public', 'restream-studio-control.html');
 
 const overlay = fs.readFileSync(overlayPath, 'utf8');
 const bridge = fs.readFileSync(bridgePath, 'utf8');
 const directPage = fs.readFileSync(directPagePath, 'utf8');
 const launcher = fs.readFileSync(launcherPath, 'utf8');
 const batch = fs.readFileSync(batchPath, 'utf8');
+const restreamControl = fs.readFileSync(restreamControlPath, 'utf8');
 
 test('Overlay Bay v2 browser scripts parse', () => {
   assert.doesNotThrow(() => new vm.Script(overlay, { filename: overlayPath }));
@@ -80,4 +82,17 @@ test('SPMT exposes a direct Overlay Bay route and one-click Windows test', () =>
   assert.match(launcher, /https:\/\/play\.xbox\.com\//);
   assert.match(launcher, /__SPMT_XBOX_BRIDGE_LAYOUT__/);
   assert.match(batch, /xbox-overlay-bay-test\.py/);
+});
+
+
+test('Lounge exposes a persistent Restream cloud-host controller', () => {
+  assert.match(overlay, /open-lounge-restream/);
+  assert.match(overlay, /\/restream-studio-control\.html/);
+  assert.match(restreamControl, /mode:'restream'/);
+  assert.match(restreamControl, /\/api\/cloud-xbox\/frame/);
+  assert.match(restreamControl, /\/api\/cloud-xbox\/input/);
+  assert.match(restreamControl, /Closing it does not stop the hosted Studio session/);
+  const inline = restreamControl.match(/<script>([\s\S]*?)<\/script>/i);
+  assert.ok(inline, 'Restream controller should include its runtime script');
+  assert.doesNotThrow(() => new vm.Script(inline[1], { filename: restreamControlPath }));
 });

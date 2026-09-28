@@ -400,7 +400,7 @@
       ['embed', 'Web'], ['text', 'Text'], ['alert', 'Alerts'], ['frame', 'Frame'],
     ];
     const loungeTest = !isOverlayRuntime && new URLSearchParams(location.search).get('output') === 'lounge'
-      ? '<button type="button" class="button primary" id="apply-lounge-24x7">Apply 24/7 layout</button><button type="button" class="button primary" id="test-lounge-layers">Test all Lounge layers</button>'
+      ? '<button type="button" class="button primary" id="apply-lounge-24x7">Apply 24/7 layout</button><button type="button" class="button primary" id="test-lounge-layers">Test all Lounge layers</button><button type="button" class="button primary" id="open-lounge-restream">Open Restream</button>'
       : '';
     return `<div class="obv2-source-toolbar">${items.map(([kind, label]) => `<button type="button" class="button ghost" data-add-source="${kind}">+ ${label}</button>`).join('')}<button type="button" class="button ghost obv2-defaults" id="add-space-defaults">SpaceMountain defaults</button>${loungeTest}</div>`;
   }
@@ -495,6 +495,19 @@
       state.overlayDirty = true;
       renderOverlays();
       setStatus?.('24/7 layout applied to this Lounge. Save overlay to keep it.', 'ok');
+    });
+    document.getElementById('open-lounge-restream')?.addEventListener('click', () => {
+      const tenant = String(window.spmtTenantOutputs?.tenant || '').trim().toLowerCase();
+      if (tenant !== 'mtman1987') {
+        setStatus?.('Restream hosting is reserved for the mtman1987 Lounge.', 'error');
+        return;
+      }
+      const popup = window.open('/restream-studio-control.html', 'spmt-restream-studio');
+      if (!popup) {
+        setStatus?.('Your browser blocked the Restream controller. Allow popups for spmt.live and try again.', 'error');
+        return;
+      }
+      setStatus?.('Opened the persistent Restream Studio cloud browser. Closing its controller will not stop the hosted session.', 'ok');
     });
     document.getElementById('test-lounge-layers')?.addEventListener('click', () => {
       const tenant = String(window.spmtTenantOutputs?.tenant || '').trim().toLowerCase();

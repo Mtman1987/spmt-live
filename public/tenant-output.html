@@ -197,14 +197,17 @@
         for (const id of ['community-lounge-live-spotlight', 'community-lounge-hmo-media']) {
           const frame = sceneEl.querySelector(`[data-tenant-widget="${id}"] iframe`);
           const active = mode !== 'off';
-          frame?.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active, mode, ...(id === 'community-lounge-live-spotlight' && brbVod ? brbVod : {}) }, 'https://spmt.live');
+          if (frame) frame.contentWindow?.postMessage(
+            { type: 'spmt-lounge-brb-audio', active, mode, ...(id === 'community-lounge-live-spotlight' && brbVod ? brbVod : {}) },
+            new URL(frame.src).origin);
         }
       }
       window.addEventListener('message', (event) => {
-        if (output !== 'lounge' || tenant !== 'mtman1987' || event.origin !== 'https://spmt.live') return;
+        if (output !== 'lounge' || tenant !== 'mtman1987') return;
         const spotlight = sceneEl.querySelector('[data-tenant-widget="community-lounge-live-spotlight"] iframe');
         const brb = sceneEl.querySelector('[data-tenant-widget="community-lounge-brb"] iframe');
-        if (event.source !== spotlight?.contentWindow || event.data?.type !== 'spmt-lounge-spotlight-health'
+        if (!spotlight || event.origin !== new URL(spotlight.src).origin
+          || event.source !== spotlight.contentWindow || event.data?.type !== 'spmt-lounge-spotlight-health'
           || typeof event.data.healthy !== 'boolean') return;
         brb?.contentWindow?.postMessage(event.data, 'https://streamweaver-new.fly.dev');
       });
@@ -224,14 +227,14 @@
         if (event.source !== brb?.contentWindow || event.data?.type !== 'spmt-lounge-testbrb' || brbMode !== 'stream') return;
         const channel = String(event.data.channel || '').toLowerCase();
         if (!/^[a-z0-9_]{3,25}$/.test(channel)) return;
-        spotlight?.contentWindow?.postMessage({ type: 'spmt-lounge-testbrb', channel }, 'https://spmt.live');
+        if (spotlight) spotlight.contentWindow?.postMessage({ type: 'spmt-lounge-testbrb', channel }, new URL(spotlight.src).origin);
       });
       sceneEl.addEventListener('load', (event) => {
         if (brbMode === 'off' || !(event.target instanceof HTMLIFrameElement)) return;
         const id = event.target.parentElement?.dataset.tenantWidget;
         if (!['community-lounge-live-spotlight', 'community-lounge-hmo-media'].includes(id)) return;
         const active = brbMode !== 'off';
-        event.target.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active, mode: brbMode, ...(id === 'community-lounge-live-spotlight' && brbVod ? brbVod : {}) }, 'https://spmt.live');
+        event.target.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active, mode: brbMode, ...(id === 'community-lounge-live-spotlight' && brbVod ? brbVod : {}) }, new URL(event.target.src).origin);
       }, true);
 
       function applyNativeMaster() {

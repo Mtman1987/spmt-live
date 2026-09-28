@@ -356,6 +356,39 @@
         if (widget) applySourceAudio(widget);
       }, true);
 
+      // A failed cross-origin frame stays on the browser's error page after
+      // Streamweaver recovers. Only these two silent live-card frames may retry;
+      // never reload the movie, Spotlight, TTS, or game players.
+      const liveCardIds = ['community-lounge-live-partners', 'community-lounge-live-community'];
+      let liveCardsHealthy = null;
+      let liveCardProbeBusy = false;
+      let lastLiveCardReloadAt = 0;
+      function retryLiveCards() {
+        if (output !== 'lounge' || tenant !== 'mtman1987' || liveCardProbeBusy) return;
+        const frames = liveCardIds.map((id) => sceneEl.querySelector(`[data-tenant-widget="${id}"] iframe`)).filter(Boolean);
+        if (!frames.length) return;
+        liveCardProbeBusy = true;
+        const probe = new Image();
+        const timeout = setTimeout(() => { liveCardProbeBusy = false; liveCardsHealthy = false; }, 8000);
+        probe.onload = () => {
+          clearTimeout(timeout);
+          liveCardProbeBusy = false;
+          const recovered = liveCardsHealthy === false;
+          const firstCheck = liveCardsHealthy === null;
+          liveCardsHealthy = true;
+          const now = Date.now();
+          if (!recovered && !firstCheck && now - lastLiveCardReloadAt < 120000) return;
+          frames.forEach((frame) => { frame.src = frame.src; });
+          lastLiveCardReloadAt = now;
+        };
+        probe.onerror = () => {
+          clearTimeout(timeout);
+          liveCardProbeBusy = false;
+          liveCardsHealthy = false;
+        };
+        probe.src = `https://streamweaver-new.fly.dev/favicon.ico?lounge-probe=${Date.now()}`;
+      }
+
       function renderScene() {
         const layout = state.layout;
         if (layout.enabled === false) {
@@ -687,6 +720,8 @@
       setInterval(refreshMasterVolume, 3000);
       setInterval(applyActivityRotation, 1000);
       setInterval(refreshLoungeMediaLayout, 2500);
+      setTimeout(retryLiveCards, 15000);
+      setInterval(retryLiveCards, 20000);
       setInterval(refreshXboxStatus, 1000);
       setInterval(refreshXboxFrame, 500);
     })();

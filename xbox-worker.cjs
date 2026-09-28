@@ -278,6 +278,11 @@ async function waitForBrowser(session) {
 }
 
 async function navigate(session, mode) {
+  if (session.mode === 'restream' && mode !== 'restream') {
+    const error = new Error('Restream Studio is hosting the Lounge. Stop the Restream host before opening another cloud-browser mode.');
+    error.code = 'HOST_LOCKED';
+    throw error;
+  }
   const url = CLOUD_XBOX_MODES[mode];
   if (!url) throw new Error('Unsupported Xbox browser mode');
   const cdp = await ensurePage(session);
@@ -591,7 +596,7 @@ app.post('/v1/navigate', async (req, res) => {
     await navigate(session, mode);
     res.status(200).json(await sessionStatus(req.cloudXboxUserId));
   } catch (error) {
-    res.status(500).json({ error: redact(error?.message || 'Navigation failed') });
+    res.status(error?.code === 'HOST_LOCKED' ? 409 : 500).json({ error: redact(error?.message || 'Navigation failed') });
   }
 });
 

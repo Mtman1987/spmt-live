@@ -19,7 +19,9 @@
     main{padding:10px;display:grid;gap:10px}
     .screen{position:relative;background:#000;aspect-ratio:16/9;max-height:calc(100vh - 210px);margin:auto;width:min(100%,1280px);overflow:hidden;border:1px solid rgba(255,255,255,.13);border-radius:10px}
     #frame{display:block;width:100%;height:100%;object-fit:contain;background:#000;touch-action:none;user-select:none;-webkit-user-drag:none}
+    .screen:focus-visible{outline:2px solid #176bff;outline-offset:2px}
     #empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:30px;color:#9fb0c9;pointer-events:none}
+    #empty[hidden]{display:none}
     .typing{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto;gap:7px;width:min(100%,1280px);margin:auto}
     .typing input{min-width:0;border:1px solid rgba(255,255,255,.18);border-radius:9px;padding:9px 10px;background:#0e1526;color:#fff}
     .help{width:min(100%,1280px);margin:auto;color:#9aabc3;font-size:12px;line-height:1.45}
@@ -35,19 +37,19 @@
   <div id="status">Checking cloud browser…</div>
 </header>
 <main>
-  <div class="screen" id="screen" tabindex="0">
+  <div class="screen" id="screen" tabindex="0" aria-label="Remote browser. Click a field, then type.">
     <img id="frame" alt="Remote Restream Studio browser">
     <div id="empty">Starting the persistent Restream Studio browser…</div>
   </div>
   <div class="typing">
-    <input id="text" autocomplete="off" autocapitalize="none" placeholder="Remote typing: type here, then Send">
+    <input id="text" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" aria-label="Private remote typing" placeholder="Phone keyboard: type privately here, then Send">
     <button id="send" class="primary">Send</button>
     <button data-key="Tab">Tab</button>
     <button data-key="Enter">Enter</button>
     <button data-key="Backspace">⌫</button>
   </div>
   <div class="help">
-    This controls the Restream Studio tab running on the SPMT Fly cloud-browser worker. Tap the preview to click Restream, use the typing box for sign-in, then click Go Live inside Restream. You can close this controller after the broadcast starts; closing it does not stop the hosted Studio session.
+    This controls the Restream Studio tab running on the SPMT Fly cloud-browser worker. Click a field in the preview and type normally. Tab, Enter, Backspace, and paste work while the preview is focused. On a phone, use the private typing box and Send. Complete any verification Restream requests, then click Go Live inside Restream. You can close this controller after the broadcast starts; closing it does not stop the hosted Studio session.
   </div>
 </main>
 <script>
@@ -57,6 +59,7 @@
   const empty=document.getElementById('empty');
   const screen=document.getElementById('screen');
   const input=document.getElementById('text');
+  let inputQueue=Promise.resolve();
   let running=false,viewport={width:1280,height:720},frameTimer=null,statusTimer=null;
 
   async function request(url,options={}){
@@ -93,9 +96,12 @@
     }catch(error){setStatus(error.message,true);empty.hidden=false;empty.textContent=error.message}
   }
   async function sendInput(payload){
-    if(!running)return;
-    try{await request('/api/cloud-xbox/input',{method:'POST',body:JSON.stringify(payload)})}
-    catch(error){setStatus(error.message,true)}
+    if(!running)return false;
+    // Preserve click/key order even when the remote worker takes time to respond.
+    const pending=inputQueue.then(()=>request('/api/cloud-xbox/input',{method:'POST',body:JSON.stringify(payload)}));
+    inputQueue=pending.catch(()=>{});
+    try{await pending;return true}
+    catch(error){setStatus(error.message,true);return false}
   }
   function refreshFrame(){
     if(!running)return;
@@ -122,11 +128,31 @@
     const rect=screen.getBoundingClientRect();
     sendInput({type:'wheel',x:(event.clientX-rect.left)/rect.width*viewport.width,y:(event.clientY-rect.top)/rect.height*viewport.height,deltaX:event.deltaX,deltaY:event.deltaY});
   },{passive:false});
+  screen.addEventListener('keydown',(event)=>{
+    if(!running||event.isComposing||event.key==='Process')return;
+    // Let the browser produce the paste event with the user's pasted text.
+    if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='v')return;
+    if(event.ctrlKey||event.metaKey||event.altKey)return;
+    if(event.key.length===1){
+      event.preventDefault();
+      void sendInput({type:'text',text:event.key});
+    }else if(['Tab','Enter','Backspace','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','Escape'].includes(event.key)){
+      event.preventDefault();
+      void sendInput({type:'key',key:event.key,code:event.code||event.key,modifiers:event.shiftKey?8:0,text:''});
+    }
+  });
+  screen.addEventListener('paste',(event)=>{
+    if(!running)return;
+    const text=event.clipboardData?.getData('text/plain');
+    if(!text)return;
+    event.preventDefault();
+    void sendInput({type:'text',text});
+  });
   document.getElementById('send').addEventListener('click',async()=>{
     const value=input.value;
     if(!value)return;
-    await sendInput({type:'text',text:value});
     input.value='';
+    await sendInput({type:'text',text:value});
     setTimeout(refreshFrame,200);
   });
   input.addEventListener('keydown',(event)=>{if(event.key==='Enter'){event.preventDefault();document.getElementById('send').click()}});

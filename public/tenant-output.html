@@ -34,10 +34,16 @@
     .tenant-alert-card p{margin:6px 0 0;color:#c6cede;font-size:11px;line-height:1.35}
     .tenant-test-marker{position:absolute;inset:0;border:3px dashed #22d3ee;background:rgba(34,211,238,.09);display:flex;align-items:flex-start;justify-content:flex-start;padding:6px;z-index:2147483647;pointer-events:none}
     .tenant-test-marker span{display:inline-block;max-width:100%;padding:3px 6px;border-radius:5px;background:rgba(0,0,0,.82);color:#fff;font-size:11px;font-weight:900;line-height:1.15;white-space:normal}
+    #lounge-audio-unlock{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483647;display:flex;align-items:center;gap:8px;padding:11px 16px;border:1px solid rgba(255,255,255,.34);border-radius:999px;background:rgba(5,8,18,.92);box-shadow:0 12px 36px rgba(0,0,0,.55),0 0 22px rgba(33,230,255,.24);color:#fff;font:800 14px/1 system-ui,sans-serif;cursor:pointer;pointer-events:auto}
+    #lounge-audio-unlock[hidden]{display:none}
+    #lounge-audio-note{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);z-index:2147483647;max-width:min(620px,88vw);padding:8px 12px;border-radius:10px;background:rgba(5,8,18,.9);color:#e9f7ff;font:700 12px/1.35 system-ui,sans-serif;text-align:center;pointer-events:none}
+    #lounge-audio-note[hidden]{display:none}
   </style>
 </head>
 <body>
   <div id="stage-wrap"><div id="scene"></div></div>
+  <button id="lounge-audio-unlock" type="button" hidden aria-label="Enable Lounge audio">🔊 Enable Audio</button>
+  <div id="lounge-audio-note" role="status" hidden></div>
   <script src="/shared/overlay-widget-contract.js"></script>
   <script>
     (() => {
@@ -51,6 +57,12 @@
       const output = ['public', 'personal', 'lounge'].includes(pathParts[2]) ? pathParts[2] : 'public';
       const query = new URLSearchParams(location.search);
       const testMode = output === 'lounge' && query.get('test') === '1';
+      const loungeAudioUnlock = document.getElementById('lounge-audio-unlock');
+      const loungeAudioNote = document.getElementById('lounge-audio-note');
+      const renderMode = String(query.get('mode') || '').toLowerCase();
+      const loungeAudioUnlockEligible = output === 'lounge' && tenant === 'mtman1987'
+        && !['obs', 'browser-source', 'overlay', 'embed'].includes(renderMode)
+        && query.get('broadcast') !== '1';
       // Let the live lounge's persistent Spotlight player receive a real click.
       const spotlightInteractMode = output === 'lounge' && tenant === 'mtman1987';
       const state = {
@@ -264,6 +276,49 @@
       }
 
       const controlledSources = new Set();
+      function pulseLocalLoungeAudioUnlock() {
+        if (!loungeAudioUnlockEligible) return;
+        const at = Date.now();
+        for (const widget of state.layout.widgets || []) {
+          if (widget.controlAudioViaOBSpmt !== true) continue;
+          const element = sceneEl.querySelector(`[data-tenant-widget="${CSS.escape(widget.id)}"]`);
+          const media = element?.querySelector('video,audio');
+          if (media && !media.ended) {
+            media.play?.().catch?.(() => {});
+          }
+          const frame = element?.querySelector('iframe');
+          if (!frame) continue;
+          try {
+            const target = new URL(frame.src);
+            if (!['https:', 'http:'].includes(target.protocol)) continue;
+            frame.contentWindow?.postMessage({ type: 'spmt-lounge-unmute-pulse', at, viewerGesture: true }, target.origin);
+          } catch {}
+        }
+      }
+
+      function armLoungeAudioUnlock() {
+        if (!loungeAudioUnlockEligible || !loungeAudioUnlock) return;
+        loungeAudioUnlock.hidden = false;
+        window.removeEventListener('pointermove', armLoungeAudioUnlock);
+        window.removeEventListener('touchstart', armLoungeAudioUnlock);
+        window.removeEventListener('keydown', armLoungeAudioUnlock);
+      }
+
+      if (loungeAudioUnlockEligible && loungeAudioUnlock) {
+        window.addEventListener('pointermove', armLoungeAudioUnlock, { once: true, passive: true });
+        window.addEventListener('touchstart', armLoungeAudioUnlock, { once: true, passive: true });
+        window.addEventListener('keydown', armLoungeAudioUnlock, { once: true });
+        loungeAudioUnlock.addEventListener('click', () => {
+          pulseLocalLoungeAudioUnlock();
+          loungeAudioUnlock.hidden = true;
+          if (loungeAudioNote) {
+            loungeAudioNote.textContent = 'Audio enabled. Still silent? Open browser Site settings and set Sound to Allow.';
+            loungeAudioNote.hidden = false;
+            window.setTimeout(() => { loungeAudioNote.hidden = true; }, 8000);
+          }
+        });
+      }
+
       function applySourceAudio(widget) {
         const enabled = widget.controlAudioViaOBSpmt === true;
         if (!enabled && !controlledSources.has(widget.id)) return;

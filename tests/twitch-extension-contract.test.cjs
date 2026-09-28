@@ -92,3 +92,15 @@ test('Lounge saved media sources use passive canonical viewers only', () => {
   assert.match(bootstrap, /https:\/\/hearmeout-main\.fly\.dev\/spotlight-media\/worker-spotlight\.html\?v=worker-feed-2/);
   assert.doesNotMatch(bootstrap, /watch\?consumer=1&embed=1&appRoomId=system-spacemountainlive-lounge/);
 });
+
+
+test('interactive Lounge viewers get one local audio unlock control without changing the broadcast mix', () => {
+  const output = fs.readFileSync('public/tenant-output.html', 'utf8');
+  assert.match(output, /Enable Audio/);
+  assert.match(output, /loungeAudioUnlockEligible/);
+  assert.match(output, /spmt-lounge-unmute-pulse/);
+  assert.match(output, /viewerGesture: true/);
+  assert.match(output, /Site settings and set Sound to Allow/);
+  assert.match(output, /pointermove/);
+  assert.match(output, /\['obs', 'browser-source', 'overlay', 'embed'\]/);
+});

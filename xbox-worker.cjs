@@ -12,6 +12,7 @@ const WebSocket = require('ws');
 const CLOUD_XBOX_MODES = {
   'cloud-gaming': 'https://play.xbox.com/',
   'remote-play': 'https://www.xbox.com/remoteplay',
+  restream: String(process.env.RESTREAM_STUDIO_URL || 'https://studio.restream.io/').trim() || 'https://studio.restream.io/',
 };
 
 const VIEWPORT = { width: 1280, height: 720 };
@@ -217,8 +218,10 @@ async function pageTargets(session) {
 
 async function ensurePage(session) {
   const targets = await pageTargets(session);
-  if (!targets.length) throw new Error('Xbox worker browser has no page target');
-  const target = targets[0];
+  if (!targets.length) throw new Error('Cloud browser has no page target');
+  // Restream sign-in may open an OAuth popup/new tab. Follow the newest page
+  // target while in Restream mode so the remote controller stays usable.
+  const target = session.mode === 'restream' ? targets[targets.length - 1] : targets[0];
   if (!session.cdp || session.targetId !== target.id || session.cdp.url !== target.webSocketDebuggerUrl) {
     session.cdp?.close();
     session.targetId = target.id;
@@ -317,6 +320,7 @@ async function startSession(userId, requestedMode) {
     '--headless=new',
     '--no-sandbox',
     '--disable-dev-shm-usage',
+    ...(mode === 'restream' ? ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] : []),
     '--no-first-run',
     '--no-default-browser-check',
     '--disable-background-timer-throttling',
@@ -352,7 +356,7 @@ async function startSession(userId, requestedMode) {
     cdp: null,
     targetId: null,
     url,
-    title: 'Xbox',
+    title: mode === 'restream' ? 'Restream Studio' : 'Xbox',
     stderrTail: '',
     lastError: '',
     exitSignal: null,
@@ -478,6 +482,8 @@ async function sessionStatus(userId) {
     viewport: VIEWPORT,
     media,
     profilePersistent: true,
+    persistentHost: session.mode === 'restream',
+    idleTimeoutDisabled: session.mode === 'restream',
     startedAt: new Date(session.createdAt).toISOString(),
     resources: resourceSnapshot(session),
   };
@@ -646,6 +652,9 @@ app.delete('/v1/session', async (req, res) => {
 const sweeper = setInterval(() => {
   const now = Date.now();
   for (const session of sessions.values()) {
+    // A live Restream Studio tab is the broadcast host. It must outlive the
+    // Overlay Bay/controller tab and therefore never participates in idle reap.
+    if (session.mode === 'restream') continue;
     if (now - session.lastActivityAt > IDLE_MS) stopSession(session).catch(() => {});
   }
 }, 60 * 1000);

@@ -55,5 +55,5 @@ primary_region = "lax"
 [[vm]]
   cpu_kind = "shared"
   cpus = 2
-  memory = "2gb"
+  memory = "4gb"
   processes = ["xbox"]

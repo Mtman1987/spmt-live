@@ -60,7 +60,7 @@
   const screen=document.getElementById('screen');
   const input=document.getElementById('text');
   let inputQueue=Promise.resolve();
-  let running=false,viewport={width:1280,height:720},frameTimer=null,statusTimer=null;
+  let running=false,viewport={width:1280,height:720},frameTimer=null,statusTimer=null,frameBusy=false,statusBusy=false;
 
   async function request(url,options={}){
     const response=await fetch(url,{credentials:'include',cache:'no-store',...options,headers:{...(options.body?{'content-type':'application/json'}:{}),...(options.headers||{})}});
@@ -71,6 +71,8 @@
   }
   function setStatus(text,error=false){statusEl.textContent=text;statusEl.style.color=error?'#ff9eaa':'#b9c8df'}
   async function status(){
+    if(statusBusy)return null;
+    statusBusy=true;
     try{
       const data=await request('/api/cloud-xbox/status');
       running=Boolean(data?.running&&data?.mode==='restream');
@@ -84,7 +86,21 @@
         empty.textContent=data?.running?'The cloud browser is busy with another source. Stop it before starting Restream.':'Press Open Restream to start the hosted Studio browser.';
       }
       return data;
-    }catch(error){running=false;setStatus(error.message,true);empty.hidden=false;empty.textContent=error.message}
+    }catch(error){
+      // A busy Restream tab can briefly miss a status deadline. Do not turn a
+      // transport miss into a fake host crash or stop frame refreshes.
+      if(running){
+        setStatus('Restream host still running · controller retrying · '+error.message,true);
+        empty.hidden=true;
+      }else{
+        setStatus(error.message,true);
+        empty.hidden=false;
+        empty.textContent=error.message;
+      }
+      return null;
+    }finally{
+      statusBusy=false;
+    }
   }
   async function start(){
     setStatus('Starting persistent Restream Studio browser…');
@@ -104,10 +120,11 @@
     catch(error){setStatus(error.message,true);return false}
   }
   function refreshFrame(){
-    if(!running)return;
+    if(!running||frameBusy)return;
+    frameBusy=true;
     const next='/api/cloud-xbox/frame?t='+Date.now();
-    frame.onload=()=>{empty.hidden=true};
-    frame.onerror=()=>{};
+    frame.onload=()=>{frameBusy=false;empty.hidden=true};
+    frame.onerror=()=>{frameBusy=false};
     frame.src=next;
   }
   screen.addEventListener('pointerdown',(event)=>{
@@ -173,7 +190,7 @@
     catch(error){setStatus(error.message,true)}
   });
   (async()=>{const data=await status();if(!data?.running)await start();else if(data.mode!=='restream'){empty.hidden=false}else refreshFrame()})();
-  statusTimer=setInterval(status,2500);frameTimer=setInterval(refreshFrame,700);
+  statusTimer=setInterval(status,5000);frameTimer=setInterval(refreshFrame,1200);
   addEventListener('beforeunload',()=>{clearInterval(statusTimer);clearInterval(frameTimer)});
 })();
 </script>

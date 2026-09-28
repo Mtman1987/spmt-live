@@ -91,7 +91,7 @@ test('Lounge exposes a persistent Restream cloud-host controller', () => {
   assert.match(restreamControl, /mode:'restream'/);
   assert.match(restreamControl, /\/api\/cloud-xbox\/frame/);
   assert.match(restreamControl, /\/api\/cloud-xbox\/input/);
-  assert.match(restreamControl, /Closing it does not stop the hosted Studio session/);
+  assert.match(restreamControl, /closing it does not stop the hosted Studio session/);
   const inline = restreamControl.match(/<script>([\s\S]*?)<\/script>/i);
   assert.ok(inline, 'Restream controller should include its runtime script');
   assert.doesNotThrow(() => new vm.Script(inline[1], { filename: restreamControlPath }));

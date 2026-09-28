@@ -70,6 +70,60 @@ function findChromium() {
   return candidates.find((candidate) => fs.existsSync(candidate)) || null;
 }
 
+function findXvfb() {
+  const candidates = [
+    process.env.XVFB_PATH,
+    '/usr/bin/Xvfb',
+    '/usr/local/bin/Xvfb',
+  ].filter(Boolean);
+  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+}
+
+async function startVirtualDisplay() {
+  const binary = findXvfb();
+  if (!binary) {
+    const error = new Error('Xvfb is not installed in the Xbox worker');
+    error.code = 'NO_DISPLAY';
+    throw error;
+  }
+
+  const state = { process: null, number: null, stderrTail: '' };
+  const child = spawn(binary, [
+    '-displayfd', '3',
+    '-screen', '0', `${VIEWPORT.width}x${VIEWPORT.height}x24`,
+    '-nolisten', 'tcp',
+    '-ac',
+  ], { stdio: ['ignore', 'ignore', 'pipe', 'pipe'] });
+  state.process = child;
+  child.stderr?.on('data', (chunk) => {
+    state.stderrTail = redact(`${state.stderrTail}${Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk || '')}`);
+  });
+
+  state.number = await new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (handler, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      handler(value);
+    };
+    const timer = setTimeout(() => finish(reject, new Error('Xvfb display did not start')), 8000);
+    child.once('error', (error) => finish(reject, error));
+    child.once('exit', (code, signal) => {
+      finish(reject, new Error(`Xvfb exited before ready (code=${code ?? 'null'}, signal=${signal || 'none'})`));
+    });
+    const displayFd = child.stdio?.[3];
+    if (!displayFd) return finish(reject, new Error('Xvfb display pipe is unavailable'));
+    displayFd.once('data', (bytes) => {
+      const value = String(bytes || '').trim().split(/\s+/)[0];
+      if (!/^\d+$/.test(value)) return finish(reject, new Error('Xvfb returned an invalid display number'));
+      finish(resolve, value);
+    });
+  });
+
+  return state;
+}
+
 async function freePort() {
   return await new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -261,6 +315,10 @@ function sessionDiagnostic(session, extra = {}) {
 async function waitForBrowser(session) {
   let lastError = null;
   for (let attempt = 0; attempt < 120; attempt += 1) {
+    if (session.displayProcess && session.displayProcess.exitCode !== null) {
+      const detail = redact(session.stderrTail).split('\n').filter(Boolean).slice(-2).join(' · ');
+      throw new Error(`Xvfb exited with code ${session.displayProcess.exitCode}${detail ? ` · ${detail}` : ''}`);
+    }
     if (session.process.exitCode !== null) {
       const detail = redact(session.stderrTail).split('\n').filter(Boolean).slice(-2).join(' · ');
       throw new Error(`Chromium exited with code ${session.process.exitCode}${detail ? ` · ${detail}` : ''}`);
@@ -321,8 +379,12 @@ async function startSession(userId, requestedMode) {
   const profileDir = path.join(PROFILE_ROOT, key);
   fs.mkdirSync(profileDir, { recursive: true, mode: 0o700 });
   const url = CLOUD_XBOX_MODES[mode];
+  // Restream gets the same proven headed-Chromium-on-Xvfb model used by the
+  // HearMeOut Lounge/Spotlight workers. Xbox modes keep the lightweight
+  // headless path they already use.
+  const display = mode === 'restream' ? await startVirtualDisplay() : null;
   const args = [
-    '--headless=new',
+    ...(mode === 'restream' ? [] : ['--headless=new']),
     '--no-sandbox',
     '--disable-dev-shm-usage',
     ...(mode === 'restream' ? ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] : []),
@@ -333,7 +395,7 @@ async function startSession(userId, requestedMode) {
     '--disable-renderer-backgrounding',
     '--disable-extensions',
     '--disable-default-apps',
-    '--disable-sync',
+    ...(mode === 'restream' ? [] : ['--disable-sync']),
     '--disable-component-update',
     '--autoplay-policy=no-user-gesture-required',
     '--password-store=basic',
@@ -349,13 +411,20 @@ async function startSession(userId, requestedMode) {
 
   const child = spawn(binary, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, HOME: profileDir, TMPDIR: '/tmp' },
+    env: {
+      ...process.env,
+      HOME: profileDir,
+      TMPDIR: '/tmp',
+      ...(display ? { DISPLAY: `:${display.number}` } : {}),
+    },
   });
   const session = {
     key,
     userId: String(userId),
     mode,
     process: child,
+    displayProcess: display?.process || null,
+    displayNumber: display?.number || null,
     port,
     profileDir,
     cdp: null,
@@ -373,12 +442,22 @@ async function startSession(userId, requestedMode) {
 
   child.stdout?.on('data', (chunk) => appendDiagnostic(session, chunk));
   child.stderr?.on('data', (chunk) => appendDiagnostic(session, chunk));
+  if (display?.stderrTail) appendDiagnostic(session, `[Xvfb] ${display.stderrTail}`);
+  display?.process?.stderr?.on('data', (chunk) => appendDiagnostic(session, `[Xvfb] ${chunk}`));
+  display?.process?.once('exit', (code, signal) => {
+    if (child.exitCode === null) {
+      session.lastError = `Xvfb exited while Chromium was running (code=${code ?? 'null'}, signal=${signal || 'none'})`;
+    }
+  });
   child.on('error', (error) => {
     session.lastError = redact(error?.message || String(error));
   });
   child.once('exit', (code, signal) => {
     session.exitSignal = signal || null;
     session.cdp?.close();
+    try {
+      if (session.displayProcess?.exitCode === null) session.displayProcess.kill('SIGTERM');
+    } catch {}
     lastDiagnostics.set(key, sessionDiagnostic(session, {
       exitCode: Number.isInteger(code) ? code : null,
       exitSignal: signal || null,
@@ -407,6 +486,13 @@ async function stopSession(session) {
   await sleep(250);
   try {
     if (session.process.exitCode === null) session.process.kill('SIGKILL');
+  } catch {}
+  try {
+    if (session.displayProcess?.exitCode === null) session.displayProcess.kill('SIGTERM');
+  } catch {}
+  await sleep(100);
+  try {
+    if (session.displayProcess?.exitCode === null) session.displayProcess.kill('SIGKILL');
   } catch {}
 }
 
@@ -487,6 +573,7 @@ async function sessionStatus(userId) {
     viewport: VIEWPORT,
     media,
     profilePersistent: true,
+    browserPresentation: session.mode === 'restream' ? 'headed-xvfb' : 'headless',
     persistentHost: session.mode === 'restream',
     idleTimeoutDisabled: session.mode === 'restream',
     startedAt: new Date(session.createdAt).toISOString(),
@@ -561,10 +648,13 @@ app.use(express.json({ limit: '64kb' }));
 
 app.get('/health', (_req, res) => {
   const binary = findChromium();
-  res.status(WORKER_SECRET && binary ? 200 : 503).json({
-    status: WORKER_SECRET && binary ? 'ok' : 'not-ready',
+  const xvfb = findXvfb();
+  const ready = Boolean(WORKER_SECRET && binary && xvfb);
+  res.status(ready ? 200 : 503).json({
+    status: ready ? 'ok' : 'not-ready',
     worker: 'spmt-xbox',
     chromium: Boolean(binary),
+    xvfb: Boolean(xvfb),
     maxSessions: MAX_SESSIONS,
     activeSessions: [...sessions.values()].filter((item) => item.process.exitCode === null).length,
     resources: resourceSnapshot(null),

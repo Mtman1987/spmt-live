@@ -1,4 +1,5 @@
 import { rotateOauthRefreshToken } from './oauth-refresh';
+import { getTwitchLookupAccessToken } from './twitch-lookup-token.js';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import bcrypt from 'bcrypt';
@@ -1549,7 +1550,7 @@ function getRuntimeReadiness() {
     },
     dependencies: {
       discordIdentityLookup: process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID ? 'configured' : 'unavailable',
-      twitchIdentityLookup: process.env.TWITCH_CLIENT_ID && process.env.TWITCH_ACCESS_TOKEN ? 'configured' : 'unavailable',
+      twitchIdentityLookup: process.env.TWITCH_CLIENT_ID && (process.env.TWITCH_CLIENT_SECRET || process.env.TWITCH_ACCESS_TOKEN) ? 'configured' : 'unavailable',
       discordStreamHubPoints: process.env.DSH_BOT_KEY ? 'configured' : 'unavailable',
     },
     degradedReasons,
@@ -2590,19 +2591,22 @@ app.post('/api/auth/register', async (req, res) => {
   // Resolve Twitch ID from username if provided
   let twitchId: string | null = null;
   const cleanTwitch = (twitchUsername || '').trim().toLowerCase();
-  if (cleanTwitch && process.env.TWITCH_CLIENT_ID && process.env.TWITCH_ACCESS_TOKEN) {
+  if (cleanTwitch && process.env.TWITCH_CLIENT_ID) {
     try {
-      const twitchRes = await fetch(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(cleanTwitch)}`, {
-        headers: {
-          'Client-ID': process.env.TWITCH_CLIENT_ID,
-          'Authorization': `Bearer ${process.env.TWITCH_ACCESS_TOKEN}`,
-        },
-      });
-      if (twitchRes.ok) {
-        const data = await twitchRes.json();
-        if (data.data?.length > 0) {
-          twitchId = data.data[0].id;
-          if (!avatarUrl) avatarUrl = data.data[0].profile_image_url || null;
+      const twitchToken = await getTwitchLookupAccessToken();
+      if (twitchToken) {
+          const twitchRes = await fetch(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(cleanTwitch)}`, {
+          headers: {
+            'Client-ID': process.env.TWITCH_CLIENT_ID,
+            'Authorization': `Bearer ${twitchToken}`,
+          },
+        });
+        if (twitchRes.ok) {
+          const data = await twitchRes.json();
+          if (data.data?.length > 0) {
+            twitchId = data.data[0].id;
+            if (!avatarUrl) avatarUrl = data.data[0].profile_image_url || null;
+          }
         }
       }
     } catch (e) { console.warn('Twitch lookup failed:', e); }
@@ -2997,19 +3001,22 @@ app.post('/api/user/link', authenticate, async (req: any, res) => {
 
   let twitchId: string | null = null;
   const cleanTwitch = (twitchUsername || '').trim().toLowerCase();
-  if (cleanTwitch && process.env.TWITCH_CLIENT_ID && process.env.TWITCH_ACCESS_TOKEN) {
+  if (cleanTwitch && process.env.TWITCH_CLIENT_ID) {
     try {
-      const twitchRes = await fetch(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(cleanTwitch)}`, {
-        headers: {
-          'Client-ID': process.env.TWITCH_CLIENT_ID,
-          'Authorization': `Bearer ${process.env.TWITCH_ACCESS_TOKEN}`,
-        },
-      });
-      if (twitchRes.ok) {
-        const data = await twitchRes.json();
-        if (data.data?.length > 0) {
-          twitchId = data.data[0].id;
-          if (!resolvedAvatarUrl) resolvedAvatarUrl = data.data[0].profile_image_url || null;
+      const twitchToken = await getTwitchLookupAccessToken();
+      if (twitchToken) {
+          const twitchRes = await fetch(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(cleanTwitch)}`, {
+          headers: {
+            'Client-ID': process.env.TWITCH_CLIENT_ID,
+            'Authorization': `Bearer ${twitchToken}`,
+          },
+        });
+        if (twitchRes.ok) {
+          const data = await twitchRes.json();
+          if (data.data?.length > 0) {
+            twitchId = data.data[0].id;
+            if (!resolvedAvatarUrl) resolvedAvatarUrl = data.data[0].profile_image_url || null;
+          }
         }
       }
     } catch {}

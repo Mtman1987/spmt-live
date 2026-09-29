@@ -254,6 +254,8 @@ export function initDb() {
       created_at TEXT NOT NULL,
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
+    CREATE INDEX IF NOT EXISTS idx_notifications_user_created
+      ON notifications(user_id, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS overlay_workspaces (
       user_id TEXT PRIMARY KEY,
@@ -516,6 +518,8 @@ export function initDb() {
       created_by TEXT,
       created_at TEXT NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS idx_platform_events_timestamp
+      ON platform_events(datetime(timestamp) DESC);
 
     CREATE TABLE IF NOT EXISTS provider_grants (
       id TEXT PRIMARY KEY,

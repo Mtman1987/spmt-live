@@ -27,17 +27,16 @@ function authUser(req) {
   if (!secret) return null;
   const cookies = parseCookies(req.headers.cookie);
   const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-  const token = cookies.spmt_token || bearer;
-  if (!token) return null;
-  try {
-    const payload = jwt.verify(token, secret);
-    if (!payload || typeof payload !== 'object') return null;
-    const id = payload.id || payload.userId || payload.sub;
-    if (!id) return null;
-    return { id: String(id), payload };
-  } catch {
-    return null;
+  for (const token of [bearer, cookies.spmt_token]) {
+    if (!token) continue;
+    try {
+      const payload = jwt.verify(token, secret);
+      if (!payload || typeof payload !== 'object') continue;
+      const id = payload.id || payload.userId || payload.sub;
+      if (id) return { id: String(id), payload };
+    } catch {}
   }
+  return null;
 }
 
 function normalizeCloudBrowserMode(value) {
@@ -208,6 +207,7 @@ async function shutdownCloudXboxBrowsers() {
 }
 
 module.exports = {
+  authUser,
   installCloudXboxBootstrap,
   shutdownCloudXboxBrowsers,
 };

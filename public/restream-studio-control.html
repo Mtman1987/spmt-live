@@ -62,11 +62,15 @@
   let inputQueue=Promise.resolve();
   let running=false,viewport={width:1280,height:720},frameTimer=null,statusTimer=null,frameBusy=false,statusBusy=false;
 
+  function sessionHeaders(extra={}){
+    const token=localStorage.getItem('spmt_token');
+    return {...(token?{Authorization:'Bearer '+token}:{}),...extra};
+  }
   async function request(url,options={}){
-    const response=await fetch(url,{credentials:'include',cache:'no-store',...options,headers:{...(options.body?{'content-type':'application/json'}:{}),...(options.headers||{})}});
+    const response=await fetch(url,{credentials:'include',cache:'no-store',...options,headers:sessionHeaders({...(options.body?{'content-type':'application/json'}:{}),...(options.headers||{})})});
     const type=response.headers.get('content-type')||'';
     const data=type.includes('application/json')?await response.json():null;
-    if(!response.ok)throw new Error(data?.error||('Request failed ('+response.status+')'));
+    if(!response.ok)throw new Error(response.status===401?'Sign in to SpaceMountain in this browser, then reopen Restream.':(data?.error||('Request failed ('+response.status+')')));
     return data;
   }
   function setStatus(text,error=false){statusEl.textContent=text;statusEl.style.color=error?'#ff9eaa':'#b9c8df'}
@@ -119,13 +123,18 @@
     try{await pending;return true}
     catch(error){setStatus(error.message,true);return false}
   }
-  function refreshFrame(){
+  let frameUrl=null;
+  async function refreshFrame(){
     if(!running||frameBusy)return;
     frameBusy=true;
-    const next='/api/cloud-xbox/frame?t='+Date.now();
-    frame.onload=()=>{frameBusy=false;empty.hidden=true};
-    frame.onerror=()=>{frameBusy=false};
-    frame.src=next;
+    try{
+      const response=await fetch('/api/cloud-xbox/frame?t='+Date.now(),{credentials:'include',cache:'no-store',headers:sessionHeaders()});
+      if(!response.ok)throw new Error(response.status===401?'Sign in to SpaceMountain in this browser, then reopen Restream.':'Preview request failed ('+response.status+')');
+      const next=URL.createObjectURL(await response.blob());
+      frame.onload=()=>{if(frameUrl)URL.revokeObjectURL(frameUrl);frameUrl=next;empty.hidden=true;frameBusy=false};
+      frame.onerror=()=>{URL.revokeObjectURL(next);frameBusy=false};
+      frame.src=next;
+    }catch(error){setStatus(error.message,true);frameBusy=false}
   }
   screen.addEventListener('pointerdown',(event)=>{
     if(!running)return;
@@ -191,7 +200,7 @@
   });
   (async()=>{const data=await status();if(!data?.running)await start();else if(data.mode!=='restream'){empty.hidden=false}else refreshFrame()})();
   statusTimer=setInterval(status,5000);frameTimer=setInterval(refreshFrame,1200);
-  addEventListener('beforeunload',()=>{clearInterval(statusTimer);clearInterval(frameTimer)});
+  addEventListener('beforeunload',()=>{clearInterval(statusTimer);clearInterval(frameTimer);if(frameUrl)URL.revokeObjectURL(frameUrl)});
 })();
 </script>
 </body>

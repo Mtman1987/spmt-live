@@ -3538,7 +3538,7 @@ app.get('/api/notifications', authenticate, (req: any, res) => {
     SELECT id, type, title, body, source_app, link_url, read_at, created_at
     FROM notifications
     WHERE user_id = ?
-    ORDER BY datetime(created_at) DESC
+    ORDER BY created_at DESC
     LIMIT ?
   `).all(req.user.id, limit);
   res.json({ notifications });
@@ -3986,7 +3986,7 @@ function listSpmtCommlinkItems(userId: string, limit: number): CommlinkFeedItem[
     SELECT id, type, title, body, source_app, link_url, read_at, created_at
     FROM notifications
     WHERE user_id = ? AND type NOT IN ('message', 'voice_message', 'event')
-    ORDER BY datetime(created_at) DESC
+    ORDER BY created_at DESC
     LIMIT ?
   `).all(userId, limit) as any[];
   const events = db.prepare(`
@@ -5182,7 +5182,7 @@ app.get('/api/search', authenticate, (req: any, res) => {
     SELECT id, type, title, body, source_app, link_url, read_at, created_at
     FROM notifications
     WHERE user_id = ? AND (title LIKE ? OR body LIKE ? OR source_app LIKE ?)
-    ORDER BY datetime(created_at) DESC
+    ORDER BY created_at DESC
     LIMIT ?
   `).all(req.user.id, like, like, like, limit);
 

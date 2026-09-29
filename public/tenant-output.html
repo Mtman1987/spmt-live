@@ -370,52 +370,55 @@
         probe.src = `https://streamweaver-new.fly.dev/favicon.ico?lounge-probe=${Date.now()}`;
       }
 
-      // Chrome can leave a cross-origin iframe on its network error page after
-      // HearMeOut recovers. Retry only until the player confirms it booted.
-      // Once ready, never reload a playing program from this watchdog.
-      const loungeMediaId = 'community-lounge-hmo-media';
-      let mediaFrame = null;
-      let mediaFrameReady = false;
-      let mediaFrameMountedAt = 0;
-      let mediaFrameLastRetryAt = 0;
-      let mediaFrameProbeBusy = false;
+      // Retry a player frame only until its page confirms it booted. A failed
+      // navigation can remain on Chrome's error page after HearMeOut recovers.
+      // Never remount a player that has booted, even if its feed is waiting.
+      const playerFrames = [
+        { id: 'community-lounge-hmo-media', readyType: 'spmt-lounge-media-ready', frame: null, ready: false, mountedAt: 0, lastRetryAt: 0, probeBusy: false },
+        { id: 'community-lounge-live-spotlight', readyType: 'spmt-lounge-spotlight-ready', frame: null, ready: false, mountedAt: 0, lastRetryAt: 0, probeBusy: false },
+      ];
       window.addEventListener('message', (event) => {
-        if (event.origin !== 'https://hearmeout-main.fly.dev' ||
-            event.data?.type !== 'spmt-lounge-media-ready') return;
-        const frame = sceneEl.querySelector(`[data-tenant-widget="${loungeMediaId}"] iframe`);
+        if (event.origin !== 'https://hearmeout-main.fly.dev') return;
+        const player = playerFrames.find((entry) => entry.readyType === event.data?.type);
+        if (!player) return;
+        const frame = sceneEl.querySelector(`[data-tenant-widget="${player.id}"] iframe`);
         if (frame && event.source === frame.contentWindow) {
-          mediaFrame = frame;
-          mediaFrameReady = true;
+          player.frame = frame;
+          player.ready = true;
         }
       });
-      async function retryUnloadedMediaFrame() {
+      async function retryUnloadedPlayerFrames() {
         if (output !== 'lounge' || tenant !== 'mtman1987') return;
-        const frame = sceneEl.querySelector(`[data-tenant-widget="${loungeMediaId}"] iframe`);
-        if (frame !== mediaFrame) {
-          mediaFrame = frame;
-          mediaFrameReady = false;
-          mediaFrameMountedAt = Date.now();
-          mediaFrameLastRetryAt = 0;
-        }
-        if (!frame || mediaFrameReady || mediaFrameProbeBusy ||
-            Date.now() - mediaFrameMountedAt < 18000 ||
-            Date.now() - mediaFrameLastRetryAt < 20000) return;
-        mediaFrameProbeBusy = true;
-        const abort = new AbortController();
-        const timeout = setTimeout(() => abort.abort(), 8000);
-        try {
-          await fetch(frame.src, {mode:'no-cors', cache:'no-store', signal:abort.signal});
-          if (frame === mediaFrame && !mediaFrameReady) {
-            mediaFrameLastRetryAt = Date.now();
-            frame.src = frame.src;
+        for (const player of playerFrames) {
+          const frame = sceneEl.querySelector(`[data-tenant-widget="${player.id}"] iframe`);
+          if (frame !== player.frame) {
+            player.frame = frame;
+            player.ready = false;
+            player.mountedAt = Date.now();
+            player.lastRetryAt = 0;
           }
-        } catch {
-          // The public endpoint is still unavailable; leave the current frame
-          // alone and try again only after another bounded interval.
-          mediaFrameLastRetryAt = Date.now();
-        } finally {
-          clearTimeout(timeout);
-          mediaFrameProbeBusy = false;
+          if (!frame || player.ready || player.probeBusy ||
+              Date.now() - player.mountedAt < 20000 ||
+              Date.now() - player.lastRetryAt < 30000) continue;
+          player.probeBusy = true;
+          const abort = new AbortController();
+          // The remote Restream browser has taken over 10 seconds to fetch this
+          // page, so an 8-second health probe could never trigger recovery.
+          const timeout = setTimeout(() => abort.abort(), 30000);
+          try {
+            await fetch(frame.src, { mode: 'no-cors', cache: 'no-store', signal: abort.signal });
+            if (frame === player.frame && !player.ready) {
+              player.lastRetryAt = Date.now();
+              const url = new URL(frame.src);
+              url.searchParams.set('recover', String(player.lastRetryAt));
+              frame.src = url.href;
+            }
+          } catch {
+            player.lastRetryAt = Date.now();
+          } finally {
+            clearTimeout(timeout);
+            player.probeBusy = false;
+          }
         }
       }
 
@@ -787,7 +790,7 @@
       setInterval(refreshLoungeBrowserSource, 2500);
       setTimeout(retryLiveCards, 15000);
       setInterval(retryLiveCards, 20000);
-      setInterval(retryUnloadedMediaFrame, 5000);
+      setInterval(retryUnloadedPlayerFrames, 5000);
       setInterval(refreshXboxStatus, 1000);
       setInterval(refreshXboxFrame, 500);
     })();

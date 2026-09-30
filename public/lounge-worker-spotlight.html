@@ -37,7 +37,13 @@
       if(generation){generation='';reset();}
       status.hidden=false;status.textContent=program.error||'Preparing live Spotlight';return;
     }
-    if(program.generation===generation)return;
+    if(program.generation===generation){
+      // A temporary Twitch/HLS stall can recover on the same worker generation.
+      // Do not leave the existing player paused forever just because the
+      // generation id did not change.
+      resume();
+      return;
+    }
     generation=program.generation;reset();status.hidden=false;status.textContent='Buffering '+program.currentLogin;
     const url=worker+'/spotlight/hls/'+encodeURIComponent(generation)+'/index.m3u8';
     if(window.Hls?.isSupported()){
@@ -50,7 +56,7 @@
   }catch{status.hidden=false;status.textContent='Connecting to Spotlight worker';health(false);}}
   video.addEventListener('playing',()=>{status.hidden=true;health(true);});
   video.addEventListener('canplay',resume);video.addEventListener('progress',resume);video.addEventListener('timeupdate',resume);
-  video.addEventListener('waiting',()=>{if(ahead()<2){video.pause();health(false);}});
+  video.addEventListener('waiting',()=>{if(ahead()<2){health(false);}});
   volume();void poll();void mix();setInterval(poll,2500);setInterval(mix,3000);
 })();
 </script></body></html>

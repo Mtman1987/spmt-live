@@ -1,9 +1,16 @@
 'use strict';
 
 const jwt = require('jsonwebtoken');
+const Database = require('better-sqlite3');
 
 const WORKER_URL = String(process.env.CLOUD_XBOX_WORKER_URL || 'http://xbox.process.spmt-live.internal:3003').replace(/\/+$/, '');
 const WORKER_SECRET = String(process.env.CLOUD_XBOX_WORKER_SECRET || process.env.JWT_SECRET || '').trim();
+const DSH_URL = String(process.env.DSH_PUBLIC_BASE_URL || 'https://discord-stream-hub-new.fly.dev').replace(/\/+$/, '');
+const STREAM_LOGIN = String(process.env.STREAM_CONTINUITY_TWITCH_LOGIN || 'spacemountainlive').trim().replace(/^@/, '').toLowerCase();
+let streamWatchTimer = null;
+let streamWatchBusy = false;
+let streamOfflineSince = 0;
+let streamLastAttemptAt = 0;
 
 function safeJson(res, status, body) {
   res.status(status).set('cache-control', 'private, no-store').json(body);
@@ -93,6 +100,107 @@ async function workerRequest(userId, method, workerPath, body = null, timeoutMs 
   }
 }
 
+function streamServiceKey() {
+  return String(process.env.SPMT_API_KEY || process.env.SPMT_PLATFORM_API_KEY || '').trim();
+}
+
+function ownerUserId() {
+  const file = String(process.env.DATABASE_PATH || '/data/spmt.db');
+  const db = new Database(file, { readonly: true, fileMustExist: true });
+  try {
+    const row = db.prepare('SELECT id FROM users WHERE lower(username) = ? LIMIT 1').get('mtman1987');
+    return row?.id ? String(row.id) : '';
+  } finally {
+    db.close();
+  }
+}
+
+async function twitchLiveState() {
+  const key = streamServiceKey();
+  if (!key) return { ok: false, error: 'SPMT service key unavailable' };
+  try {
+    const response = await fetch(`${DSH_URL}/api/internal/twitch/live-status?login=${encodeURIComponent(STREAM_LOGIN)}`, {
+      headers: { authorization: `Bearer ${key}`, accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok || !body?.ok || typeof body?.isLive !== 'boolean') {
+      return { ok: false, error: `live-status HTTP ${response.status}` };
+    }
+    return { ok: true, isLive: body.isLive, checkedAt: body.checkedAt || new Date().toISOString() };
+  } catch (error) {
+    return { ok: false, error: error?.message || 'live-status request failed' };
+  }
+}
+
+async function runAutomaticStreamRecoveryCheck() {
+  if (process.env.STREAM_AUTO_START_ENABLED === 'false' || streamWatchBusy) return;
+  streamWatchBusy = true;
+  try {
+    const state = await twitchLiveState();
+    if (!state.ok) {
+      console.warn('[StreamAutoStart] Twitch status unavailable:', state.error);
+      return;
+    }
+    if (state.isLive) {
+      streamOfflineSince = 0;
+      return;
+    }
+
+    const now = Date.now();
+    if (!streamOfflineSince) {
+      streamOfflineSince = now;
+      return;
+    }
+
+    const graceMs = Math.max(15_000, Number(process.env.STREAM_AUTO_START_GRACE_MS || 45_000));
+    if (now - streamOfflineSince < graceMs) return;
+
+    const cooldownMs = Math.max(30_000, Number(process.env.STREAM_AUTO_START_COOLDOWN_MS || 60_000));
+    if (now - streamLastAttemptAt < cooldownMs) return;
+    streamLastAttemptAt = now;
+
+    const userId = ownerUserId();
+    if (!userId) {
+      console.warn('[StreamAutoStart] Owner SPMT profile could not be resolved.');
+      return;
+    }
+
+    const response = await workerRequest(userId, 'POST', '/v1/restream/start', {}, 120_000);
+    const body = await response.json().catch(() => null);
+    if (!response.ok || body?.ok === false) {
+      console.warn('[StreamAutoStart] Restream start-only recovery failed:', body?.error || `HTTP ${response.status}`);
+      return;
+    }
+
+    for (let attempt = 0; attempt < 18; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+      const verified = await twitchLiveState();
+      if (verified.ok && verified.isLive) {
+        streamOfflineSince = 0;
+        console.log('[StreamAutoStart] Twitch recovered after persistent Restream start-only action.');
+        return;
+      }
+    }
+    console.warn('[StreamAutoStart] Restream reported a start action but Twitch did not verify live within 90 seconds.');
+  } catch (error) {
+    console.warn('[StreamAutoStart] Recovery check failed:', error?.message || String(error));
+  } finally {
+    streamWatchBusy = false;
+  }
+}
+
+function startAutomaticStreamRecoveryWatch() {
+  if (streamWatchTimer || process.env.STREAM_AUTO_START_ENABLED === 'false') return;
+  const intervalMs = Math.max(15_000, Number(process.env.STREAM_AUTO_START_INTERVAL_MS || 30_000));
+  streamWatchTimer = setInterval(() => {
+    void runAutomaticStreamRecoveryCheck();
+  }, intervalMs);
+  streamWatchTimer.unref?.();
+  setTimeout(() => void runAutomaticStreamRecoveryCheck(), 5_000).unref?.();
+  console.log(`[StreamAutoStart] Watching Twitch ${STREAM_LOGIN} every ${Math.round(intervalMs / 1000)}s.`);
+}
+
 async function relayJson(res, response) {
   let payload = null;
   try { payload = await response.json(); } catch {}
@@ -105,6 +213,7 @@ async function relayJson(res, response) {
 function installRoutes(app, express) {
   if (app.__spmtCloudXboxRoutesInstalled) return;
   app.__spmtCloudXboxRoutesInstalled = true;
+  startAutomaticStreamRecoveryWatch();
   const jsonBody = express.json({ limit: '64kb' });
 
   app.get('/api/cloud-xbox/status', authenticateCloudXbox, async (req, res) => {

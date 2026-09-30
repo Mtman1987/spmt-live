@@ -159,7 +159,7 @@ test('SpaceMountainLive system tenant resolves to an empty transparent alerts-on
 test('mtman1987 debug Lounge preset contains the complete populated scene', () => {
   const layout = bootstrap._test.personalLoungeDebugLayout();
   assert.equal(layout.template, 'community-lounge-system-v2');
-  assert.equal(layout.widgets.length, 22);
+  assert.equal(layout.widgets.length, 23);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-alerts'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-translation-subtitle'));
@@ -184,6 +184,16 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   );
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.interactive, false);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));
+  const commercial = layout.widgets.find((widget) => widget.id === 'community-lounge-commercial');
+  assert.ok(commercial);
+  assert.equal(commercial.layoutSlot, 'main');
+  assert.equal(commercial.x, 2.5);
+  assert.equal(commercial.y, 4.5);
+  assert.equal(commercial.width, 667);
+  assert.equal(commercial.height, 362);
+  assert.equal(commercial.zIndex, 505);
+  assert.equal(commercial.role, 'main-window-commercial-override');
+  assert.match(commercial.url || '', /commercial-break-player/);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tts')?.visible, false);
   assert.match(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tts')?.url || '', /say-player\?tenantId=spacemountainlive&placement=lounge/);
 });
@@ -192,7 +202,7 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   const original = bootstrap._test.personalLoungeDebugLayout();
   const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
   assert.equal(layout.template, 'community-lounge-24x7-v1');
-  assert.equal(layout.lounge24x7LayoutVersion, 13);
+  assert.equal(layout.lounge24x7LayoutVersion, 14);
   assert.equal(layout.widgets.length, original.widgets.length + 5);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-alerts')?.layoutSlot, 'mainAlert');

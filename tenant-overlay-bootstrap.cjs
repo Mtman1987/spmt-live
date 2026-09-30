@@ -123,7 +123,7 @@ function normalizeWidget(input, index = 0) {
     height: clamp(source.height, 24, SCENE_HEIGHT * 2, fallbackHeight),
     opacity: clamp(source.opacity, 0, 1, 1),
     zIndex: clamp(source.zIndex, -100000, 100000, kind === 'xbox' ? 0 : index + 1),
-    controlAudioViaOBSpmt: source.controlAudioViaOBSpmt === true || (source.controlAudioViaOBSpmt === undefined && ['community-lounge-live-spotlight', 'community-lounge-hmo-media', 'sw-shoutout', 'community-lounge-brb', 'community-lounge-stella-tts', 'community-lounge-chat-tts'].includes(source.id)),
+    controlAudioViaOBSpmt: source.controlAudioViaOBSpmt === true || (source.controlAudioViaOBSpmt === undefined && ['community-lounge-live-spotlight', 'community-lounge-hmo-media', 'sw-shoutout', 'community-lounge-brb', 'community-lounge-commercial', 'community-lounge-stella-tts', 'community-lounge-chat-tts'].includes(source.id)),
     audioVolume: clamp(source.audioVolume, 0, 100, 100),
     audioMuted: source.audioMuted === true,
     ...(['xbox', 'camera', 'screen', 'image', 'video'].includes(kind) ? { fit } : {}),
@@ -519,6 +519,24 @@ function personalLoungeDebugLayout() {
       "role": "idle-activity-leaderboard"
     },
     {
+      "id": "community-lounge-commercial",
+      "title": "Commercial Break Player",
+      "kind": "embed",
+      "visible": true,
+      "locked": true,
+      "interactive": false,
+      "x": 2.5,
+      "y": 4.5,
+      "width": 667,
+      "height": 362,
+      "opacity": 1,
+      "zIndex": 505,
+      "url": "https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge",
+      "sourceApp": "StreamWeaver",
+      "role": "main-window-commercial-override",
+      "layoutSlot": "main"
+    },
+    {
       "id": "community-lounge-brb",
       "title": "BRB Player",
       "kind": "embed",
@@ -544,7 +562,7 @@ function personalLoungeDebugLayout() {
 };
 }
 
-const LOUNGE_24X7_VERSION = 13;
+const LOUNGE_24X7_VERSION = 14;
 const LOUNGE_24X7_SLOTS = Object.freeze({
   main: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   mainAlert: Object.freeze({ x: 6, y: 6, width: 590, height: 150 }),
@@ -605,6 +623,7 @@ function applyMtmanLounge24x7Layout(input) {
       }
       if (widget.id === 'sw-partner-checkin') return { ...widget, visible: true, ...LOUNGE_24X7_SLOTS.mainEvent, layoutSlot: 'mainEvent', zIndex: 300 };
       if (widget.id === 'sw-classic-gamble') return { ...widget, visible: false };
+      if (widget.id === 'community-lounge-commercial') return { ...widget, visible: true, ...LOUNGE_24X7_SLOTS.main, layoutSlot: 'main', zIndex: 505, url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge', role: 'main-window-commercial-override' };
       if (widget.id === 'community-lounge-brb') return { ...widget, url: 'https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge' };
       if (widget.id === 'sw-shoutout') {
         return {
@@ -636,6 +655,15 @@ function applyMtmanLounge24x7Layout(input) {
       const slot = slotById.get(widget.id);
       return slot ? { ...widget, ...LOUNGE_24X7_SLOTS[slot], layoutSlot: slot } : widget;
     });
+  if (!widgets.some((widget) => widget.id === 'community-lounge-commercial')) {
+    widgets.push(normalizeWidget({
+      id: 'community-lounge-commercial', title: 'Commercial Break Player', kind: 'embed', visible: true,
+      locked: true, interactive: false, opacity: 1, zIndex: 505,
+      ...LOUNGE_24X7_SLOTS.main, layoutSlot: 'main',
+      url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge',
+      sourceApp: 'StreamWeaver', role: 'main-window-commercial-override',
+    }, widgets.length));
+  }
   if (!widgets.some((widget) => widget.id === 'community-lounge-chat-tts')) {
     widgets.push(normalizeWidget({
       id: 'community-lounge-chat-tts', title: 'Chat TTS · off by default', kind: 'embed', visible: false,

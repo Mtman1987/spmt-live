@@ -75,6 +75,7 @@
         testStarted: false,
         activityRotationStartedAt: Date.now(),
         loungeMediaMode: 'stream',
+        commercialBreakActive: false,
         brbMode: 'off',
         masterVolume: 1,
         nebulaActivityActive: false,
@@ -509,6 +510,11 @@
         const media = sceneEl.querySelector('[data-tenant-widget="community-lounge-hmo-media"]');
         const commercial = sceneEl.querySelector('[data-tenant-widget="community-lounge-commercial"]');
         const brb = sceneEl.querySelector('[data-tenant-widget="community-lounge-brb"]');
+        if (commercial) {
+          commercial.style.visibility = state.commercialBreakActive ? 'visible' : 'hidden';
+          commercial.style.opacity = state.commercialBreakActive ? '1' : '0';
+          commercial.style.pointerEvents = 'none';
+        }
         // BRB covers only the program window. Alerts, games, Stella and the
         // neon frame keep their own layers above the fallback.
         placeLoungeProgram(brb, 'main');
@@ -559,6 +565,25 @@
           applyLoungeMediaLayout();
         } catch {
           // Preserve the last good arrangement through a temporary service miss.
+        }
+      }
+
+      async function refreshCommercialBreakState() {
+        if (output !== 'lounge' || tenant !== 'mtman1987') return;
+        try {
+          const response = await fetch('https://streamweaver-new.fly.dev/api/lounge/commercial-break', { cache: 'no-store' });
+          if (!response.ok) return;
+          const payload = await response.json();
+          const active = payload?.phase === 'ACTIVE' && Date.now() < Number(payload?.activeUntil || 0);
+          if (active === state.commercialBreakActive) return;
+          state.commercialBreakActive = active;
+          applyLoungeMediaLayout();
+        } catch {
+          // Fail closed: never let an idle/erroring commercial iframe cover the program.
+          if (state.commercialBreakActive) {
+            state.commercialBreakActive = false;
+            applyLoungeMediaLayout();
+          }
         }
       }
 
@@ -790,12 +815,13 @@
       resizeScene();
       if (spotlightInteractMode) document.documentElement.dataset.spotlightInteract = 'true';
       try { window.parent.postMessage({ type: 'spmt.personal.renderer-ready', tenant, output }, '*'); } catch {}
-      refreshScene().then(() => Promise.all([refreshXboxStatus(), refreshLoungeMediaLayout()]));
+      refreshScene().then(() => Promise.all([refreshXboxStatus(), refreshLoungeMediaLayout(), refreshCommercialBreakState()]));
       void refreshMasterVolume();
       setInterval(refreshScene, 2000);
       setInterval(refreshMasterVolume, 3000);
       setInterval(applyActivityRotation, 1000);
       setInterval(refreshLoungeMediaLayout, 2500);
+      setInterval(refreshCommercialBreakState, 1000);
       void refreshLoungeBrowserSource();
       setInterval(refreshLoungeBrowserSource, 2500);
       setTimeout(retryLiveCards, 15000);

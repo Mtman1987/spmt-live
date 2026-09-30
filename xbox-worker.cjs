@@ -24,6 +24,15 @@ const WORKER_SECRET = String(process.env.CLOUD_XBOX_WORKER_SECRET || process.env
 const sessions = new Map();
 const lastDiagnostics = new Map();
 const MAX_DIAGNOSTIC_TAIL = 6000;
+const RESTREAM_OWNER_FILE = path.join(PROFILE_ROOT, 'restream-owner.json');
+const RESTREAM_AUTO_RECOVERY_ENABLED = process.env.RESTREAM_AUTO_RECOVERY_ENABLED !== 'false';
+const RESTREAM_TWITCH_LOGIN = String(process.env.RESTREAM_TWITCH_LOGIN || 'spacemountainlive').trim().toLowerCase();
+const RESTREAM_RECOVERY_POLL_MS = Math.max(10_000, Number(process.env.RESTREAM_RECOVERY_POLL_MS || 30_000));
+const RESTREAM_RECOVERY_GRACE_MS = Math.max(15_000, Number(process.env.RESTREAM_RECOVERY_GRACE_MS || 45_000));
+const RESTREAM_RECOVERY_COOLDOWN_MS = Math.max(60_000, Number(process.env.RESTREAM_RECOVERY_COOLDOWN_MS || 180_000));
+const restreamStartTasks = new Map();
+let twitchAppToken = '';
+let twitchAppTokenValidUntil = 0;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -353,6 +362,13 @@ async function navigate(session, mode) {
 async function startSession(userId, requestedMode) {
   const mode = CLOUD_XBOX_MODES[requestedMode] ? requestedMode : 'cloud-gaming';
   const key = userKey(userId);
+  if (mode === 'restream') {
+    try {
+      fs.writeFileSync(RESTREAM_OWNER_FILE, JSON.stringify({ userId: String(userId) }), { mode: 0o600 });
+    } catch (error) {
+      console.warn('[RestreamRecovery] Could not persist Restream owner profile:', redact(error?.message || error));
+    }
+  }
   const existing = sessions.get(key);
   if (existing && existing.process.exitCode === null) {
     existing.lastActivityAt = Date.now();
@@ -647,12 +663,15 @@ function restreamState(snapshot) {
   return 'unknown';
 }
 
-async function controlledRestreamStart(userId) {
+async function runControlledRestreamStart(userId) {
   const session = await startSession(userId, 'restream');
   let enteredWith = null;
   let startedWith = null;
+  let startClicked = false;
+  let startRetried = false;
+  const deadline = Date.now() + 60_000;
 
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+  while (Date.now() < deadline) {
     const snapshot = await inspectSession(session);
     const state = restreamState(snapshot);
 
@@ -663,43 +682,186 @@ async function controlledRestreamStart(userId) {
       throw error;
     }
     if (state === 'live') {
-      return { ok: true, action: 'start-only', alreadyLive: true, enteredWith, startedWith, state, snapshot };
+      return {
+        ok: true,
+        action: 'start-only',
+        alreadyLive: !startClicked,
+        enteredWith,
+        startedWith,
+        state,
+        snapshot,
+      };
     }
     if (state === 'prestudio') {
+      if (startClicked) throw new Error('Restream returned to the pre-studio screen after Go Live was clicked');
       enteredWith = await clickVisibleExact(session, RESTREAM_ENTER_LABELS);
       if (!enteredWith) throw new Error('Restream Enter Studio control disappeared before it could be clicked');
       await sleep(1500);
       continue;
     }
     if (state === 'ready') {
-      startedWith = await clickVisibleExact(session, RESTREAM_START_LABELS);
-      if (!startedWith) throw new Error('Restream Go Live control disappeared before it could be clicked');
-      await sleep(2500);
-
-      let after = await inspectSession(session);
-      let afterState = restreamState(after);
-      if (afterState === 'ready') {
-        const confirm = await clickVisibleExact(session, RESTREAM_START_LABELS);
-        if (confirm) {
-          startedWith = `${startedWith} -> ${confirm}`;
-          await sleep(2500);
-          after = await inspectSession(session);
-          afterState = restreamState(after);
+      if (!startClicked) {
+        startedWith = await clickVisibleExact(session, RESTREAM_START_LABELS);
+        if (!startedWith) throw new Error('Restream Go Live control disappeared before it could be clicked');
+        startClicked = true;
+        await sleep(3500);
+        continue;
+      }
+      if (!startRetried && Date.now() + 5000 < deadline) {
+        const retry = await clickVisibleExact(session, RESTREAM_START_LABELS);
+        if (retry) {
+          startRetried = true;
+          startedWith = `${startedWith} -> ${retry}`;
+          await sleep(3500);
+          continue;
         }
       }
-      return { ok: true, action: 'start-only', alreadyLive: false, enteredWith, startedWith, state: afterState, snapshot: after };
+      await sleep(1000);
+      continue;
     }
-
-    if (state === 'unknown' && attempt >= 8) {
-      const error = new Error('Restream reached an unrecognized Studio state');
-      error.code = 'UNKNOWN_STATE';
-      error.snapshot = snapshot;
-      throw error;
+    if (state === 'unknown' && startClicked) {
+      await sleep(1000);
+      continue;
+    }
+    if (state === 'unknown' && Date.now() + 45_000 < deadline) {
+      await sleep(1000);
+      continue;
     }
     await sleep(1000);
   }
 
-  throw new Error('Restream Studio did not become ready for a start-only action');
+  const snapshot = await inspectSession(session).catch(() => null);
+  const error = new Error(startClicked
+    ? 'Restream Go Live was clicked but a live state was not confirmed'
+    : 'Restream Studio did not become ready for a start-only action');
+  error.code = 'START_NOT_CONFIRMED';
+  error.snapshot = snapshot;
+  throw error;
+}
+
+async function controlledRestreamStart(userId) {
+  const key = userKey(userId);
+  const existing = restreamStartTasks.get(key);
+  if (existing) return await existing;
+  const task = runControlledRestreamStart(userId)
+    .finally(() => restreamStartTasks.delete(key));
+  restreamStartTasks.set(key, task);
+  return await task;
+}
+
+async function getTwitchAppToken() {
+  const clientId = String(process.env.TWITCH_CLIENT_ID || '').trim();
+  const clientSecret = String(process.env.TWITCH_CLIENT_SECRET || '').trim();
+  const staticToken = String(process.env.TWITCH_ACCESS_TOKEN || '').trim();
+  if (!clientId) throw new Error('Twitch client id is not configured');
+  if (!clientSecret) {
+    if (!staticToken) throw new Error('Twitch access token is not configured');
+    return { clientId, token: staticToken };
+  }
+  if (twitchAppToken && Date.now() < twitchAppTokenValidUntil) return { clientId, token: twitchAppToken };
+  const response = await fetch('https://id.twitch.tv/oauth2/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: 'client_credentials',
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok || !body?.access_token) throw new Error(`Twitch app token request failed (${response.status})`);
+  twitchAppToken = String(body.access_token);
+  twitchAppTokenValidUntil = Date.now() + Math.max(60_000, (Number(body.expires_in || 3600) - 300) * 1000);
+  return { clientId, token: twitchAppToken };
+}
+
+async function probeTwitchLive() {
+  const { clientId, token } = await getTwitchAppToken();
+  const response = await fetch(
+    `https://api.twitch.tv/helix/streams?user_login=${encodeURIComponent(RESTREAM_TWITCH_LOGIN)}`,
+    {
+      headers: { 'client-id': clientId, authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
+    },
+  );
+  const body = await response.json().catch(() => null);
+  if (!response.ok || !Array.isArray(body?.data)) throw new Error(`Twitch stream lookup failed (${response.status})`);
+  const stream = body.data[0] || null;
+  return {
+    ok: true,
+    login: RESTREAM_TWITCH_LOGIN,
+    isLive: Boolean(stream),
+    streamId: stream?.id || null,
+    startedAt: stream?.started_at || null,
+    checkedAt: new Date().toISOString(),
+  };
+}
+
+function rememberedRestreamOwnerId() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(RESTREAM_OWNER_FILE, 'utf8'));
+    return String(parsed?.userId || '').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+let recoveryOfflineSince = 0;
+let recoveryLastAttemptAt = 0;
+let recoveryBusy = false;
+
+async function runRestreamRecoveryTick() {
+  if (!RESTREAM_AUTO_RECOVERY_ENABLED || recoveryBusy) return;
+  let twitch;
+  try {
+    twitch = await probeTwitchLive();
+  } catch (error) {
+    console.warn('[RestreamRecovery] Twitch probe failed:', redact(error?.message || error));
+    return;
+  }
+
+  if (twitch.isLive) {
+    recoveryOfflineSince = 0;
+    return;
+  }
+
+  if (!recoveryOfflineSince) recoveryOfflineSince = Date.now();
+  if (Date.now() - recoveryOfflineSince < RESTREAM_RECOVERY_GRACE_MS) return;
+  if (Date.now() - recoveryLastAttemptAt < RESTREAM_RECOVERY_COOLDOWN_MS) return;
+
+  const ownerId = rememberedRestreamOwnerId();
+  if (!ownerId) {
+    console.warn('[RestreamRecovery] Twitch is offline but no persistent Restream owner profile is remembered yet.');
+    return;
+  }
+
+  recoveryBusy = true;
+  recoveryLastAttemptAt = Date.now();
+  try {
+    const result = await controlledRestreamStart(ownerId);
+    const verifyDeadline = Date.now() + 90_000;
+    let verified = null;
+    while (Date.now() < verifyDeadline) {
+      await sleep(5000);
+      try {
+        verified = await probeTwitchLive();
+        if (verified.isLive) break;
+      } catch {}
+    }
+    if (verified?.isLive) {
+      recoveryOfflineSince = 0;
+      console.log('[RestreamRecovery] Twitch was offline; persistent Restream start-only recovery restored the stream.');
+    } else {
+      console.warn('[RestreamRecovery] Restream start-only action completed but Twitch did not become live.', {
+        restreamState: result?.state || null,
+      });
+    }
+  } catch (error) {
+    console.warn('[RestreamRecovery] Automatic start-only recovery failed:', redact(error?.message || error));
+  } finally {
+    recoveryBusy = false;
+  }
 }
 
 async function captureFrame(session) {
@@ -907,7 +1069,13 @@ const sweeper = setInterval(() => {
 }, 60 * 1000);
 sweeper.unref?.();
 
+const restreamRecoveryTimer = setInterval(() => {
+  void runRestreamRecoveryTick();
+}, RESTREAM_RECOVERY_POLL_MS);
+restreamRecoveryTimer.unref?.();
+
 fs.mkdirSync(PROFILE_ROOT, { recursive: true, mode: 0o700 });
+setTimeout(() => void runRestreamRecoveryTick(), 5000).unref?.();
 
 const server = app.listen(PORT, '::', () => {
   console.log(`[XboxWorker] listening on [::]:${PORT}; maxSessions=${MAX_SESSIONS}; profileRoot=${PROFILE_ROOT}`);
@@ -915,6 +1083,7 @@ const server = app.listen(PORT, '::', () => {
 
 async function shutdown() {
   clearInterval(sweeper);
+  clearInterval(restreamRecoveryTimer);
   await Promise.all([...sessions.values()].map((session) => stopSession(session)));
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 1500).unref?.();

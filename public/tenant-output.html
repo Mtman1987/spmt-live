@@ -204,7 +204,7 @@
         brbMode = mode;
         state.brbMode = mode;
         applyLoungeMediaLayout();
-        for (const id of ['community-lounge-live-spotlight', 'community-lounge-hmo-media']) {
+        for (const id of ['community-lounge-live-spotlight', 'community-lounge-hmo-media', 'sw-shoutout']) {
           const frame = sceneEl.querySelector(`[data-tenant-widget="${id}"] iframe`);
           const active = mode !== 'off';
           if (frame) frame.contentWindow?.postMessage(
@@ -242,7 +242,7 @@
       sceneEl.addEventListener('load', (event) => {
         if (brbMode === 'off' || !(event.target instanceof HTMLIFrameElement)) return;
         const id = event.target.parentElement?.dataset.tenantWidget;
-        if (!['community-lounge-live-spotlight', 'community-lounge-hmo-media'].includes(id)) return;
+        if (!['community-lounge-live-spotlight', 'community-lounge-hmo-media', 'sw-shoutout'].includes(id)) return;
         const active = brbMode !== 'off';
         event.target.contentWindow?.postMessage({ type: 'spmt-lounge-brb-audio', active, mode: brbMode, ...(id === 'community-lounge-live-spotlight' && brbVod ? brbVod : {}) }, new URL(event.target.src).origin);
       }, true);

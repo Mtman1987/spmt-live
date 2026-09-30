@@ -530,7 +530,7 @@ function personalLoungeDebugLayout() {
       "width": 667,
       "height": 362,
       "opacity": 1,
-      "zIndex": 505,
+      "zIndex": 1,
       "url": "https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge",
       "sourceApp": "StreamWeaver",
       "role": "main-window-commercial-override",
@@ -623,7 +623,7 @@ function applyMtmanLounge24x7Layout(input) {
       }
       if (widget.id === 'sw-partner-checkin') return { ...widget, visible: true, ...LOUNGE_24X7_SLOTS.mainEvent, layoutSlot: 'mainEvent', zIndex: 300 };
       if (widget.id === 'sw-classic-gamble') return { ...widget, visible: false };
-      if (widget.id === 'community-lounge-commercial') return { ...widget, visible: true, ...LOUNGE_24X7_SLOTS.main, layoutSlot: 'main', zIndex: 505, url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge', role: 'main-window-commercial-override' };
+      if (widget.id === 'community-lounge-commercial') return { ...widget, visible: true, ...LOUNGE_24X7_SLOTS.main, layoutSlot: 'main', zIndex: 1, url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge', role: 'main-window-commercial-override' };
       if (widget.id === 'community-lounge-brb') return { ...widget, url: 'https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge' };
       if (widget.id === 'sw-shoutout') {
         return {
@@ -658,7 +658,7 @@ function applyMtmanLounge24x7Layout(input) {
   if (!widgets.some((widget) => widget.id === 'community-lounge-commercial')) {
     widgets.push(normalizeWidget({
       id: 'community-lounge-commercial', title: 'Commercial Break Player', kind: 'embed', visible: true,
-      locked: true, interactive: false, opacity: 1, zIndex: 505,
+      locked: true, interactive: false, opacity: 1, zIndex: 1,
       ...LOUNGE_24X7_SLOTS.main, layoutSlot: 'main',
       url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge',
       sourceApp: 'StreamWeaver', role: 'main-window-commercial-override',
@@ -854,7 +854,7 @@ function readTenantRecord(user, create = true) {
               locked: true,
               interactive: false,
               opacity: 1,
-              zIndex: 505,
+              zIndex: 1,
               ...LOUNGE_24X7_SLOTS.main,
               layoutSlot: 'main',
               url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge',
@@ -966,7 +966,7 @@ function readTenantRecord(user, create = true) {
         if (!record.outputs.lounge.widgets.some((widget) => widget.id === 'community-lounge-commercial')) {
           record.outputs.lounge.widgets.push(normalizeWidget({
             id: 'community-lounge-commercial', title: 'Commercial Break Player', kind: 'embed', visible: true,
-            locked: true, interactive: false, opacity: 1, zIndex: 505,
+            locked: true, interactive: false, opacity: 1, zIndex: 1,
             ...LOUNGE_24X7_SLOTS.main, layoutSlot: 'main',
             url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge',
             sourceApp: 'StreamWeaver', role: 'main-window-commercial-override',

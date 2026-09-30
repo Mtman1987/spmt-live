@@ -618,7 +618,7 @@ async function clickVisibleExact(session, labels) {
   const serialized = JSON.stringify(labels);
   const result = await cdp.call('Runtime.evaluate', {
     expression: `(() => {
-      const labels = ${serialized};
+      const labels = ${serialized}.map((value) => String(value || '').trim().replace(/\\s+/g, ' ').toLowerCase());
       const norm = (value) => String(value || '').trim().replace(/\\s+/g, ' ');
       const visible = (el) => {
         const s = getComputedStyle(el);
@@ -626,7 +626,7 @@ async function clickVisibleExact(session, labels) {
         return s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0 && !el.disabled;
       };
       const candidates = [...document.querySelectorAll('button,[role="button"]')].filter(visible);
-      const target = candidates.find((el) => labels.includes(norm(el.innerText || el.getAttribute('aria-label') || el.getAttribute('title'))));
+      const target = candidates.find((el) => labels.includes(norm(el.innerText || el.getAttribute('aria-label') || el.getAttribute('title')).toLowerCase()));
       if (!target) return null;
       const text = norm(target.innerText || target.getAttribute('aria-label') || target.getAttribute('title'));
       target.click();
@@ -638,10 +638,10 @@ async function clickVisibleExact(session, labels) {
 }
 
 function restreamState(snapshot) {
-  const labels = new Set((snapshot?.buttons || []).map((button) => String(button?.text || '').trim()));
-  if ([...RESTREAM_LIVE_LABELS].some((label) => labels.has(label))) return 'live';
-  if ([...RESTREAM_START_LABELS].some((label) => labels.has(label))) return 'ready';
-  if ([...RESTREAM_ENTER_LABELS].some((label) => labels.has(label))) return 'prestudio';
+  const labels = new Set((snapshot?.buttons || []).map((button) => String(button?.text || '').trim().toLowerCase()));
+  if ([...RESTREAM_LIVE_LABELS].some((label) => labels.has(String(label).toLowerCase()))) return 'live';
+  if ([...RESTREAM_START_LABELS].some((label) => labels.has(String(label).toLowerCase()))) return 'ready';
+  if ([...RESTREAM_ENTER_LABELS].some((label) => labels.has(String(label).toLowerCase()))) return 'prestudio';
   if (/restream\.io\/login/i.test(String(snapshot?.url || '')) || /\blog in\b/i.test(String(snapshot?.title || ''))) return 'login_required';
   if (/setting the stage for you/i.test(String(snapshot?.bodyText || ''))) return 'loading';
   return 'unknown';

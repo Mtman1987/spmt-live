@@ -609,6 +609,99 @@ async function inspectSession(session) {
   return result?.result?.value || { url: session.url, title: session.title, buttons: [], bodyText: '' };
 }
 
+const RESTREAM_ENTER_LABELS = ['Enter Studio'];
+const RESTREAM_START_LABELS = ['Go Live', 'Go live', 'Start Stream', 'Start stream'];
+const RESTREAM_LIVE_LABELS = ['End Stream', 'End stream', 'Stop Stream', 'Stop stream'];
+
+async function clickVisibleExact(session, labels) {
+  const cdp = await ensurePage(session);
+  const serialized = JSON.stringify(labels);
+  const result = await cdp.call('Runtime.evaluate', {
+    expression: `(() => {
+      const labels = ${serialized};
+      const norm = (value) => String(value || '').trim().replace(/\\s+/g, ' ');
+      const visible = (el) => {
+        const s = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0 && !el.disabled;
+      };
+      const candidates = [...document.querySelectorAll('button,[role="button"]')].filter(visible);
+      const target = candidates.find((el) => labels.includes(norm(el.innerText || el.getAttribute('aria-label') || el.getAttribute('title'))));
+      if (!target) return null;
+      const text = norm(target.innerText || target.getAttribute('aria-label') || target.getAttribute('title'));
+      target.click();
+      return text;
+    })()`,
+    returnByValue: true,
+  }, 5000);
+  return result?.result?.value || null;
+}
+
+function restreamState(snapshot) {
+  const labels = new Set((snapshot?.buttons || []).map((button) => String(button?.text || '').trim()));
+  if ([...RESTREAM_LIVE_LABELS].some((label) => labels.has(label))) return 'live';
+  if ([...RESTREAM_START_LABELS].some((label) => labels.has(label))) return 'ready';
+  if ([...RESTREAM_ENTER_LABELS].some((label) => labels.has(label))) return 'prestudio';
+  if (/restream\.io\/login/i.test(String(snapshot?.url || '')) || /\blog in\b/i.test(String(snapshot?.title || ''))) return 'login_required';
+  if (/setting the stage for you/i.test(String(snapshot?.bodyText || ''))) return 'loading';
+  return 'unknown';
+}
+
+async function controlledRestreamStart(userId) {
+  const session = await startSession(userId, 'restream');
+  let enteredWith = null;
+  let startedWith = null;
+
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const snapshot = await inspectSession(session);
+    const state = restreamState(snapshot);
+
+    if (state === 'login_required') {
+      const error = new Error('Restream persistent browser requires login');
+      error.code = 'LOGIN_REQUIRED';
+      error.snapshot = snapshot;
+      throw error;
+    }
+    if (state === 'live') {
+      return { ok: true, action: 'start-only', alreadyLive: true, enteredWith, startedWith, state, snapshot };
+    }
+    if (state === 'prestudio') {
+      enteredWith = await clickVisibleExact(session, RESTREAM_ENTER_LABELS);
+      if (!enteredWith) throw new Error('Restream Enter Studio control disappeared before it could be clicked');
+      await sleep(1500);
+      continue;
+    }
+    if (state === 'ready') {
+      startedWith = await clickVisibleExact(session, RESTREAM_START_LABELS);
+      if (!startedWith) throw new Error('Restream Go Live control disappeared before it could be clicked');
+      await sleep(2500);
+
+      let after = await inspectSession(session);
+      let afterState = restreamState(after);
+      if (afterState === 'ready') {
+        const confirm = await clickVisibleExact(session, RESTREAM_START_LABELS);
+        if (confirm) {
+          startedWith = `${startedWith} -> ${confirm}`;
+          await sleep(2500);
+          after = await inspectSession(session);
+          afterState = restreamState(after);
+        }
+      }
+      return { ok: true, action: 'start-only', alreadyLive: false, enteredWith, startedWith, state: afterState, snapshot: after };
+    }
+
+    if (state === 'unknown' && attempt >= 8) {
+      const error = new Error('Restream reached an unrecognized Studio state');
+      error.code = 'UNKNOWN_STATE';
+      error.snapshot = snapshot;
+      throw error;
+    }
+    await sleep(1000);
+  }
+
+  throw new Error('Restream Studio did not become ready for a start-only action');
+}
+
 async function captureFrame(session) {
   session.lastActivityAt = Date.now();
   const cdp = await ensurePage(session);
@@ -738,6 +831,27 @@ app.post('/v1/input', async (req, res) => {
     res.status(200).json({ ok: true });
   } catch (error) {
     res.status(400).json({ error: redact(error?.message || 'Input failed') });
+  }
+});
+
+app.post('/v1/restream/start', async (req, res) => {
+  try {
+    const result = await controlledRestreamStart(req.cloudXboxUserId);
+    res.status(200).set('cache-control', 'no-store').json(result);
+  } catch (error) {
+    const snapshot = error?.snapshot
+      ? {
+          url: String(error.snapshot.url || '').slice(0, 500),
+          title: String(error.snapshot.title || '').slice(0, 300),
+          buttons: Array.isArray(error.snapshot.buttons) ? error.snapshot.buttons.slice(0, 80) : [],
+          bodyText: String(error.snapshot.bodyText || '').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]').slice(0, 3500),
+        }
+      : null;
+    res.status(error?.code === 'LOGIN_REQUIRED' ? 409 : 422).set('cache-control', 'no-store').json({
+      ok: false,
+      error: redact(error?.message || 'Restream start-only action failed'),
+      snapshot,
+    });
   }
 });
 

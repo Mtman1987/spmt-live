@@ -286,3 +286,14 @@ test('repairs stale persisted commercial geometry even when the Lounge is alread
   assert.match(source, /corrected = true;/);
   assert.match(source, /widgets\.some\(\(widget\) => widget\.id === 'community-lounge-commercial'\)/);
 });
+
+
+test('commercial follows Spotlight geometry and sits directly above it', () => {
+  const output = fs.readFileSync('public/tenant-output.html', 'utf8');
+  assert.match(output, /const commercial = sceneEl\.querySelector\('\[data-tenant-widget="community-lounge-commercial"\]'\)/);
+  assert.match(output, /placeLoungeProgram\(commercial, spotlightSlot\)/);
+  assert.match(output, /commercial\.style\.zIndex = String\(\(Number\.isFinite\(spotlightZ\) \? spotlightZ : 0\) \+ 1\)/);
+  const bootstrapSource = fs.readFileSync('tenant-overlay-bootstrap.cjs', 'utf8');
+  assert.match(bootstrapSource, /community-lounge-commercial[\s\S]{0,500}zIndex['"]?:?\s*1/);
+  assert.doesNotMatch(bootstrapSource, /community-lounge-commercial[\s\S]{0,500}zIndex['"]?:?\s*505/);
+});

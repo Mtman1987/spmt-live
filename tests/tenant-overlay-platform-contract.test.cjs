@@ -297,3 +297,13 @@ test('commercial follows Spotlight geometry and sits directly above it', () => {
   assert.match(bootstrapSource, /community-lounge-commercial[\s\S]{0,500}zIndex['"]?:?\s*1/);
   assert.doesNotMatch(bootstrapSource, /community-lounge-commercial[\s\S]{0,500}zIndex['"]?:?\s*505/);
 });
+
+
+test('commercial iframe stays physically hidden while idle and only appears for ACTIVE breaks', () => {
+  const output = fs.readFileSync('public/tenant-output.html', 'utf8');
+  assert.match(output, /commercialBreakActive: false/);
+  assert.match(output, /commercial\.style\.visibility = state\.commercialBreakActive \? 'visible' : 'hidden'/);
+  assert.match(output, /commercial\.style\.opacity = state\.commercialBreakActive \? '1' : '0'/);
+  assert.match(output, /payload\?\.phase === 'ACTIVE'/);
+  assert.match(output, /setInterval\(refreshCommercialBreakState, 1000\)/);
+});

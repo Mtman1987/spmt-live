@@ -178,7 +178,9 @@
           // its own worker Machine, independent of the HearMeOut DJ.
           const embedUrl = output === 'lounge' && widget.id === 'community-lounge-live-spotlight'
             ? 'https://hearmeout-main.fly.dev/spotlight-media/worker-spotlight.html?v=worker-feed-2'
-            : output === 'lounge' && widget.id === 'community-lounge-hmo-media'
+            : output === 'lounge' && widget.id === 'community-lounge-commercial'
+              ? 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge'
+                        : output === 'lounge' && widget.id === 'community-lounge-hmo-media'
               ? 'https://hearmeout-main.fly.dev/lounge-media/worker-media.html?v=worker-feed-2'
               : widget.url;
           return embedUrl ? `<iframe src="${escapeHtml(embedUrl)}" title="${escapeHtml(widget.title)}" allow="autoplay; microphone; camera; fullscreen; clipboard-write; display-capture"></iframe>` : '';

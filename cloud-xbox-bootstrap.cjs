@@ -11,6 +11,8 @@ let streamWatchTimer = null;
 let streamWatchBusy = false;
 let streamOfflineSince = 0;
 let streamLastAttemptAt = 0;
+let twitchLookupToken = '';
+let twitchLookupTokenUntil = 0;
 
 function safeJson(res, status, body) {
   res.status(status).set('cache-control', 'private, no-store').json(body);
@@ -100,8 +102,30 @@ async function workerRequest(userId, method, workerPath, body = null, timeoutMs 
   }
 }
 
-function streamServiceKey() {
-  return String(process.env.SPMT_API_KEY || process.env.SPMT_PLATFORM_API_KEY || '').trim();
+async function twitchAccessToken() {
+  const clientId = String(process.env.TWITCH_CLIENT_ID || '').trim();
+  const clientSecret = String(process.env.TWITCH_CLIENT_SECRET || '').trim();
+  const staticToken = String(process.env.TWITCH_ACCESS_TOKEN || '').trim();
+  if (!clientId) return null;
+  if (!clientSecret) return staticToken || null;
+  if (twitchLookupToken && Date.now() < twitchLookupTokenUntil) return twitchLookupToken;
+
+  const response = await fetch('https://id.twitch.tv/oauth2/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: 'client_credentials',
+    }),
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (!response.ok) return null;
+  const body = await response.json().catch(() => null);
+  if (!body?.access_token) return null;
+  twitchLookupToken = String(body.access_token);
+  twitchLookupTokenUntil = Date.now() + Math.max(60_000, (Number(body.expires_in) || 3600) * 1000 - 300_000);
+  return twitchLookupToken;
 }
 
 function ownerUserId() {
@@ -116,20 +140,32 @@ function ownerUserId() {
 }
 
 async function twitchLiveState() {
-  const key = streamServiceKey();
-  if (!key) return { ok: false, error: 'SPMT service key unavailable' };
+  const clientId = String(process.env.TWITCH_CLIENT_ID || '').trim();
+  if (!clientId) return { ok: false, error: 'Twitch client id unavailable' };
   try {
-    const response = await fetch(`${DSH_URL}/api/internal/twitch/live-status?login=${encodeURIComponent(STREAM_LOGIN)}`, {
-      headers: { authorization: `Bearer ${key}`, accept: 'application/json' },
+    const token = await twitchAccessToken();
+    if (!token) return { ok: false, error: 'Twitch access token unavailable' };
+    const response = await fetch(`https://api.twitch.tv/helix/streams?user_login=${encodeURIComponent(STREAM_LOGIN)}`, {
+      headers: {
+        'client-id': clientId,
+        authorization: `Bearer ${token}`,
+        accept: 'application/json',
+      },
       signal: AbortSignal.timeout(10_000),
     });
     const body = await response.json().catch(() => null);
-    if (!response.ok || !body?.ok || typeof body?.isLive !== 'boolean') {
-      return { ok: false, error: `live-status HTTP ${response.status}` };
+    if (!response.ok || !Array.isArray(body?.data)) {
+      return { ok: false, error: `Twitch Helix HTTP ${response.status}` };
     }
-    return { ok: true, isLive: body.isLive, checkedAt: body.checkedAt || new Date().toISOString() };
+    return {
+      ok: true,
+      isLive: body.data.length > 0,
+      checkedAt: new Date().toISOString(),
+      startedAt: body.data[0]?.started_at || null,
+      streamId: body.data[0]?.id || null,
+    };
   } catch (error) {
-    return { ok: false, error: error?.message || 'live-status request failed' };
+    return { ok: false, error: error?.message || 'Twitch Helix request failed' };
   }
 }
 

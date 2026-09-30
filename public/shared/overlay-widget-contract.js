@@ -35,7 +35,7 @@
       height: clamp(source.height, 24, SCENE.height * 2, fallbackHeight),
       opacity: clamp(source.opacity, 0, 1, 1),
       zIndex: clamp(source.zIndex, -100000, 100000, kind === 'xbox' ? 0 : index + 1),
-      controlAudioViaOBSpmt: source.controlAudioViaOBSpmt === true || (source.controlAudioViaOBSpmt === undefined && ['community-lounge-live-spotlight', 'community-lounge-hmo-media', 'sw-shoutout', 'community-lounge-brb', 'community-lounge-stella-tts', 'community-lounge-chat-tts'].includes(source.id)),
+      controlAudioViaOBSpmt: source.controlAudioViaOBSpmt === true || (source.controlAudioViaOBSpmt === undefined && ['community-lounge-live-spotlight', 'community-lounge-hmo-media', 'sw-shoutout', 'community-lounge-brb', 'community-lounge-commercial', 'community-lounge-stella-tts', 'community-lounge-chat-tts'].includes(source.id)),
       audioVolume: clamp(source.audioVolume, 0, 100, 100),
       audioMuted: source.audioMuted === true,
     };

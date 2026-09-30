@@ -507,6 +507,7 @@
         if (output !== 'lounge' || tenant !== 'mtman1987') return;
         const stream = sceneEl.querySelector('[data-tenant-widget="community-lounge-live-spotlight"]');
         const media = sceneEl.querySelector('[data-tenant-widget="community-lounge-hmo-media"]');
+        const commercial = sceneEl.querySelector('[data-tenant-widget="community-lounge-commercial"]');
         const brb = sceneEl.querySelector('[data-tenant-widget="community-lounge-brb"]');
         // BRB covers only the program window. Alerts, games, Stella and the
         // neon frame keep their own layers above the fallback.
@@ -525,8 +526,14 @@
         // Twitch requires a full-size visible embed for muted autoplay. Keep
         // the persistent Spotlight player in the main slot during BRB streams.
         const mediaIsMain = state.loungeMediaMode === 'media' && state.brbMode !== 'stream' && state.brbMode !== 'vod';
-        placeLoungeProgram(stream, mediaIsMain ? 'media' : 'main');
+        const spotlightSlot = mediaIsMain ? 'media' : 'main';
+        placeLoungeProgram(stream, spotlightSlot);
+        placeLoungeProgram(commercial, spotlightSlot);
         placeLoungeProgram(media, mediaIsMain ? 'main' : 'media');
+        if (commercial) {
+          const spotlightZ = Number.parseInt(stream?.style.zIndex || '0', 10);
+          commercial.style.zIndex = String((Number.isFinite(spotlightZ) ? spotlightZ : 0) + 1);
+        }
         // Keep the main program at its selected volume while the smaller
         // program plays quietly in the background. No iframe is remounted.
         for (const [element, focused] of [[stream, !mediaIsMain], [media, mediaIsMain]]) {

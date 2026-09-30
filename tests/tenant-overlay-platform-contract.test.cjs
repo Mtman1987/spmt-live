@@ -276,3 +276,13 @@ test('Lounge uses one shared Pokemon and Quackverse card-pack reveal layer', () 
   assert.match(bootstrap, /overlay\/card-pack\?tenant=spacemountainlive/);
   assert.match(bootstrap, /card-pack-event-layer/);
 });
+
+
+test('repairs stale persisted commercial geometry even when the Lounge is already version 14', () => {
+  const source = fs.readFileSync('tenant-overlay-bootstrap.cjs', 'utf8');
+  assert.match(source, /if \(widget\.id === 'community-lounge-commercial'\) \{/);
+  assert.match(source, /\.\.\.LOUNGE_24X7_SLOTS\.main/);
+  assert.match(source, /role: 'main-window-commercial-override'/);
+  assert.match(source, /corrected = true;/);
+  assert.match(source, /widgets\.some\(\(widget\) => widget\.id === 'community-lounge-commercial'\)/);
+});

@@ -184,6 +184,8 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   );
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.interactive, false);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));
+  assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-commercial'));
+  assert.match(layout.widgets.find((widget) => widget.id === 'community-lounge-commercial')?.url || '', /commercial-break-player/);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tts')?.visible, false);
   assert.match(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tts')?.url || '', /say-player\?tenantId=spacemountainlive&placement=lounge/);
 });
@@ -192,7 +194,7 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   const original = bootstrap._test.personalLoungeDebugLayout();
   const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
   assert.equal(layout.template, 'community-lounge-24x7-v1');
-  assert.equal(layout.lounge24x7LayoutVersion, 13);
+  assert.equal(layout.lounge24x7LayoutVersion, 14);
   assert.equal(layout.widgets.length, original.widgets.length + 5);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-alerts')?.layoutSlot, 'mainAlert');

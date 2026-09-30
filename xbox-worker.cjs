@@ -583,6 +583,32 @@ async function sessionStatus(userId) {
   };
 }
 
+async function inspectSession(session) {
+  session.lastActivityAt = Date.now();
+  const cdp = await ensurePage(session);
+  const result = await cdp.call('Runtime.evaluate', {
+    expression: `(() => {
+      const visible = (el) => {
+        const s = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+      };
+      const buttons = [...document.querySelectorAll('button,[role="button"],a')]
+        .filter(visible)
+        .map((el) => ({
+          tag: el.tagName.toLowerCase(),
+          text: (el.innerText || el.getAttribute('aria-label') || el.getAttribute('title') || '').trim().replace(/\\s+/g,' ').slice(0,120)
+        }))
+        .filter((x) => x.text)
+        .slice(0,120);
+      const bodyText = (document.body?.innerText || '').replace(/\\s+/g,' ').trim().slice(0,6000);
+      return { url: location.href, title: document.title, buttons, bodyText };
+    })()`,
+    returnByValue: true,
+  }, 5000);
+  return result?.result?.value || { url: session.url, title: session.title, buttons: [], bodyText: '' };
+}
+
 async function captureFrame(session) {
   session.lastActivityAt = Date.now();
   const cdp = await ensurePage(session);
@@ -712,6 +738,16 @@ app.post('/v1/input', async (req, res) => {
     res.status(200).json({ ok: true });
   } catch (error) {
     res.status(400).json({ error: redact(error?.message || 'Input failed') });
+  }
+});
+
+app.get('/v1/inspect', async (req, res) => {
+  const session = sessionForUser(req.cloudXboxUserId);
+  if (!session) return res.status(409).json({ error: 'Xbox browser is not running' });
+  try {
+    res.status(200).set('cache-control', 'no-store').json(await inspectSession(session));
+  } catch (error) {
+    res.status(503).json({ error: redact(error?.message || 'Xbox browser inspection unavailable') });
   }
 });
 

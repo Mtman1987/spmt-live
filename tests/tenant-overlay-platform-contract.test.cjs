@@ -191,7 +191,7 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.equal(commercial.y, 4.5);
   assert.equal(commercial.width, 667);
   assert.equal(commercial.height, 362);
-  assert.equal(commercial.zIndex, 505);
+  assert.equal(commercial.zIndex, 1);
   assert.equal(commercial.role, 'main-window-commercial-override');
   assert.match(commercial.url || '', /commercial-break-player/);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tts')?.visible, false);

@@ -610,8 +610,8 @@ async function inspectSession(session) {
 }
 
 const RESTREAM_ENTER_LABELS = ['Enter Studio'];
-const RESTREAM_START_LABELS = ['Go Live', 'Go live', 'Start Stream', 'Start stream'];
-const RESTREAM_LIVE_LABELS = ['End Stream', 'End stream', 'Stop Stream', 'Stop stream'];
+const RESTREAM_START_LABELS = ['Go Live', 'Go live', 'GO LIVE', 'Start Stream', 'Start stream', 'START STREAM'];
+const RESTREAM_LIVE_LABELS = ['End Stream', 'End stream', 'END STREAM', 'Stop Stream', 'Stop stream', 'STOP STREAM'];
 
 async function clickVisibleExact(session, labels) {
   const cdp = await ensurePage(session);

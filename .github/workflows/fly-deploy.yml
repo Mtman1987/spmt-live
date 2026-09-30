@@ -4,6 +4,16 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      deploy_scope:
+        description: "Process group to deploy"
+        required: true
+        default: "app"
+        type: choice
+        options:
+          - app
+          - xbox
+          - all
 
 permissions:
   contents: write
@@ -101,10 +111,22 @@ jobs:
       - name: Restore committed source after mutation-based contract tests
         run: git reset --hard "$GITHUB_SHA"
       - name: Deploy to Fly.io
-        run: flyctl deploy . --remote-only --config fly.toml --build-arg BUILD_SHA=${GITHUB_SHA} --build-arg GITHUB_SHA=${GITHUB_SHA} --build-arg GH_SHA=${GITHUB_SHA} --yes
+        run: |
+          set -euo pipefail
+          scope="app"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            scope="${{ inputs.deploy_scope }}"
+          fi
+          args=(deploy . --remote-only --config fly.toml --build-arg BUILD_SHA=${GITHUB_SHA} --build-arg GITHUB_SHA=${GITHUB_SHA} --build-arg GH_SHA=${GITHUB_SHA} --yes)
+          if [ "$scope" = "app" ] || [ "$scope" = "xbox" ]; then
+            args+=(--process-groups "$scope")
+          fi
+          echo "Deploy scope: $scope"
+          flyctl "${args[@]}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       - name: Verify live OAuth database writes
+        if: github.event_name != 'workflow_dispatch' || inputs.deploy_scope != 'xbox'
         run: |
           node <<'NODE'
           const endpoint = 'https://spmt.live/api/health/oauth';
@@ -139,6 +161,7 @@ jobs:
           process.exit(1);
           NODE
       - name: Verify public authenticated OAuth routes
+        if: github.event_name != 'workflow_dispatch' || inputs.deploy_scope != 'xbox'
         run: flyctl ssh console --app spmt-live --process-group app --command "/bin/sh -lc 'SPMT_OAUTH_SELFTEST_BASE_URL=https://spmt.live node /app/scripts/operations/oauth-live-selftest.cjs'"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

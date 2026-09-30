@@ -456,6 +456,7 @@
           if (item.id === 'sw-partner-checkin') return { ...item, visible: true, ...slots.mainEvent, layoutSlot: 'mainEvent', zIndex: 300 };
           if (item.id === 'sw-classic-gamble') return { ...item, visible: false };
           if (item.id === 'sw-shoutout') return { ...item, visible: true, ...slots.mainEvent, layoutSlot: 'mainEvent', zIndex: 270, url: 'https://streamweaver-new.fly.dev/shoutout-player?tenant=spacemountainlive&placement=lounge' };
+          if (item.id === 'community-lounge-commercial') return { ...item, x: 0, y: 0, width: 960, height: 540, zIndex: 505, url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge' };
           if (item.id === 'community-lounge-brb') return { ...item, url: 'https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge' };
           if (item.id === 'sw-pokemon-pack') return { ...item, ...slots.mainEvent, layoutSlot: 'mainEvent', url: 'https://streamweaver-new.fly.dev/overlay/card-pack?tenant=spacemountainlive&placement=lounge-main' };
           const slot = slotById.get(item.id);

@@ -847,6 +847,24 @@ function readTenantRecord(user, create = true) {
             corrected = true;
             return next;
           }
+          if (widget.id === 'community-lounge-commercial') {
+            const next = {
+              ...widget,
+              visible: true,
+              locked: true,
+              interactive: false,
+              opacity: 1,
+              zIndex: 505,
+              ...LOUNGE_24X7_SLOTS.main,
+              layoutSlot: 'main',
+              url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge',
+              sourceApp: 'StreamWeaver',
+              role: 'main-window-commercial-override',
+            };
+            if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
+            corrected = true;
+            return next;
+          }
           if (widget.id === 'sw-featured-chat') {
             const next = {
               ...widget,
@@ -945,6 +963,17 @@ function readTenantRecord(user, create = true) {
           }
           return widget;
         });
+        if (!record.outputs.lounge.widgets.some((widget) => widget.id === 'community-lounge-commercial')) {
+          record.outputs.lounge.widgets.push(normalizeWidget({
+            id: 'community-lounge-commercial', title: 'Commercial Break Player', kind: 'embed', visible: true,
+            locked: true, interactive: false, opacity: 1, zIndex: 505,
+            ...LOUNGE_24X7_SLOTS.main, layoutSlot: 'main',
+            url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge',
+            sourceApp: 'StreamWeaver', role: 'main-window-commercial-override',
+          }, record.outputs.lounge.widgets.length));
+          corrected = true;
+        }
+
         if (!record.outputs.lounge.widgets.some((widget) => widget.id === 'community-lounge-alerts' || (widget.kind === 'alert' && widget.role === 'default-alerts'))) {
           record.outputs.lounge.widgets.push(normalizeWidget(loungeAlertWidget(), record.outputs.lounge.widgets.length));
           corrected = true;

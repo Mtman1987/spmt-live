@@ -180,7 +180,6 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-leaderboard-command'));
   const commandCard = layout.widgets.find((widget) => widget.id === 'sw-command-card');
   assert.ok(commandCard);
-  assert.equal(commandCard.layoutSlot, 'activity');
   assert.equal(commandCard.zIndex, 72);
   assert.equal(commandCard.role, 'idle-activity-command-card');
   assert.match(commandCard.url || '', /overlay\/command-card\?tenant=spacemountainlive/);

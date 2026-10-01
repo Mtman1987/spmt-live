@@ -315,3 +315,12 @@ test('commercial default is fail-safe invisible until live state activates it', 
   assert.ok(commercial);
   assert.equal(commercial.opacity, 0);
 });
+
+
+test('manual BRB is never triggered by Spotlight health and uses a versioned iframe URL', () => {
+  const output = fs.readFileSync('public/tenant-output.html', 'utf8');
+  assert.doesNotMatch(output, /brb\?\.contentWindow\?\.postMessage\(event\.data, 'https:\/\/streamweaver-new\.fly\.dev'\)/);
+  assert.match(output, /brb-player\?tenant=spacemountainlive&placement=lounge&v=manual-brb-2/);
+  const bootstrapSource = fs.readFileSync('tenant-overlay-bootstrap.cjs', 'utf8');
+  assert.match(bootstrapSource, /brb-player\?tenant=spacemountainlive&placement=lounge&v=manual-brb-2/);
+});

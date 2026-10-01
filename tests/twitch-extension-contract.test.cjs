@@ -45,13 +45,16 @@ test('Lounge Spotlight reads the assigned worker feed and recovers viewer playba
   assert.doesNotMatch(spotlight, /new (?:window\.)?Twitch\.Player/);
 });
 
-test('Lounge rotates idle chat, leaderboard and command cards without removing event layers', () => {
+test('Lounge rotates exactly one idle surface at a time: chat, leaderboard, command', () => {
   const output = fs.readFileSync('public/tenant-output.html', 'utf8');
   assert.match(output, /applyActivityRotation/);
-  assert.match(output, /community-lounge-leaderboard-v2/);
-  assert.match(output, /sw-featured-chat/);
-  assert.match(output, /sw-command-card/);
-  assert.match(output, /Math\.floor\(elapsed \/ 30000\) % 3/);
+  assert.match(output, /\['chat', chat\]/);
+  assert.match(output, /\['leaderboard', leaderboard\]/);
+  assert.match(output, /\['command', command\]/);
+  assert.match(output, /Math\.floor\(elapsed \/ 30000\) % surfaces\.length/);
+  assert.match(output, /element\.style\.display = visible \? 'block' : 'none'/);
+  assert.match(output, /element\.style\.visibility = visible \? 'visible' : 'hidden'/);
+  assert.match(output, /element\.style\.opacity = visible \? '1' : '0'/);
 });
 
 test('active Nebula activity games suppress the idle leaderboard and chat layers', () => {
@@ -59,9 +62,8 @@ test('active Nebula activity games suppress the idle leaderboard and chat layers
   const bootstrap = fs.readFileSync('tenant-overlay-bootstrap.cjs', 'utf8');
   assert.match(output, /nebulaActivityActive: false/);
   assert.match(output, /data\.type === 'nebula\.activity-state'/);
-  assert.match(output, /state\.nebulaActivityActive \|\| phase !== 0/);
-  assert.match(output, /state\.nebulaActivityActive \|\| phase !== 1/);
-  assert.match(output, /state\.nebulaActivityActive \|\| phase !== 2/);
+  assert.match(output, /state\.nebulaActivityActive \|\| !surfaces\.length/);
+  assert.match(output, /activeIndex = state\.nebulaActivityActive/);
   assert.match(bootstrap, /widget\.id === 'community-lounge-nebula-stage'[\s\S]*zIndex: 340/);
 });
 

@@ -474,13 +474,26 @@
       function applyActivityRotation() {
         if (output !== 'lounge') return;
         const elapsed = Date.now() - state.activityRotationStartedAt;
-        const phase = Math.floor(elapsed / 30000) % 3;
-        const leaderboard = sceneEl.querySelector('[data-tenant-widget="community-lounge-leaderboard-v2"], [data-tenant-widget="community-lounge-leaderboard"]');
         const chat = sceneEl.querySelector('[data-tenant-widget="sw-featured-chat"]');
+        const leaderboard = sceneEl.querySelector('[data-tenant-widget="community-lounge-leaderboard-v2"], [data-tenant-widget="community-lounge-leaderboard"]');
         const command = sceneEl.querySelector('[data-tenant-widget="sw-command-card"]');
-        leaderboard?.classList.toggle('activity-idle-off', state.nebulaActivityActive || phase !== 1);
-        chat?.classList.toggle('activity-idle-off', state.nebulaActivityActive || phase !== 0);
-        command?.classList.toggle('activity-idle-off', state.nebulaActivityActive || phase !== 2);
+        const surfaces = [
+          ['chat', chat],
+          ['leaderboard', leaderboard],
+          ['command', command],
+        ].filter(([, element]) => Boolean(element));
+        const activeIndex = state.nebulaActivityActive || !surfaces.length
+          ? -1
+          : Math.floor(elapsed / 30000) % surfaces.length;
+        surfaces.forEach(([name, element], index) => {
+          const visible = index === activeIndex;
+          element.classList.toggle('activity-idle-off', !visible);
+          element.style.display = visible ? 'block' : 'none';
+          element.style.visibility = visible ? 'visible' : 'hidden';
+          element.style.opacity = visible ? '1' : '0';
+          element.setAttribute('aria-hidden', visible ? 'false' : 'true');
+        });
+        sceneEl.dataset.activityIdlePhase = activeIndex >= 0 ? surfaces[activeIndex][0] : 'game';
       }
 
       function placeLoungeProgram(element, slot) {

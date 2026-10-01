@@ -1220,16 +1220,21 @@ function installRoutes(app, express) {
     });
   });
 
+  const spotlightRecoveryWindowActive = () => process.uptime() < 20;
+
   app.get('/api/tenant/:tenant/lounge', (req, res) => {
     const tenant = tenantSlug(req.params.tenant);
     if (!tenant) return safeJson(res, 404, { error: 'Tenant not found' });
     const user = lookupUserByTenant(tenant);
     if (!user) return safeJson(res, 404, { error: 'Tenant not found' });
     const record = readTenantRecord({ id: user.id, username: tenant }, true);
+    const loungeLayout = tenant === 'mtman1987' && spotlightRecoveryWindowActive()
+      ? { ...record.outputs.lounge, widgets: (record.outputs.lounge.widgets || []).filter((widget) => widget.id !== 'community-lounge-live-spotlight') }
+      : record.outputs.lounge;
     return res.status(200).set('cache-control', 'no-store').json({
       tenant,
       output: 'lounge',
-      layout: record.outputs.lounge,
+      layout: loungeLayout,
       updatedAt: record.outputUpdatedAt.lounge,
       scene: { width: SCENE_WIDTH, height: SCENE_HEIGHT },
       xboxRelayToken: issuePublicRelayToken(tenant),

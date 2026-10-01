@@ -159,7 +159,7 @@ test('SpaceMountainLive system tenant resolves to an empty transparent alerts-on
 test('mtman1987 debug Lounge preset contains the complete populated scene', () => {
   const layout = bootstrap._test.personalLoungeDebugLayout();
   assert.equal(layout.template, 'community-lounge-system-v2');
-  assert.equal(layout.widgets.length, 23);
+  assert.equal(layout.widgets.length, 24);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-alerts'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-translation-subtitle'));
@@ -178,6 +178,11 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.equal(layout.widgets.some((widget) => widget.id === 'sw-pokemon-trade'), false);
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-pokemon-pack'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-leaderboard-command'));
+  const commandCard = layout.widgets.find((widget) => widget.id === 'sw-command-card');
+  assert.ok(commandCard);
+  assert.equal(commandCard.zIndex, 72);
+  assert.equal(commandCard.role, 'idle-activity-command-card');
+  assert.match(commandCard.url || '', /overlay\/command-card\?tenant=spacemountainlive/);
   assert.equal(
     layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.url,
     'https://hearmeout-main.fly.dev/spotlight-media/worker-spotlight.html?v=worker-feed-2',
@@ -202,7 +207,7 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   const original = bootstrap._test.personalLoungeDebugLayout();
   const layout = bootstrap._test.applyMtmanLounge24x7Layout(original);
   assert.equal(layout.template, 'community-lounge-24x7-v1');
-  assert.equal(layout.lounge24x7LayoutVersion, 14);
+  assert.equal(layout.lounge24x7LayoutVersion, 15);
   assert.equal(layout.widgets.length, original.widgets.length + 5);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.layoutSlot, 'main');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-alerts')?.layoutSlot, 'mainAlert');
@@ -322,4 +327,17 @@ test('manual BRB is never triggered by Spotlight health and uses a versioned ifr
   assert.doesNotMatch(output, /brb\?\.contentWindow\?\.postMessage\(event\.data, 'https:\/\/streamweaver-new\.fly\.dev'\)/);
   const bootstrapSource = fs.readFileSync('tenant-overlay-bootstrap.cjs', 'utf8');
   assert.match(bootstrapSource, /brb-player\?tenant=spacemountainlive&placement=lounge&v=manual-brb-2/);
+});
+
+
+test('command spotlight is part of the canonical activity layout', () => {
+  const layout = bootstrap._test.applyMtmanLounge24x7Layout(bootstrap._test.personalLoungeDebugLayout());
+  const command = layout.widgets.find((widget) => widget.id === 'sw-command-card');
+  assert.ok(command);
+  assert.deepEqual(
+    { x: command.x, y: command.y, width: command.width, height: command.height },
+    { x: 75.5, y: 41, width: 211, height: 280 },
+  );
+  assert.equal(command.layoutSlot, 'activity');
+  assert.equal(command.role, 'idle-activity-command-card');
 });

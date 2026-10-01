@@ -298,6 +298,23 @@ function personalLoungeDebugLayout() {
       "role": "idle-activity-chat"
     },
     {
+      "id": "sw-command-card",
+      "title": "Command Spotlight",
+      "kind": "embed",
+      "visible": true,
+      "locked": true,
+      "interactive": false,
+      "x": 0,
+      "y": 0,
+      "width": 960,
+      "height": 540,
+      "opacity": 1,
+      "zIndex": 72,
+      "url": "https://streamweaver-new.fly.dev/overlay/command-card?tenant=spacemountainlive",
+      "sourceApp": "StreamWeaver",
+      "role": "idle-activity-command-card"
+    },
+    {
       "id": "sw-leaderboard-command",
       "title": "Command Leaderboard",
       "kind": "embed",
@@ -562,7 +579,7 @@ function personalLoungeDebugLayout() {
 };
 }
 
-const LOUNGE_24X7_VERSION = 14;
+const LOUNGE_24X7_VERSION = 15;
 const LOUNGE_24X7_SLOTS = Object.freeze({
   main: Object.freeze({ x: 2.5, y: 4.5, width: 667, height: 362 }),
   mainAlert: Object.freeze({ x: 6, y: 6, width: 590, height: 150 }),
@@ -586,6 +603,7 @@ function applyMtmanLounge24x7Layout(input) {
     ['community-lounge-nebula-stage', 'activity'],
     ['community-lounge-nebula-main-stage', 'mainEvent'],
     ['sw-featured-chat', 'activity'],
+    ['sw-command-card', 'activity'],
     ['sw-leaderboard-command', 'activity'],
     ['sw-social', 'activity'],
     ['sw-notification', 'activity'],
@@ -612,6 +630,17 @@ function applyMtmanLounge24x7Layout(input) {
   const widgets = layout.widgets
     .filter((widget) => widget.id !== background.id && widget.id !== frame.id)
     .map((widget) => {
+      if (widget.id === 'sw-command-card') return {
+        ...widget,
+        visible: true,
+        ...LOUNGE_24X7_SLOTS.activity,
+        layoutSlot: 'activity',
+        opacity: 1,
+        zIndex: 72,
+        url: 'https://streamweaver-new.fly.dev/overlay/command-card?tenant=spacemountainlive',
+        sourceApp: 'StreamWeaver',
+        role: 'idle-activity-command-card',
+      };
       if (widget.id === 'sw-gamble') {
         return {
           ...widget,
@@ -670,6 +699,15 @@ function applyMtmanLounge24x7Layout(input) {
       locked: false, interactive: false, opacity: 0, zIndex: 489,
       x: 0, y: 0, width: 24, height: 24,
       url: 'https://streamweaver-new.fly.dev/say-player?tenantId=spacemountainlive&placement=lounge', sourceApp: 'StreamWeaver', role: 'broadcast-chat-tts',
+    }, widgets.length));
+  }
+  if (!widgets.some((widget) => widget.id === 'sw-command-card')) {
+    widgets.push(normalizeWidget({
+      id: 'sw-command-card', title: 'Command Spotlight', kind: 'embed', visible: true,
+      locked: true, interactive: false, opacity: 1, zIndex: 72,
+      url: 'https://streamweaver-new.fly.dev/overlay/command-card?tenant=spacemountainlive',
+      sourceApp: 'StreamWeaver', role: 'idle-activity-command-card',
+      ...LOUNGE_24X7_SLOTS.activity, layoutSlot: 'activity',
     }, widgets.length));
   }
   if (!widgets.some((widget) => widget.id === 'sw-leaderboard-command')) {

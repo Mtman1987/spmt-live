@@ -307,3 +307,11 @@ test('commercial iframe stays physically hidden while idle and only appears for 
   assert.match(output, /payload\?\.phase === 'ACTIVE'/);
   assert.match(output, /setInterval\(refreshCommercialBreakState, 1000\)/);
 });
+
+
+test('commercial default is fail-safe invisible until live state activates it', () => {
+  const layout = bootstrap._test.applyMtmanLounge24x7Layout(bootstrap._test.personalLoungeDebugLayout());
+  const commercial = layout.widgets.find((widget) => widget.id === 'community-lounge-commercial');
+  assert.ok(commercial);
+  assert.equal(commercial.opacity, 0);
+});

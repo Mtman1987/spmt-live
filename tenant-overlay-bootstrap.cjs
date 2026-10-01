@@ -529,7 +529,7 @@ function personalLoungeDebugLayout() {
       "y": 4.5,
       "width": 667,
       "height": 362,
-      "opacity": 1,
+      "opacity": 0,
       "zIndex": 1,
       "url": "https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge",
       "sourceApp": "StreamWeaver",
@@ -658,7 +658,7 @@ function applyMtmanLounge24x7Layout(input) {
   if (!widgets.some((widget) => widget.id === 'community-lounge-commercial')) {
     widgets.push(normalizeWidget({
       id: 'community-lounge-commercial', title: 'Commercial Break Player', kind: 'embed', visible: true,
-      locked: true, interactive: false, opacity: 1, zIndex: 1,
+      locked: true, interactive: false, opacity: 0, zIndex: 1,
       ...LOUNGE_24X7_SLOTS.main, layoutSlot: 'main',
       url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge',
       sourceApp: 'StreamWeaver', role: 'main-window-commercial-override',
@@ -853,7 +853,7 @@ function readTenantRecord(user, create = true) {
               visible: true,
               locked: true,
               interactive: false,
-              opacity: 1,
+              opacity: 0,
               zIndex: 1,
               ...LOUNGE_24X7_SLOTS.main,
               layoutSlot: 'main',
@@ -966,7 +966,7 @@ function readTenantRecord(user, create = true) {
         if (!record.outputs.lounge.widgets.some((widget) => widget.id === 'community-lounge-commercial')) {
           record.outputs.lounge.widgets.push(normalizeWidget({
             id: 'community-lounge-commercial', title: 'Commercial Break Player', kind: 'embed', visible: true,
-            locked: true, interactive: false, opacity: 1, zIndex: 1,
+            locked: true, interactive: false, opacity: 0, zIndex: 1,
             ...LOUNGE_24X7_SLOTS.main, layoutSlot: 'main',
             url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge',
             sourceApp: 'StreamWeaver', role: 'main-window-commercial-override',

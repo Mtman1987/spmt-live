@@ -443,7 +443,7 @@
       };
       const slotById = new Map([
         ['community-lounge-live-spotlight', 'main'], ['community-lounge-alerts', 'mainAlert'], ['community-lounge-hmo-media', 'media'],
-        ['community-lounge-nebula-stage', 'activity'], ['community-lounge-nebula-main-stage', 'mainEvent'], ['sw-featured-chat', 'activity'], ['sw-social', 'activity'],
+        ['community-lounge-nebula-stage', 'activity'], ['community-lounge-nebula-main-stage', 'mainEvent'], ['sw-featured-chat', 'activity'], ['sw-command-card', 'activity'], ['sw-social', 'activity'],
         ['sw-notification', 'activity'], ['sw-gamble', 'games'], ['sw-classic-gamble', 'activity'], ['sw-pokemon-pack', 'mainEvent'],
         ['community-lounge-leaderboard-v2', 'activity'], ['sw-partner-checkin', 'mainEvent'], ['sw-shoutout', 'mainEvent'],
         ['community-lounge-chat-tag', 'games'],
@@ -452,6 +452,7 @@
         .filter((item) => !['community-lounge-starfield-24x7', 'community-lounge-frame-24x7'].includes(item.id))
         .map((item) => {
           if (item.id === 'community-lounge-nebula-stage') return { ...item, title: 'NebulaBay Activity Games', url: 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity', ...slots.activity, layoutSlot: 'activity', zIndex: 90, role: 'activity-game-stage' };
+          if (item.id === 'sw-command-card') return { ...item, visible: true, ...slots.activity, layoutSlot: 'activity', opacity: 1, zIndex: 72, url: 'https://streamweaver-new.fly.dev/overlay/command-card?tenant=spacemountainlive', sourceApp: 'StreamWeaver', role: 'idle-activity-command-card' };
           if (item.id === 'sw-gamble') return { ...item, ...slots.games, layoutSlot: 'games', zIndex: 276, url: 'https://streamweaver-new.fly.dev/gamble-overlay?tenant=spacemountainlive&placement=lounge-tag' };
           if (item.id === 'sw-partner-checkin') return { ...item, visible: true, ...slots.mainEvent, layoutSlot: 'mainEvent', zIndex: 300 };
           if (item.id === 'sw-classic-gamble') return { ...item, visible: false };

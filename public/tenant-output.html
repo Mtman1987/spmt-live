@@ -369,7 +369,7 @@
       // Never remount a player that has booted, even if its feed is waiting.
       const playerFrames = [
         { id: 'community-lounge-hmo-media', readyType: 'spmt-lounge-media-ready', frame: null, ready: false, mountedAt: 0, lastRetryAt: 0, probeBusy: false },
-        { id: 'community-lounge-live-spotlight', readyType: 'spmt-lounge-spotlight-ready', frame: null, ready: false, mountedAt: 0, lastRetryAt: 0, probeBusy: false },
+        { id: 'community-lounge-live-spotlight', readyType: 'spmt-lounge-spotlight-ready', frame: null, ready: false, mountedAt: 0, lastRetryAt: 0, lastReadyAt: 0, probeBusy: false },
       ];
       window.addEventListener('message', (event) => {
         if (event.origin !== 'https://hearmeout-main.fly.dev') return;
@@ -379,6 +379,7 @@
         if (frame && event.source === frame.contentWindow) {
           player.frame = frame;
           player.ready = true;
+          player.lastReadyAt = Date.now();
         }
       });
       async function retryUnloadedPlayerFrames() {
@@ -388,9 +389,12 @@
           if (frame !== player.frame) {
             player.frame = frame;
             player.ready = false;
+            player.lastReadyAt = 0;
             player.mountedAt = Date.now();
             player.lastRetryAt = 0;
           }
+          const spotlightHeartbeatStale = player.id === 'community-lounge-live-spotlight' && player.ready && player.lastReadyAt > 0 && Date.now() - player.lastReadyAt > 20000;
+          if (spotlightHeartbeatStale) player.ready = false;
           if (!frame || player.ready || player.probeBusy ||
               Date.now() - player.mountedAt < 20000 ||
               Date.now() - player.lastRetryAt < 30000) continue;

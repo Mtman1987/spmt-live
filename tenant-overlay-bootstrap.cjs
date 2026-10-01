@@ -549,7 +549,7 @@ function personalLoungeDebugLayout() {
       "height": 540,
       "opacity": 1,
       "zIndex": 500,
-      "url": "https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge",
+      "url": "https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge&v=manual-brb-2",
       "sourceApp": "StreamWeaver",
       "role": "full-screen-override"
     }
@@ -624,7 +624,7 @@ function applyMtmanLounge24x7Layout(input) {
       if (widget.id === 'sw-partner-checkin') return { ...widget, visible: true, ...LOUNGE_24X7_SLOTS.mainEvent, layoutSlot: 'mainEvent', zIndex: 300 };
       if (widget.id === 'sw-classic-gamble') return { ...widget, visible: false };
       if (widget.id === 'community-lounge-commercial') return { ...widget, visible: true, ...LOUNGE_24X7_SLOTS.main, layoutSlot: 'main', zIndex: 1, url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge', role: 'main-window-commercial-override' };
-      if (widget.id === 'community-lounge-brb') return { ...widget, url: 'https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge' };
+      if (widget.id === 'community-lounge-brb') return { ...widget, url: 'https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge&v=manual-brb-2' };
       if (widget.id === 'sw-shoutout') {
         return {
           ...widget,

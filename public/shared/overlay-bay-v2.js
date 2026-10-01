@@ -457,7 +457,7 @@
           if (item.id === 'sw-classic-gamble') return { ...item, visible: false };
           if (item.id === 'sw-shoutout') return { ...item, visible: true, ...slots.mainEvent, layoutSlot: 'mainEvent', zIndex: 270, url: 'https://streamweaver-new.fly.dev/shoutout-player?tenant=spacemountainlive&placement=lounge' };
           if (item.id === 'community-lounge-commercial') return { ...item, ...slots.main, layoutSlot: 'main', opacity: 0, zIndex: 1, url: 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge', role: 'main-window-commercial-override' };
-          if (item.id === 'community-lounge-brb') return { ...item, url: 'https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge' };
+          if (item.id === 'community-lounge-brb') return { ...item, url: 'https://streamweaver-new.fly.dev/brb-player?tenant=spacemountainlive&placement=lounge&v=manual-brb-2' };
           if (item.id === 'sw-pokemon-pack') return { ...item, ...slots.mainEvent, layoutSlot: 'mainEvent', url: 'https://streamweaver-new.fly.dev/overlay/card-pack?tenant=spacemountainlive&placement=lounge-main' };
           const slot = slotById.get(item.id);
           return slot ? { ...item, ...slots[slot], layoutSlot: slot } : item;

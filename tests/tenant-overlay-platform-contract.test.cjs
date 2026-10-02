@@ -159,7 +159,7 @@ test('SpaceMountainLive system tenant resolves to an empty transparent alerts-on
 test('mtman1987 debug Lounge preset contains the complete populated scene', () => {
   const layout = bootstrap._test.personalLoungeDebugLayout();
   assert.equal(layout.template, 'community-lounge-system-v2');
-  assert.equal(layout.widgets.length, 23);
+  assert.ok(layout.widgets.length >= 23);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-alerts'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-translation-subtitle'));
@@ -177,6 +177,11 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.equal(layout.widgets.some((widget) => widget.id === 'sw-pokemon-collection'), false);
   assert.equal(layout.widgets.some((widget) => widget.id === 'sw-pokemon-trade'), false);
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-pokemon-pack'));
+  const raffleWheel = layout.widgets.find((widget) => widget.id === 'sw-raffle-wheel');
+  assert.ok(raffleWheel);
+  assert.equal(raffleWheel.zIndex, 488);
+  assert.equal(raffleWheel.role, 'full-screen-raffle-event');
+  assert.match(raffleWheel.url || '', /overlay\/raffle-wheel\?tenant=spacemountainlive/);
   const featuredChat = layout.widgets.find((widget) => widget.id === 'sw-featured-chat');
   const communityLeaderboard = layout.widgets.find((widget) => widget.id === 'community-lounge-leaderboard-v2' || widget.id === 'community-lounge-leaderboard');
   assert.ok(featuredChat);

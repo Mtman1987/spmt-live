@@ -315,6 +315,23 @@ function personalLoungeDebugLayout() {
       "role": "idle-activity-command-card"
     },
     {
+      "id": "sw-raffle-wheel",
+      "title": "Stella Raffle Wheel",
+      "kind": "embed",
+      "visible": true,
+      "locked": true,
+      "interactive": false,
+      "x": 0,
+      "y": 0,
+      "width": 960,
+      "height": 540,
+      "opacity": 1,
+      "zIndex": 488,
+      "url": "https://streamweaver-new.fly.dev/overlay/raffle-wheel?tenant=spacemountainlive",
+      "sourceApp": "StreamWeaver",
+      "role": "full-screen-raffle-event"
+    },
+    {
       "id": "sw-social",
       "title": "Social Overlay",
       "kind": "embed",
@@ -730,6 +747,15 @@ function applyMtmanLounge24x7Layout(input) {
       ...LOUNGE_24X7_SLOTS.shoutouts, layoutSlot: 'shoutouts',
     }, widgets.length));
   }
+  if (!widgets.some((widget) => widget.id === 'sw-raffle-wheel')) {
+    widgets.push(normalizeWidget({
+      id: 'sw-raffle-wheel', title: 'Stella Raffle Wheel', kind: 'embed', visible: true,
+      locked: true, interactive: false, x: 0, y: 0, width: SCENE_WIDTH, height: SCENE_HEIGHT,
+      opacity: 1, zIndex: 488,
+      url: 'https://streamweaver-new.fly.dev/overlay/raffle-wheel?tenant=spacemountainlive',
+      sourceApp: 'StreamWeaver', role: 'full-screen-raffle-event',
+    }, widgets.length));
+  }
   if (!widgets.some((widget) => widget.id === 'sw-translation-subtitle')) {
     widgets.push(normalizeWidget({
       id: 'sw-translation-subtitle', title: 'Stella Translation Subtitles', kind: 'embed', visible: true,
@@ -935,6 +961,26 @@ function readTenantRecord(user, create = true) {
             corrected = true;
             return next;
           }
+          if (widget.id === 'sw-raffle-wheel') {
+            const next = {
+              ...widget,
+              visible: true,
+              locked: true,
+              interactive: false,
+              x: 0,
+              y: 0,
+              width: SCENE_WIDTH,
+              height: SCENE_HEIGHT,
+              opacity: 1,
+              zIndex: 488,
+              url: 'https://streamweaver-new.fly.dev/overlay/raffle-wheel?tenant=spacemountainlive',
+              sourceApp: 'StreamWeaver',
+              role: 'full-screen-raffle-event',
+            };
+            if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
+            corrected = true;
+            return next;
+          }
           if (widget.id === 'community-lounge-stella-tts') {
             const next = {
               ...widget,
@@ -1006,6 +1052,17 @@ function readTenantRecord(user, create = true) {
           }
           return widget;
         });
+        if (!record.outputs.lounge.widgets.some((widget) => widget.id === 'sw-raffle-wheel')) {
+          record.outputs.lounge.widgets.push(normalizeWidget({
+            id: 'sw-raffle-wheel', title: 'Stella Raffle Wheel', kind: 'embed', visible: true,
+            locked: true, interactive: false, x: 0, y: 0, width: SCENE_WIDTH, height: SCENE_HEIGHT,
+            opacity: 1, zIndex: 488,
+            url: 'https://streamweaver-new.fly.dev/overlay/raffle-wheel?tenant=spacemountainlive',
+            sourceApp: 'StreamWeaver', role: 'full-screen-raffle-event',
+          }, record.outputs.lounge.widgets.length));
+          corrected = true;
+        }
+
         if (!record.outputs.lounge.widgets.some((widget) => widget.id === 'community-lounge-commercial')) {
           record.outputs.lounge.widgets.push(normalizeWidget({
             id: 'community-lounge-commercial', title: 'Commercial Break Player', kind: 'embed', visible: true,

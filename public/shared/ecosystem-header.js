@@ -1,4 +1,12 @@
 (() => {
+  // Embedded overlays need their own webfont; the remote renderer may have no emoji fonts.
+  if (typeof FontFace === 'function' && document.head && !document.querySelector('script[data-spmt-emoji-fonts]')) {
+    const fonts = document.createElement('script');
+    fonts.src = 'https://spmt.live/shared/emoji-fonts.js?v=1';
+    fonts.dataset.spmtEmojiFonts = '1';
+    fonts.async = true;
+    document.head.appendChild(fonts);
+  }
   if (window.__spmtEcosystemHeaderInstalled) return;
   if (window.self !== window.top) return;
 

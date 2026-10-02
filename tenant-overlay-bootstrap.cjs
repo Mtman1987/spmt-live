@@ -327,7 +327,7 @@ function personalLoungeDebugLayout() {
       "height": 362,
       "opacity": 1,
       "zIndex": 488,
-      "url": "https://streamweaver-new.fly.dev/overlay/raffle-wheel?tenant=spacemountainlive&v=wheel-fit-20261002",
+      "url": "https://streamweaver-new.fly.dev/overlay/raffle-wheel?tenant=spacemountainlive&v=wheel-stage-fit-final",
       "sourceApp": "StreamWeaver",
       "layoutSlot": "mainEvent",
       "role": "main-window-raffle-event"
@@ -754,7 +754,7 @@ function applyMtmanLounge24x7Layout(input) {
       id: 'sw-raffle-wheel', title: 'Stella Raffle Wheel', kind: 'embed', visible: true,
       locked: true, interactive: false, ...LOUNGE_24X7_SLOTS.mainEvent, layoutSlot: 'mainEvent',
       opacity: 1, zIndex: 488,
-      url: 'https://streamweaver-new.fly.dev/overlay/raffle-wheel?tenant=spacemountainlive&v=wheel-fit-20261002',
+      url: 'https://streamweaver-new.fly.dev/overlay/raffle-wheel?tenant=spacemountainlive&v=wheel-stage-fit-final',
       sourceApp: 'StreamWeaver', role: 'main-window-raffle-event',
     }, widgets.length));
   }
@@ -973,7 +973,7 @@ function readTenantRecord(user, create = true) {
               layoutSlot: 'mainEvent',
               opacity: 1,
               zIndex: 488,
-              url: 'https://streamweaver-new.fly.dev/overlay/raffle-wheel?tenant=spacemountainlive&v=wheel-fit-20261002',
+              url: 'https://streamweaver-new.fly.dev/overlay/raffle-wheel?tenant=spacemountainlive&v=wheel-stage-fit-final',
               sourceApp: 'StreamWeaver',
               role: 'main-window-raffle-event',
             };
@@ -1057,7 +1057,7 @@ function readTenantRecord(user, create = true) {
             id: 'sw-raffle-wheel', title: 'Stella Raffle Wheel', kind: 'embed', visible: true,
             locked: true, interactive: false, ...LOUNGE_24X7_SLOTS.mainEvent, layoutSlot: 'mainEvent',
             opacity: 1, zIndex: 488,
-            url: 'https://streamweaver-new.fly.dev/overlay/raffle-wheel?tenant=spacemountainlive&v=wheel-fit-20261002',
+            url: 'https://streamweaver-new.fly.dev/overlay/raffle-wheel?tenant=spacemountainlive&v=wheel-stage-fit-final',
             sourceApp: 'StreamWeaver', role: 'main-window-raffle-event',
           }, record.outputs.lounge.widgets.length));
           corrected = true;

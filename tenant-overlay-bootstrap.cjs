@@ -1188,6 +1188,16 @@ async function workerRequest(userId, workerPath, timeoutMs = 10000) {
   }
 }
 
+function loungeGameReleaseLayout(tenant, layout) {
+  if (tenant !== 'mtman1987') return layout;
+  return {
+    ...layout,
+    widgets: (layout.widgets || []).map((widget) => widget.id === 'community-lounge-nebula-stage'
+      ? { ...widget, url: 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity?v=treasure-turns-20261002' }
+      : widget),
+  };
+}
+
 function installRoutes(app, express) {
   if (app.__spmtTenantOverlayRoutesInstalled) return;
   app.__spmtTenantOverlayRoutesInstalled = true;
@@ -1296,7 +1306,7 @@ function installRoutes(app, express) {
     return res.status(200).set('cache-control', 'no-store').json({
       tenant,
       output: 'lounge',
-      layout: loungeLayout,
+      layout: loungeGameReleaseLayout(tenant, loungeLayout),
       updatedAt: record.outputUpdatedAt.lounge,
       scene: { width: SCENE_WIDTH, height: SCENE_HEIGHT },
       xboxRelayToken: issuePublicRelayToken(tenant),
@@ -1391,6 +1401,7 @@ module.exports = {
     systemTransparentAlertLayout,
     personalLoungeDebugLayout,
     applyMtmanLounge24x7Layout,
+    loungeGameReleaseLayout,
     urlsForTenant,
   },
 };

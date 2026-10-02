@@ -354,3 +354,18 @@ test('command spotlight is part of the canonical activity layout', () => {
   assert.equal(command.layoutSlot, 'activity');
   assert.equal(command.role, 'idle-activity-command-card');
 });
+
+test('lounge game release revision reloads only the game frame and remains stable on every poll', () => {
+  const media = { id: 'community-lounge-hmo-media', url: 'https://hearmeout-main.fly.dev/lounge-media/player?legacy=1' };
+  const spotlight = { id: 'community-lounge-live-spotlight', url: 'https://hearmeout-main.fly.dev/spotlight-media/worker-spotlight.html' };
+  const game = { id: 'community-lounge-nebula-stage', url: 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity', width: 787 };
+  const layout = { enabled: true, widgets: [media, spotlight, game] };
+  const revised = bootstrap._test.loungeGameReleaseLayout('mtman1987', layout);
+  assert.equal(revised.widgets[0], media);
+  assert.equal(revised.widgets[1], spotlight);
+  assert.equal(revised.widgets[2].width, 787);
+  assert.match(revised.widgets[2].url, /[?]v=treasure-turns-20261002$/);
+  assert.equal(layout.widgets[2], game);
+  assert.deepEqual(bootstrap._test.loungeGameReleaseLayout('mtman1987', revised), revised);
+  assert.equal(bootstrap._test.loungeGameReleaseLayout('another_captain', layout), layout);
+});

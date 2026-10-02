@@ -353,6 +353,7 @@ async function shutdownCloudXboxBrowsers() {
 
 module.exports = {
   authUser,
+  twitchLiveState,
   installCloudXboxBootstrap,
   shutdownCloudXboxBrowsers,
 };

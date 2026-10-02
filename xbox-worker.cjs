@@ -724,11 +724,41 @@ async function runControlledRestreamStart(userId) {
   throw error;
 }
 
+async function runRecoverableRestreamStart(userId) {
+  const isControlTimeout = (error) => /^(?:(?:Runtime\.evaluate|Page\.enable|Runtime\.enable) timed out|CDP websocket timeout)$/.test(String(error?.message || ''));
+  try {
+    return await runControlledRestreamStart(userId);
+  } catch (error) {
+    if (!isControlTimeout(error)) throw error;
+  }
+
+  // Reconnect control without replacing the broadcasting Chromium process.
+  const current = sessionForUser(userId);
+  if (!current || current.mode !== 'restream') throw new Error('Existing Restream host is unavailable');
+  current.cdp?.close();
+  current.cdp = null;
+  current.targetId = null;
+  try {
+    return await runControlledRestreamStart(userId);
+  } catch (error) {
+    if (!isControlTimeout(error)) throw error;
+    const { twitchLiveState } = require('./cloud-xbox-bootstrap.cjs');
+    const twitch = await twitchLiveState();
+    if (!twitch.ok || twitch.isLive !== false) {
+      // A live stream or failed probe must never trigger browser replacement.
+      throw error;
+    }
+    console.warn('[RestreamRecovery] Twitch confirmed offline; replacing unresponsive host with the same saved profile.');
+    await stopSession(current);
+    return await runControlledRestreamStart(userId);
+  }
+}
+
 async function controlledRestreamStart(userId) {
   const key = userKey(userId);
   const existing = restreamStartTasks.get(key);
   if (existing) return await existing;
-  const task = runControlledRestreamStart(userId)
+  const task = runRecoverableRestreamStart(userId)
     .finally(() => restreamStartTasks.delete(key));
   restreamStartTasks.set(key, task);
   return await task;

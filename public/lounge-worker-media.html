@@ -8,7 +8,7 @@
   const worker = 'https://hmo-dj-worker.fly.dev:4444';
   const video = document.getElementById('player');
   const status = document.getElementById('status');
-  let hls, selection = '', mix = .85, master = 1, source = 1, programLevel = 1, muted = false, programMuted = false, brb = false, epoch = 0;
+  let hls, selection = '', mix = .85, master = 1, source = 1, programLevel = 1, muted = false, programMuted = false, brb = false, epoch = 0, lastVideoTime = -1, lastAdvanceAt = Date.now();
   function volume(){video.volume = Math.min(1, mix * master * source * programLevel);video.muted = muted || programMuted || brb;}
   volume();
   window.addEventListener('message', event => {
@@ -41,7 +41,8 @@
   video.addEventListener('canplay',resume);
   video.addEventListener('progress',resume);
   video.addEventListener('timeupdate',resume);
-  video.addEventListener('playing',()=>{status.hidden=true;});
+  video.addEventListener('playing',()=>{lastAdvanceAt=Date.now();status.hidden=true;});
+  video.addEventListener('timeupdate',()=>{if(video.currentTime>lastVideoTime+.15){lastVideoTime=video.currentTime;lastAdvanceAt=Date.now();}});
   video.addEventListener('waiting',()=>{if(ahead()<2)video.pause();});
   async function poll(){
     try {
@@ -56,7 +57,13 @@
       const item = lane && program[lane].current;
       const next = item ? lane+':'+item.requestId : '';
       if (!next) { if (selection) { selection='';hls?.destroy();video.pause();video.removeAttribute('src');video.load();} status.hidden=false;status.textContent='Waiting for a Lounge request';return; }
-      if (next === selection) { resume(); return; }
+      if (next === selection) {
+        const stalled = Date.now() - lastAdvanceAt > 12000;
+        if (!stalled && video.readyState >= 2) { resume(); return; }
+        // The worker can be healthy while this browser's HLS attachment is stale.
+        // Reattach the same live program instead of leaving the Lounge on "Connecting".
+        selection='';hls?.destroy();hls=null;video.pause();video.removeAttribute('src');video.load();lastAdvanceAt=Date.now();
+      }
       if (lane === 'movie') {
         const info = await(await fetch(worker+'/lounge/direct/status',{cache:'no-store'})).json();
         if (!info.ready || info.requestId !== item.requestId) {status.hidden=false;status.textContent=info.error || 'Preparing '+item.item.title;return;}

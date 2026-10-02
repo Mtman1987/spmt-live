@@ -8,7 +8,7 @@
   const worker = 'https://hmo-dj-worker.fly.dev:4445';
   const video = document.getElementById('player');
   const status = document.getElementById('status');
-  let hls, generation = '', groupLevel = .58, masterLevel = 1, sourceVolume = 1, sourceMuted = false, brb = false;
+  let hls, generation = '', groupLevel = .58, masterLevel = 1, sourceVolume = 1, sourceMuted = false, brb = false, lastVideoTime = -1, lastAdvanceAt = Date.now();
   function volume(){video.volume=Math.min(1,groupLevel*masterLevel*sourceVolume);video.muted=sourceMuted||brb;}
   function health(healthy){if(window.parent!==window)window.parent.postMessage({type:'spmt-lounge-spotlight-health',healthy},location.origin);}
   function ahead(){for(let i=0;i<video.buffered.length;i++)if(video.buffered.start(i)<=video.currentTime+.2&&video.buffered.end(i)>video.currentTime)return video.buffered.end(i)-video.currentTime;return 0;}
@@ -38,11 +38,11 @@
       status.hidden=false;status.textContent=program.error||'Preparing live Spotlight';return;
     }
     if(program.generation===generation){
-      // A temporary Twitch/HLS stall can recover on the same worker generation.
-      // Do not leave the existing player paused forever just because the
-      // generation id did not change.
-      resume();
-      return;
+      // A healthy worker generation can outlive a stale browser HLS attachment.
+      // If frames stopped advancing, reattach this same generation in-place.
+      const stalled=Date.now()-lastAdvanceAt>12000;
+      if(!stalled&&video.readyState>=2){resume();return;}
+      generation='';reset();lastAdvanceAt=Date.now();
     }
     generation=program.generation;reset();status.hidden=false;status.textContent='Buffering '+program.currentLogin;
     const url=worker+'/spotlight/hls/'+encodeURIComponent(generation)+'/index.m3u8';
@@ -54,8 +54,8 @@
     else{generation='';status.textContent='Spotlight player unavailable';}
     volume();resume();
   }catch{status.hidden=false;status.textContent='Connecting to Spotlight worker';health(false);}}
-  video.addEventListener('playing',()=>{status.hidden=true;health(true);});
-  video.addEventListener('canplay',resume);video.addEventListener('progress',resume);video.addEventListener('timeupdate',resume);
+  video.addEventListener('playing',()=>{lastAdvanceAt=Date.now();status.hidden=true;health(true);});
+  video.addEventListener('canplay',resume);video.addEventListener('progress',resume);video.addEventListener('timeupdate',()=>{if(video.currentTime>lastVideoTime+.15){lastVideoTime=video.currentTime;lastAdvanceAt=Date.now();}resume();});
   video.addEventListener('waiting',()=>{if(ahead()<2){health(false);}});
   volume();void poll();void mix();setInterval(poll,2500);setInterval(mix,3000);
 })();

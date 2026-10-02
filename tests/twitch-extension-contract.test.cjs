@@ -35,7 +35,7 @@ test('Twitch Extension backend is installed at process startup', () => {
 test('Lounge Spotlight reads the assigned worker feed and recovers viewer playback', () => {
   const spotlight = fs.readFileSync('public/lounge-worker-spotlight.html', 'utf8');
   const output = fs.readFileSync('public/tenant-output.html', 'utf8');
-  assert.match(output, /spotlight-media\/worker-spotlight\.html\?v=smooth-playback-3/);
+  assert.match(output, /spotlight-media\/worker-spotlight\.html\?v=playback-cover-4/);
   assert.match(spotlight, /hmo-dj-worker\.fly\.dev:4445\/spotlight\/hls\.js/);
   assert.match(spotlight, /worker\+'\/spotlight\/program'/);
   assert.match(spotlight, /\/spotlight\/hls\/.*\/index\.m3u8/);
@@ -104,7 +104,7 @@ test('tenant output passes clicks only to explicitly interactive layers', () => 
 
 test('Lounge saved media sources use passive canonical viewers only', () => {
   const bootstrap = fs.readFileSync('tenant-overlay-bootstrap.cjs', 'utf8');
-  assert.match(bootstrap, /https:\/\/hearmeout-main\.fly\.dev\/lounge-media\/player\?v=live-lounge-1/);
+  assert.match(bootstrap, /https:\/\/hearmeout-main\.fly\.dev\/lounge-media\/worker-media\.html\?v=smooth-playback-3/);
   assert.match(bootstrap, /https:\/\/hearmeout-main\.fly\.dev\/spotlight-media\/worker-spotlight\.html\?v=smooth-playback-3/);
   assert.doesNotMatch(bootstrap, /watch\?consumer=1&embed=1&appRoomId=system-spacemountainlive-lounge/);
 });

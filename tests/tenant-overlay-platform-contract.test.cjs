@@ -180,7 +180,9 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   const raffleWheel = layout.widgets.find((widget) => widget.id === 'sw-raffle-wheel');
   assert.ok(raffleWheel);
   assert.equal(raffleWheel.zIndex, 488);
-  assert.equal(raffleWheel.role, 'full-screen-raffle-event');
+  assert.equal(raffleWheel.role, 'main-window-raffle-event');
+  assert.equal(raffleWheel.layoutSlot, 'mainEvent');
+  assert.deepEqual({x:raffleWheel.x,y:raffleWheel.y,width:raffleWheel.width,height:raffleWheel.height}, {x:2.5,y:4.5,width:667,height:362});
   assert.match(raffleWheel.url || '', /overlay\/raffle-wheel\?tenant=spacemountainlive/);
   const featuredChat = layout.widgets.find((widget) => widget.id === 'sw-featured-chat');
   const communityLeaderboard = layout.widgets.find((widget) => widget.id === 'community-lounge-leaderboard-v2' || widget.id === 'community-lounge-leaderboard');

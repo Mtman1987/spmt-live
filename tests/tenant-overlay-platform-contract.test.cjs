@@ -265,7 +265,7 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   );
   assert.ok((activity.y / 100 * 540) + activity.height <= 503, 'activity panel must stop at the fixed-height footer edge');
   const media = layout.widgets.find((widget) => widget.id === 'community-lounge-hmo-media');
-  assert.equal(media?.url, 'https://hearmeout-main.fly.dev/lounge-media/worker-media.html?v=worker-feed-2');
+  assert.equal(media?.url, 'https://hearmeout-main.fly.dev/lounge-media/worker-media.html?v=smooth-playback-3');
   assert.doesNotMatch(media?.url || '', /\/watch\?/);
   assert.doesNotMatch(media?.url || '', /\/overlay\//);
   const status = layout.widgets.find((widget) => widget.id === 'community-lounge-status-strip');

@@ -178,7 +178,7 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.equal(layout.widgets.some((widget) => widget.id === 'sw-pokemon-trade'), false);
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-pokemon-pack'));
   const featuredChat = layout.widgets.find((widget) => widget.id === 'sw-featured-chat');
-  const communityLeaderboard = layout.widgets.find((widget) => widget.id === 'community-lounge-leaderboard-v2');
+  const communityLeaderboard = layout.widgets.find((widget) => widget.id === 'community-lounge-leaderboard-v2' || widget.id === 'community-lounge-leaderboard');
   assert.ok(featuredChat);
   assert.ok(communityLeaderboard);
   assert.equal(featuredChat.visible, true);

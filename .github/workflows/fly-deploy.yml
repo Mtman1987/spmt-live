@@ -72,6 +72,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -114,6 +116,12 @@ jobs:
         run: |
           set -euo pipefail
           scope="app"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # Browser-runtime changes must reach the persistent host process too.
+            if git diff --name-only "${{ github.event.before }}" "$GITHUB_SHA" | grep -Eq '^(xbox-worker[^/]*\.cjs|cloud-xbox-bootstrap\.cjs|cloud-xbox-process-guard\.cjs)$'; then
+              scope="all"
+            fi
+          fi
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             scope="${{ inputs.deploy_scope }}"
           fi

@@ -8,7 +8,8 @@ RUN npm run build
 RUN node scripts/docs-bundle.mjs
 
 FROM node:20-slim
-RUN apt-get update && apt-get install -y python3 make g++ chromium xvfb fonts-liberation fonts-noto-color-emoji && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y python3 make g++ chromium xvfb fontconfig fonts-liberation fonts-dejavu-core fonts-noto-core fonts-noto-color-emoji && rm -rf /var/lib/apt/lists/*
+RUN fc-cache -f
 WORKDIR /app
 ARG BUILD_SHA=unknown
 ARG GITHUB_SHA=unknown

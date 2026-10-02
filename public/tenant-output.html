@@ -608,10 +608,33 @@
       // iframe. This leaves Spotlight and the worker-owned movie/session untouched.
       let loungeMediaRestartSeen = null;
       let loungeMediaRestartBusy = false;
+      let loungeMediaStuckSince = 0;
+      let loungeMediaLastAutoRemount = 0;
       async function refreshLoungeMediaPlayer() {
         if (output !== 'lounge' || tenant !== 'mtman1987' || loungeMediaRestartBusy) return;
         loungeMediaRestartBusy = true;
         try {
+          const frame = sceneEl.querySelector('[data-tenant-widget="community-lounge-hmo-media"] iframe');
+          if (frame) {
+            let stuck = false;
+            try {
+              const innerStatus = frame.contentDocument?.querySelector('#status');
+              stuck = innerStatus && !innerStatus.hidden && /connecting to lounge worker/i.test(innerStatus.textContent || '');
+            } catch {}
+            if (stuck) {
+              if (!loungeMediaStuckSince) loungeMediaStuckSince = Date.now();
+              if (Date.now() - loungeMediaStuckSince >= 5000 && Date.now() - loungeMediaLastAutoRemount >= 15000) {
+                loungeMediaLastAutoRemount = Date.now();
+                loungeMediaStuckSince = 0;
+                const url = new URL(frame.src);
+                url.searchParams.set('player-restart', String(loungeMediaLastAutoRemount));
+                frame.src = url.href;
+                return;
+              }
+            } else {
+              loungeMediaStuckSince = 0;
+            }
+          }
           const response = await fetch('https://streamweaver-new.fly.dev/api/lounge/media-player-restart', { cache: 'no-store' });
           if (!response.ok) return;
           const payload = await response.json();

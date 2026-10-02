@@ -116,58 +116,7 @@ jobs:
           scope="app"
           if [ "${{ github.event_name }}" = "push" ]; then
             # Browser-runtime changes must reach the persistent host process too.
-            if git show --format= --name-only "$GITHUB_SHA" | grep -Eq '^(xbox-worker[^/]*\.cjs|cloud-xbox-bootstrap\.cjs|cloud-xbox-process-guard\.cjs)          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            scope="${{ inputs.deploy_scope }}"
-          fi
-          args=(deploy . --remote-only --config fly.toml --build-arg BUILD_SHA=${GITHUB_SHA} --build-arg GITHUB_SHA=${GITHUB_SHA} --build-arg GH_SHA=${GITHUB_SHA} --yes)
-          if [ "$scope" = "app" ] || [ "$scope" = "xbox" ]; then
-            args+=(--process-groups "$scope")
-          fi
-          echo "Deploy scope: $scope"
-          flyctl "${args[@]}"
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      - name: Verify live OAuth database writes
-        if: github.event_name != 'workflow_dispatch' || inputs.deploy_scope != 'xbox'
-        run: |
-          node <<'NODE'
-          const endpoint = 'https://spmt.live/api/health/oauth';
-          const attempts = 12;
-          const delayMs = 5000;
-
-          async function sleep(ms) {
-            await new Promise((resolve) => setTimeout(resolve, ms));
-          }
-
-          for (let attempt = 1; attempt <= attempts; attempt += 1) {
-            try {
-              const response = await fetch(endpoint, {
-                headers: { Accept: 'application/json' },
-                signal: AbortSignal.timeout(8000),
-              });
-              const text = await response.text();
-              let body = null;
-              try { body = text ? JSON.parse(text) : null; } catch {}
-              console.log(`OAuth live probe ${attempt}/${attempts}: HTTP ${response.status}`, body || text);
-              if (response.ok && body?.status === 'ready' && body?.authorizationCodeWrite === 'ok') {
-                console.log('Live SPMT OAuth database write probe passed.');
-                process.exit(0);
-              }
-            } catch (error) {
-              console.warn(`OAuth live probe ${attempt}/${attempts} failed:`, error?.message || error);
-            }
-            if (attempt < attempts) await sleep(delayMs);
-          }
-
-          console.error('Live SPMT OAuth database write probe did not become healthy after deploy.');
-          process.exit(1);
-          NODE
-      - name: Verify public authenticated OAuth routes
-        if: github.event_name != 'workflow_dispatch' || inputs.deploy_scope != 'xbox'
-        run: flyctl ssh console --app spmt-live --process-group app --command "/bin/sh -lc 'SPMT_OAUTH_SELFTEST_BASE_URL=https://spmt.live node /app/scripts/operations/oauth-live-selftest.cjs'"
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-; then
+            if git show --format= --name-only "$GITHUB_SHA" | grep -Eq '^(xbox-worker[^/]*\.cjs|cloud-xbox-bootstrap\.cjs|cloud-xbox-process-guard\.cjs)$'; then
               scope="all"
             fi
           fi

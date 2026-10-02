@@ -178,9 +178,9 @@
           // Keep the viewer on spmt.live; read the Spotlight feed directly from
           // its own worker Machine, independent of the HearMeOut DJ.
           const embedUrl = output === 'lounge' && widget.id === 'community-lounge-live-spotlight'
-            ? 'https://hearmeout-main.fly.dev/spotlight-media/worker-spotlight.html?v=smooth-playback-3'
+            ? 'https://hearmeout-main.fly.dev/spotlight-media/worker-spotlight.html?v=playback-cover-4'
             : output === 'lounge' && widget.id === 'community-lounge-commercial'
-              ? 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge'
+              ? 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge&v=playback-cover-4'
                         : output === 'lounge' && widget.id === 'community-lounge-hmo-media'
               ? 'https://hearmeout-main.fly.dev/lounge-media/player?v=live-lounge-1'
               : widget.url;
@@ -585,10 +585,21 @@
         }
       }
 
+      let spotlightDelayMs = 60000;
+      window.addEventListener('message', (event) => {
+        const spotlight = sceneEl.querySelector('[data-tenant-widget="community-lounge-live-spotlight"] iframe');
+        if (!spotlight || event.source !== spotlight.contentWindow || event.origin !== new URL(spotlight.src).origin
+          || event.data?.type !== 'spmt-lounge-spotlight-delay') return;
+        const delay = Number(event.data.delayMs);
+        if (!Number.isFinite(delay) || delay < 12000 || delay > 300000) return;
+        spotlightDelayMs = delay;
+        const commercial = sceneEl.querySelector('[data-tenant-widget="community-lounge-commercial"] iframe');
+        commercial?.contentWindow?.postMessage({ type: 'spmt-lounge-spotlight-delay', delayMs: delay }, new URL(commercial.src).origin);
+      });
       async function refreshCommercialBreakState() {
         if (output !== 'lounge' || tenant !== 'mtman1987') return;
         try {
-          const response = await fetch('https://streamweaver-new.fly.dev/api/lounge/commercial-break', { cache: 'no-store' });
+          const response = await fetch(`https://streamweaver-new.fly.dev/api/lounge/commercial-break?playbackDelayMs=${Math.round(spotlightDelayMs)}`, { cache: 'no-store' });
           if (!response.ok) return;
           const payload = await response.json();
           const active = payload?.phase === 'ACTIVE' && Date.now() < Number(payload?.activeUntil || 0);

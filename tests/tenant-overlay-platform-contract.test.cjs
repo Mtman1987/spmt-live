@@ -177,9 +177,15 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.equal(layout.widgets.some((widget) => widget.id === 'sw-pokemon-collection'), false);
   assert.equal(layout.widgets.some((widget) => widget.id === 'sw-pokemon-trade'), false);
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-pokemon-pack'));
-  assert.ok(layout.widgets.some((widget) => widget.id === 'sw-leaderboard-command'));
+  const featuredChat = layout.widgets.find((widget) => widget.id === 'sw-featured-chat');
+  const commandLeaderboard = layout.widgets.find((widget) => widget.id === 'sw-leaderboard-command');
+  assert.ok(featuredChat);
+  assert.ok(commandLeaderboard);
+  assert.equal(featuredChat.visible, true);
+  assert.equal(commandLeaderboard.visible, true);
   const commandCard = layout.widgets.find((widget) => widget.id === 'sw-command-card');
   assert.ok(commandCard);
+  assert.equal(commandCard.visible, true);
   assert.equal(commandCard.zIndex, 72);
   assert.equal(commandCard.role, 'idle-activity-command-card');
   assert.match(commandCard.url || '', /overlay\/command-card\?tenant=spacemountainlive/);

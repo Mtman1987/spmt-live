@@ -702,8 +702,6 @@ function applyMtmanLounge24x7Layout(input) {
       sourceApp: 'StreamWeaver', role: 'idle-activity-command-card',
       ...LOUNGE_24X7_SLOTS.activity, layoutSlot: 'activity',
     }, widgets.length));
-  }, widgets.length));
-  }
   if (!widgets.some((widget) => widget.id === 'community-lounge-nebula-main-stage')) {
     widgets.push(normalizeWidget({
       id: 'community-lounge-nebula-main-stage', title: 'NebulaBay Word Game Stage', kind: 'embed', visible: true,

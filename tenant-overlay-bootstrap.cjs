@@ -1193,7 +1193,7 @@ function loungeGameReleaseLayout(tenant, layout) {
   return {
     ...layout,
     widgets: (layout.widgets || []).map((widget) => widget.id === 'community-lounge-nebula-stage'
-      ? { ...widget, url: 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity?v=treasure-turns-20261002' }
+      ? { ...widget, url: 'https://chat-tag-new.fly.dev/overlay/game-hub/system-spacemountainlive-activity?v=treasure-turns-fit-20261002' }
       : widget),
   };
 }

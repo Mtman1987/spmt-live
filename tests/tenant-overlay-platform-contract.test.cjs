@@ -364,7 +364,7 @@ test('lounge game release revision reloads only the game frame and remains stabl
   assert.equal(revised.widgets[0], media);
   assert.equal(revised.widgets[1], spotlight);
   assert.equal(revised.widgets[2].width, 787);
-  assert.match(revised.widgets[2].url, /[?]v=treasure-turns-20261002$/);
+  assert.match(revised.widgets[2].url, /[?]v=treasure-turns-fit-20261002$/);
   assert.equal(layout.widgets[2], game);
   assert.deepEqual(bootstrap._test.loungeGameReleaseLayout('mtman1987', revised), revised);
   assert.equal(bootstrap._test.loungeGameReleaseLayout('another_captain', layout), layout);

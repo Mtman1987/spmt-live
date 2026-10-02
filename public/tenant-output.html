@@ -479,7 +479,14 @@
         if (output !== 'lounge') return;
         const elapsed = Date.now() - state.activityRotationStartedAt;
         const chat = sceneEl.querySelector('[data-tenant-widget="sw-featured-chat"]');
-        const leaderboard = sceneEl.querySelector('[data-tenant-widget="sw-leaderboard-command"], [data-tenant-widget="community-lounge-leaderboard-v2"], [data-tenant-widget="community-lounge-leaderboard"]');
+        const leaderboard = sceneEl.querySelector('[data-tenant-widget="community-lounge-leaderboard-v2"], [data-tenant-widget="community-lounge-leaderboard"]');
+        const legacyLeaderboard = sceneEl.querySelector('[data-tenant-widget="sw-leaderboard-command"]');
+        if (legacyLeaderboard) {
+          legacyLeaderboard.style.display = 'none';
+          legacyLeaderboard.style.visibility = 'hidden';
+          legacyLeaderboard.style.opacity = '0';
+          legacyLeaderboard.setAttribute('aria-hidden', 'true');
+        }
         const command = sceneEl.querySelector('[data-tenant-widget="sw-command-card"]');
         const surfaces = [
           ['chat', chat],

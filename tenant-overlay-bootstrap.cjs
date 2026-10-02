@@ -315,23 +315,6 @@ function personalLoungeDebugLayout() {
       "role": "idle-activity-command-card"
     },
     {
-      "id": "sw-leaderboard-command",
-      "title": "Command Leaderboard",
-      "kind": "embed",
-      "visible": true,
-      "locked": true,
-      "interactive": false,
-      "x": 0,
-      "y": 0,
-      "width": 960,
-      "height": 540,
-      "opacity": 1,
-      "zIndex": 330,
-      "url": "https://streamweaver-new.fly.dev/overlay/leaderboard?tenant=spacemountainlive",
-      "sourceApp": "StreamWeaver",
-      "role": "command-activity-leaderboard"
-    },
-    {
       "id": "sw-social",
       "title": "Social Overlay",
       "kind": "embed",
@@ -604,7 +587,6 @@ function applyMtmanLounge24x7Layout(input) {
     ['community-lounge-nebula-main-stage', 'mainEvent'],
     ['sw-featured-chat', 'activity'],
     ['sw-command-card', 'activity'],
-    ['sw-leaderboard-command', 'activity'],
     ['sw-social', 'activity'],
     ['sw-notification', 'activity'],
     ['sw-gamble', 'games'],
@@ -651,17 +633,6 @@ function applyMtmanLounge24x7Layout(input) {
         url: 'https://streamweaver-new.fly.dev/overlay/command-card?tenant=spacemountainlive',
         sourceApp: 'StreamWeaver',
         role: 'idle-activity-command-card',
-      };
-      if (widget.id === 'sw-leaderboard-command') return {
-        ...widget,
-        visible: true,
-        ...LOUNGE_24X7_SLOTS.activity,
-        layoutSlot: 'activity',
-        opacity: 1,
-        zIndex: 330,
-        url: 'https://streamweaver-new.fly.dev/overlay/leaderboard?tenant=spacemountainlive',
-        sourceApp: 'StreamWeaver',
-        role: 'command-activity-leaderboard',
       };
       if (widget.id === 'sw-gamble') {
         return {
@@ -731,15 +702,7 @@ function applyMtmanLounge24x7Layout(input) {
       sourceApp: 'StreamWeaver', role: 'idle-activity-command-card',
       ...LOUNGE_24X7_SLOTS.activity, layoutSlot: 'activity',
     }, widgets.length));
-  }
-  if (!widgets.some((widget) => widget.id === 'sw-leaderboard-command')) {
-    widgets.push(normalizeWidget({
-      id: 'sw-leaderboard-command', title: 'Command Leaderboard', kind: 'embed', visible: true,
-      locked: true, interactive: false, opacity: 1, zIndex: 330,
-      url: 'https://streamweaver-new.fly.dev/overlay/leaderboard?tenant=spacemountainlive',
-      sourceApp: 'StreamWeaver', role: 'command-activity-leaderboard',
-      ...LOUNGE_24X7_SLOTS.activity, layoutSlot: 'activity',
-    }, widgets.length));
+  }, widgets.length));
   }
   if (!widgets.some((widget) => widget.id === 'community-lounge-nebula-main-stage')) {
     widgets.push(normalizeWidget({
@@ -948,21 +911,6 @@ function readTenantRecord(user, create = true) {
               url: 'https://streamweaver-new.fly.dev/overlay/command-card?tenant=spacemountainlive',
               zIndex: 72,
               role: 'idle-activity-command-card',
-              ...LOUNGE_24X7_SLOTS.activity,
-              layoutSlot: 'activity',
-            };
-            if (JSON.stringify(next) === JSON.stringify(widget)) return widget;
-            corrected = true;
-            return next;
-          }
-          if (widget.id === 'sw-leaderboard-command') {
-            const next = {
-              ...widget,
-              visible: true,
-              opacity: 1,
-              url: 'https://streamweaver-new.fly.dev/overlay/leaderboard?tenant=spacemountainlive',
-              zIndex: 330,
-              role: 'command-activity-leaderboard',
               ...LOUNGE_24X7_SLOTS.activity,
               layoutSlot: 'activity',
             };

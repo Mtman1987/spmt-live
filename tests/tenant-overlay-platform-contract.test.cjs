@@ -320,8 +320,8 @@ test('commercial follows Spotlight geometry and sits directly above it', () => {
 test('commercial iframe stays physically hidden while idle and only appears for ACTIVE breaks', () => {
   const output = fs.readFileSync('public/tenant-output.html', 'utf8');
   assert.match(output, /commercialBreakActive: false/);
-  assert.match(output, /commercial\.style\.visibility = state\.commercialBreakActive \? 'visible' : 'hidden'/);
-  assert.match(output, /commercial\.style\.opacity = state\.commercialBreakActive \? '1' : '0'/);
+  assert.match(output, /commercial\.style\.visibility = state\.commercialBreakActive && commercialGifReady \? 'visible' : 'hidden'/);
+  assert.match(output, /commercial\.style\.opacity = state\.commercialBreakActive && commercialGifReady \? '1' : '0'/);
   assert.match(output, /payload\?\.phase === 'ACTIVE'/);
   assert.match(output, /setInterval\(refreshCommercialBreakState, 1000\)/);
 });

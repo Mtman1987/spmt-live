@@ -178,9 +178,9 @@
           // Keep the viewer on spmt.live; read the Spotlight feed directly from
           // its own worker Machine, independent of the HearMeOut DJ.
           const embedUrl = output === 'lounge' && widget.id === 'community-lounge-live-spotlight'
-            ? 'https://hearmeout-main.fly.dev/spotlight-media/worker-spotlight.html?v=playback-cover-4'
+            ? 'https://hearmeout-main.fly.dev/spotlight-media/worker-spotlight.html?v=visible-gif-5'
             : output === 'lounge' && widget.id === 'community-lounge-commercial'
-              ? 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge&v=playback-cover-4'
+              ? 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge&v=visible-gif-5'
                         : output === 'lounge' && widget.id === 'community-lounge-hmo-media'
               ? 'https://hearmeout-main.fly.dev/lounge-media/player?v=live-lounge-1'
               : widget.url;
@@ -528,8 +528,8 @@
         const commercial = sceneEl.querySelector('[data-tenant-widget="community-lounge-commercial"]');
         const brb = sceneEl.querySelector('[data-tenant-widget="community-lounge-brb"]');
         if (commercial) {
-          commercial.style.visibility = state.commercialBreakActive ? 'visible' : 'hidden';
-          commercial.style.opacity = state.commercialBreakActive ? '1' : '0';
+          commercial.style.visibility = state.commercialBreakActive && commercialGifReady ? 'visible' : 'hidden';
+          commercial.style.opacity = state.commercialBreakActive && commercialGifReady ? '1' : '0';
           commercial.style.pointerEvents = 'none';
         }
         // BRB covers only the program window. Alerts, games, Stella and the
@@ -585,7 +585,21 @@
         }
       }
 
+      let commercialGifReady = false;
+      let commercialActiveUntil = 0;
+      let commercialExpiry;
       let spotlightDelayMs = 60000;
+      function reportCommercialVisibility() {
+        const frame = sceneEl.querySelector('[data-tenant-widget="community-lounge-commercial"] iframe');
+        frame?.contentWindow?.postMessage({ type: 'spmt-commercial-visibility', visible: state.commercialBreakActive && commercialGifReady, activeUntil: commercialActiveUntil }, new URL(frame.src).origin);
+      }
+      window.addEventListener('message', event => {
+        const frame = sceneEl.querySelector('[data-tenant-widget="community-lounge-commercial"] iframe');
+        if (!frame || event.source !== frame.contentWindow || event.origin !== new URL(frame.src).origin || event.data?.type !== 'spmt-commercial-ready') return;
+        const ready = event.data.ready === true;
+        if (ready !== commercialGifReady) { commercialGifReady = ready; applyLoungeMediaLayout(); }
+        reportCommercialVisibility();
+      });
       window.addEventListener('message', (event) => {
         const spotlight = sceneEl.querySelector('[data-tenant-widget="community-lounge-live-spotlight"] iframe');
         if (!spotlight || event.source !== spotlight.contentWindow || event.origin !== new URL(spotlight.src).origin
@@ -599,18 +613,24 @@
       async function refreshCommercialBreakState() {
         if (output !== 'lounge' || tenant !== 'mtman1987') return;
         try {
-          const response = await fetch(`https://streamweaver-new.fly.dev/api/lounge/commercial-break?playbackDelayMs=${Math.round(spotlightDelayMs)}`, { cache: 'no-store' });
-          if (!response.ok) return;
+          const response = await fetch(`https://streamweaver-new.fly.dev/api/lounge/commercial-break?playbackDelayMs=${Math.round(spotlightDelayMs)}`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+          if (!response.ok) throw new Error('Commercial state unavailable');
           const payload = await response.json();
+          commercialActiveUntil = Number(payload?.activeUntil || 0);
+          clearTimeout(commercialExpiry);
+          commercialExpiry = setTimeout(() => { state.commercialBreakActive = false; applyLoungeMediaLayout(); reportCommercialVisibility(); }, Math.max(0, commercialActiveUntil - Date.now()));
           const active = payload?.phase === 'ACTIVE' && Date.now() < Number(payload?.activeUntil || 0);
-          if (active === state.commercialBreakActive) return;
+          if (active === state.commercialBreakActive) { reportCommercialVisibility(); return; }
           state.commercialBreakActive = active;
           applyLoungeMediaLayout();
+          reportCommercialVisibility();
         } catch {
+          reportCommercialVisibility();
           // Fail closed: never let an idle/erroring commercial iframe cover the program.
           if (state.commercialBreakActive) {
             state.commercialBreakActive = false;
             applyLoungeMediaLayout();
+            reportCommercialVisibility();
           }
         }
       }

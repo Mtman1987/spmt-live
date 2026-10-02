@@ -182,7 +182,7 @@
             : output === 'lounge' && widget.id === 'community-lounge-commercial'
               ? 'https://streamweaver-new.fly.dev/commercial-break-player?tenant=spacemountainlive&placement=lounge'
                         : output === 'lounge' && widget.id === 'community-lounge-hmo-media'
-              ? 'https://hearmeout-main.fly.dev/lounge-media/worker-media.html?v=worker-feed-2'
+              ? 'https://hearmeout-main.fly.dev/lounge-media/player?v=live-lounge-1'
               : widget.url;
           return embedUrl ? `<iframe src="${escapeHtml(embedUrl)}" title="${escapeHtml(widget.title)}" allow="autoplay; microphone; camera; fullscreen; clipboard-write; display-capture"></iframe>` : '';
         }

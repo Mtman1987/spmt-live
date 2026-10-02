@@ -82,7 +82,7 @@ test('Lounge media restart remounts only the HearMeOut player iframe', () => {
 test('Lounge renderer forces the HMO slot to the passive player even if saved state is stale', () => {
   const output = fs.readFileSync('public/tenant-output.html', 'utf8');
   assert.match(output, /widget\.id === 'community-lounge-hmo-media'/);
-  assert.match(output, /https:\/\/hearmeout-main\.fly\.dev\/lounge-media\/worker-media\.html\?v=worker-feed-2/);
+  assert.match(output, /https:\/\/hearmeout-main\.fly\.dev\/lounge-media\/player\?v=live-lounge-1/);
 });
 
 test('Lounge can smoothly swap HearMeOut and the live stream between main and media slots', () => {
@@ -104,7 +104,7 @@ test('tenant output passes clicks only to explicitly interactive layers', () => 
 
 test('Lounge saved media sources use passive canonical viewers only', () => {
   const bootstrap = fs.readFileSync('tenant-overlay-bootstrap.cjs', 'utf8');
-  assert.match(bootstrap, /https:\/\/hearmeout-main\.fly\.dev\/lounge-media\/worker-media\.html\?v=worker-feed-2/);
+  assert.match(bootstrap, /https:\/\/hearmeout-main\.fly\.dev\/lounge-media\/player\?v=live-lounge-1/);
   assert.match(bootstrap, /https:\/\/hearmeout-main\.fly\.dev\/spotlight-media\/worker-spotlight\.html\?v=worker-feed-2/);
   assert.doesNotMatch(bootstrap, /watch\?consumer=1&embed=1&appRoomId=system-spacemountainlive-lounge/);
 });

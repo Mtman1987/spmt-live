@@ -644,12 +644,12 @@
             return;
           }
           if (requestedAt <= loungeMediaRestartSeen) return;
-          const frame = sceneEl.querySelector('[data-tenant-widget="community-lounge-hmo-media"] iframe');
-          if (!frame) return;
+          const restartFrame = sceneEl.querySelector('[data-tenant-widget="community-lounge-hmo-media"] iframe');
+          if (!restartFrame) return;
           loungeMediaRestartSeen = requestedAt;
-          const url = new URL(frame.src);
+          const url = new URL(restartFrame.src);
           url.searchParams.set('player-restart', String(requestedAt));
-          frame.src = url.href;
+          restartFrame.src = url.href;
         } catch {
           // Retry on the next poll; never touch Spotlight or reload the Lounge.
         } finally {

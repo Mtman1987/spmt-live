@@ -159,7 +159,7 @@ test('SpaceMountainLive system tenant resolves to an empty transparent alerts-on
 test('mtman1987 debug Lounge preset contains the complete populated scene', () => {
   const layout = bootstrap._test.personalLoungeDebugLayout();
   assert.equal(layout.template, 'community-lounge-system-v2');
-  assert.equal(layout.widgets.length, 24);
+  assert.equal(layout.widgets.length, 23);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-alerts'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-live-spotlight'));
   assert.ok(layout.widgets.some((widget) => widget.id === 'sw-translation-subtitle'));
@@ -221,7 +221,8 @@ test('mtman1987 24/7 migration preserves sources and assigns the broadcast panel
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-hmo-media')?.layoutSlot, 'media');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-hmo-media')?.interactive, false);
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-leaderboard')?.layoutSlot, 'activity');
-  assert.equal(layout.widgets.find((widget) => widget.id === 'sw-leaderboard-command')?.layoutSlot, 'activity');
+  assert.equal(layout.widgets.some((widget) => widget.id === 'sw-leaderboard-command'), false);
+  assert.equal(layout.widgets.find((widget) => widget.id === 'sw-featured-chat')?.layoutSlot, 'activity');
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-stella-tts')?.zIndex, 490);
   assert.match(layout.widgets.find((widget) => widget.id === 'community-lounge-stella-tts')?.url || '', /placement=lounge/);
   assert.match(layout.widgets.find((widget) => widget.id === 'community-lounge-chat-tag')?.url || '', /compact=lounge/);

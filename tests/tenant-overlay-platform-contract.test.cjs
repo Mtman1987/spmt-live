@@ -197,7 +197,7 @@ test('mtman1987 debug Lounge preset contains the complete populated scene', () =
   assert.match(commandCard.url || '', /overlay\/command-card\?tenant=spacemountainlive/);
   assert.equal(
     layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.url,
-    'https://hearmeout-main.fly.dev/spotlight-media/worker-spotlight.html?v=worker-feed-2',
+    'https://hearmeout-main.fly.dev/spotlight-media/worker-spotlight.html?v=smooth-playback-3',
   );
   assert.equal(layout.widgets.find((widget) => widget.id === 'community-lounge-live-spotlight')?.interactive, false);
   assert.ok(layout.widgets.some((widget) => widget.id === 'community-lounge-brb'));

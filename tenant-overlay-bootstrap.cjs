@@ -854,6 +854,10 @@ function readTenantRecord(user, create = true) {
         record.outputs.lounge.widgets = beforePokemonPrune.filter((widget) => !browserOnlyPokemonIds.has(widget.id));
         if (record.outputs.lounge.widgets.length !== beforePokemonPrune.length) corrected = true;
 
+        const beforeActivityPrune = record.outputs.lounge.widgets;
+        record.outputs.lounge.widgets = beforeActivityPrune.filter((widget) => widget.id !== 'sw-leaderboard-command');
+        if (record.outputs.lounge.widgets.length !== beforeActivityPrune.length) corrected = true;
+
         record.outputs.lounge.widgets = record.outputs.lounge.widgets.map((widget) => {
           if (widget.id === 'community-lounge-live-spotlight') {
             const nextUrl = 'https://hearmeout-main.fly.dev/spotlight-media/worker-spotlight.html?v=worker-feed-2';

@@ -11,6 +11,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 test('canonical presence service owns ecosystem and workspace presence while LIVE reuses the community shoutout feed', () => {
   const bootstrap = read('presence-bootstrap.cjs');
   const header = read('public/shared/ecosystem-header.js');
+  const controller = read('public/shared/workspace-controller.js');
   const live = read('public/live/index.html');
   const start = read('start.cjs');
   const dockerfile = read('Dockerfile');
@@ -41,6 +42,12 @@ test('canonical presence service owns ecosystem and workspace presence while LIV
   assert.match(header, /#spmt-ecosystem-header\{[^}]*pointer-events:none/);
   assert.match(header, /spmt-eco-chip[^}]*pointer-events:auto/);
   assert.match(header, /spmt-eco-utility[^}]*pointer-events:auto/);
+
+  assert.match(controller, /function reserveNativeTopChrome\(\)/);
+  assert.match(controller, /document\.querySelectorAll\('header,nav,\[role="banner"\]'\)/);
+  assert.match(controller, /rect\.top > height \+ 6/);
+  assert.match(controller, /var\(--spmt-ecosystem-header-height, 40px\)/);
+  assert.match(controller, /spmt:ecosystem-header-mounted/);
 
   assert.match(live, /Ecosystem Live/);
   assert.match(live, /fetch\(endpoint/);

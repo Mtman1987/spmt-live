@@ -46,6 +46,8 @@ function ensureWorkspaceShellBootstrap() {
     '/shared/companion-installer-ui.js',
     '/shared/overlay-bay-shell-nav.js',
     '/shared/account-recovery-ui.js',
+    '/shared/easter-egg-recovery-outbox.js',
+    '/shared/black-hole-easter-egg.js',
   ]);
 
   const sharedIndexPath = process.env.SPMT_SHARED_INDEX_PATH

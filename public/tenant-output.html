@@ -57,6 +57,25 @@
       const tenant = decodeURIComponent(pathParts[1] || '').toLowerCase();
       const output = ['public', 'personal', 'lounge'].includes(pathParts[2]) ? pathParts[2] : 'public';
       const query = new URLSearchParams(location.search);
+      // The cloud Studio controller can omit its duplicate local preview.
+      // Restream's saved Browser Source URL continues to use the full renderer.
+      if (output === 'lounge' && window.top !== window && query.get('localControllerPreview') === 'off') {
+        document.documentElement.dataset.localControllerPreview = 'off';
+        const notice = document.createElement('div');
+        notice.textContent = 'Lounge preview paused here. Watch the live channel to check the broadcast.';
+        notice.style.cssText = 'position:fixed;inset:0;display:grid;place-items:center;padding:28px;background:#08101c;color:#b8d7e8;font:600 20px/1.5 system-ui;text-align:center';
+        document.body.replaceChildren(notice);
+        const restoreMs = Number(query.get('previewRestoreMs'));
+        if (restoreMs >= 1000 && restoreMs <= 120000) {
+          setTimeout(() => {
+            const restored = new URL(location.href);
+            restored.searchParams.delete('localControllerPreview');
+            restored.searchParams.delete('previewRestoreMs');
+            location.replace(restored.href);
+          }, restoreMs);
+        }
+        return;
+      }
       const testMode = output === 'lounge' && query.get('test') === '1';
       const loungeAudioUnlock = document.getElementById('lounge-audio-unlock');
       const loungeAudioNote = document.getElementById('lounge-audio-note');

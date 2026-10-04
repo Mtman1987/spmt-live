@@ -887,6 +887,12 @@ function readTenantRecord(user, create = true) {
         if (record.outputs.lounge.widgets.length !== beforeActivityPrune.length) corrected = true;
 
         record.outputs.lounge.widgets = record.outputs.lounge.widgets.map((widget) => {
+          if (widget.id === 'community-lounge-starfield-24x7' && widget.kind === 'video'
+            && widget.url === '/assets/overlay-bay/starfield-pingpong.mp4') {
+            corrected = true;
+            return { ...widget, url: '/assets/overlay-bay/starfield-pingpong.mp4?v=6fps-v1' };
+          }
+
           if (widget.id === 'community-lounge-live-spotlight') {
             const nextUrl = 'https://hearmeout-main.fly.dev/spotlight-media/worker-spotlight.html?v=smooth-playback-3';
             const next = { ...widget, url: nextUrl, title: 'DSH Live Community Spotlight', interactive: false, interactionMode: undefined };

@@ -117,7 +117,7 @@ test('Fly splits app and Xbox into separate machines with live sizing', () => {
   assert.match(fly, /CLOUD_XBOX_WORKER_URL\s*=\s*"http:\/\/xbox\.process\.spmt-live\.internal:3003"/);
   assert.match(fly, /\[http_service\][\s\S]*processes\s*=\s*\["app"\]/);
   assert.match(fly, /memory\s*=\s*"1gb"[\s\S]*processes\s*=\s*\["app"\]/);
-  assert.match(fly, /cpus\s*=\s*6[\s\S]*memory\s*=\s*"4gb"[\s\S]*processes\s*=\s*\["xbox"\]/);
+  assert.match(fly, /cpus\s*=\s*4[\s\S]*memory\s*=\s*"4gb"[\s\S]*processes\s*=\s*\["xbox"\]/);
 });
 
 test('production boot loads the proxy and Overlay Bay frontend', () => {

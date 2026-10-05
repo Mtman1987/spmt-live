@@ -774,7 +774,7 @@ async function controlledRestreamStart(userId) {
 const RESTREAM_CONTROLLER_VIEWPORT = { width: 640, height: 360 };
 const RESTREAM_MEDIA_OBSERVER = `(() => {
  if(window.__spmtControllerMedia)return;
- const state=window.__spmtControllerMedia={tracks:[],peers:[]};
+ const state=window.__spmtControllerMedia={tracks:[],peers:[],audioContexts:[]};
  const media=navigator.mediaDevices;
  if(media?.getUserMedia){
   const original=media.getUserMedia.bind(media);
@@ -784,6 +784,10 @@ const RESTREAM_MEDIA_OBSERVER = `(() => {
    return stream;
   };
  }
+ const OriginalAudioContext=window.AudioContext;
+ if(OriginalAudioContext)window.AudioContext=class extends OriginalAudioContext {
+  constructor(...args){super(...args);state.audioContexts=state.audioContexts.filter(c=>c.state!=='closed').slice(-7);state.audioContexts.push(this)}
+ };
  const Original=window.RTCPeerConnection;
  if(Original)window.RTCPeerConnection=class extends Original {
   constructor(...args){super(...args);state.peers=state.peers.filter(p=>p.connectionState!=='closed').slice(-15);state.peers.push(this)}
@@ -812,6 +816,11 @@ async function optimizeRestreamController(session) {
    return {cameraDisabled,microphoneMuted,fakeTracksStopped,observerActive:Boolean(state),inputs,senders};
   })()`,returnByValue:true
  },8000);
+ let idleMediaCleanup={enabled:false};
+ if(policy.idleMediaCleanupEnabled===true){
+  const cleanup=await cdp.call('Runtime.evaluate',{expression:"(async()=>{\n const media=window.__spmtControllerMedia;\n const peers=(media?.peers||[]).filter(p=>p.connectionState!=='closed');\n const output=window.__spmtPersistentIdleCleanup||(window.__spmtPersistentIdleCleanup={canvases:[],captureTracksStopped:0,detachedAudioSenders:0});\n const videoSenders=peers.flatMap(p=>p.getSenders()).filter(s=>s.track?.kind==='video'&&s.track.readyState==='live');\n let greyCanvasesStopped=0;\n for(const sender of videoSenders.slice(0,2)){\n  const track=sender.track,z=track.getSettings(),canvas=track.canvas;\n  if(!canvas||canvas.isConnected||z.width!==1280||z.height!==720)continue;\n  const small=document.createElement('canvas');small.width=64;small.height=36;\n  const c=small.getContext('2d',{willReadFrequently:true});\n  const read=()=>{c.drawImage(canvas,0,0,64,36);return c.getImageData(0,0,64,36).data};\n  let first,last;try{first=read();await new Promise(r=>setTimeout(r,2000));last=read()}catch{continue}\n  let changed=0,uniform=0;\n  for(let i=0;i<last.length;i+=4){if(Math.abs(last[i]-first[i])+Math.abs(last[i+1]-first[i+1])+Math.abs(last[i+2]-first[i+2])>12)changed++;if(last[i]===last[0]&&last[i+1]===last[1]&&last[i+2]===last[2])uniform++}\n  if(changed||uniform/(last.length/4)<0.9||Math.max(last[0],last[1],last[2])-Math.min(last[0],last[1],last[2])>2)continue;\n  const ctx=canvas.getContext('2d');if(!ctx)continue;\n  await sender.replaceTrack(null);\n  if(!output.canvases.includes(canvas)){ctx.drawImage=function(){};output.canvases.push(canvas)}\n  track.stop();output.captureTracksStopped++;greyCanvasesStopped++;\n }\n for(const sender of peers.flatMap(p=>p.getSenders())){\n  const t=sender.track;\n  if(t?.kind==='audio'&&t.readyState==='ended'&&/fake|dummy/i.test(t.label||'')){await sender.replaceTrack(null);output.detachedAudioSenders++}\n }\n const activeOutgoingAudio=peers.flatMap(p=>p.getSenders()).filter(s=>s.track?.kind==='audio'&&s.track.readyState==='live').length;\n let localAudioReceiversDisabled=0,suspendedAudioContexts=0;\n if(activeOutgoingAudio===0){\n  for(const p of peers)for(const r of p.getReceivers())if(r.track?.kind==='audio'&&r.track.readyState==='live'){r.track.enabled=false;localAudioReceiversDisabled++}\n  for(const ctx of media?.audioContexts||[])if(ctx.state==='running'){await ctx.suspend();suspendedAudioContexts++}\n }\n return {enabled:true,greyCanvasesStopped,captureTracksStopped:output.captureTracksStopped,greyDrawingSuppressed:output.canvases.length,detachedEndedAudioSenders:output.detachedAudioSenders,localAudioReceiversDisabled,suspendedAudioContexts,activeOutgoingAudio,outgoingLiveVideoTracks:peers.flatMap(p=>p.getSenders()).filter(s=>s.track?.kind==='video'&&s.track.readyState==='live').length};\n})()",returnByValue:true,awaitPromise:true},8000);
+  idleMediaCleanup=cleanup?.result?.value||{enabled:true,verified:false};
+ }
  session.controllerViewport=RESTREAM_CONTROLLER_VIEWPORT;
  await cdp.call('Emulation.setDeviceMetricsOverride',{...RESTREAM_CONTROLLER_VIEWPORT,deviceScaleFactor:1,mobile:false});
  // Saved preview policy is specific to this profile; server Browser Source URL is untouched.
@@ -830,7 +839,7 @@ async function optimizeRestreamController(session) {
    }
   }
  } catch {}
- return {applied:true,viewport:RESTREAM_CONTROLLER_VIEWPORT,previewDisabled,media:result?.result?.value||null};
+ return {applied:true,viewport:RESTREAM_CONTROLLER_VIEWPORT,previewDisabled,idleMediaCleanup,media:result?.result?.value||null};
 }
 
 const controllerMaintenance=setInterval(async()=>{

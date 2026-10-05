@@ -70,6 +70,7 @@ const OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT: Record<string, string[]> = {
 };
 
 const COMPANION_ACTION_CAPABILITIES: Record<string, string> = {
+  'restream.host.open': 'restream.host',
   'companion.status': 'companion.status',
   'overlay.show': 'overlay.control',
   'overlay.hide': 'overlay.control',
@@ -122,7 +123,7 @@ function validateCompanionPayload(action: string, value: unknown): Record<string
   const payload = value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
-  if (['companion.status', 'overlay.show', 'overlay.hide'].includes(action)) return {};
+  if (['companion.status', 'overlay.show', 'overlay.hide', 'restream.host.open'].includes(action)) return {};
   if (['popout.show', 'popout.hide'].includes(action)) {
     const id = Number(payload.id);
     return Number.isInteger(id) && id >= 1 && id <= 3 ? { id } : null;
@@ -173,6 +174,7 @@ function validateCompanionPayload(action: string, value: unknown): Record<string
 }
 
 function companionRequiresConfirmation(action: string, payload: Record<string, unknown>) {
+  if (action === 'restream.host.open') return true;
   if (action === 'obs.media.play') return true;
   if (action !== 'workflow.run') return false;
   return payload.workflowId !== 'test.echo';

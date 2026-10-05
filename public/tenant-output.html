@@ -59,7 +59,7 @@
       const query = new URLSearchParams(location.search);
       // The cloud Studio controller can omit its duplicate local preview.
       // Restream's saved Browser Source URL continues to use the full renderer.
-      if (output === 'lounge' && window.top !== window && query.get('localControllerPreview') === 'off') {
+      if (['lounge', 'public'].includes(output) && window.top !== window && query.get('localControllerPreview') === 'off') {
         document.documentElement.dataset.localControllerPreview = 'off';
         const notice = document.createElement('div');
         notice.textContent = 'Lounge preview paused here. Watch the live channel to check the broadcast.';

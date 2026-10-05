@@ -284,9 +284,13 @@ async function ensurePage(session) {
     await session.cdp.connect();
     await session.cdp.call('Page.enable');
     await session.cdp.call('Runtime.enable');
+    if(session.mode === 'restream'){
+      await session.cdp.call('Page.addScriptToEvaluateOnNewDocument',{source:RESTREAM_MEDIA_OBSERVER});
+      await session.cdp.call('Runtime.evaluate',{expression:RESTREAM_MEDIA_OBSERVER});
+    }
     await session.cdp.call('Emulation.setDeviceMetricsOverride', {
-      width: VIEWPORT.width,
-      height: VIEWPORT.height,
+      width: (session.controllerViewport || VIEWPORT).width,
+      height: (session.controllerViewport || VIEWPORT).height,
       deviceScaleFactor: 1,
       mobile: false,
     }).catch(() => {});
@@ -573,7 +577,8 @@ async function sessionStatus(userId) {
     mode: session.mode,
     url: session.url,
     title: session.title,
-    viewport: VIEWPORT,
+    viewport: session.controllerViewport || VIEWPORT,
+    controllerOptimization: session.controllerOptimization || null,
     media,
     profilePersistent: true,
     browserPresentation: session.mode === 'restream' ? 'headed-xvfb' : 'headless',
@@ -667,6 +672,7 @@ async function runControlledRestreamStart(userId) {
       throw error;
     }
     if (state === 'live') {
+      session.controllerOptimization=await optimizeRestreamController(session).catch(()=>({applied:false}));
       return {
         ok: true,
         action: 'start-only',
@@ -763,6 +769,79 @@ async function controlledRestreamStart(userId) {
   restreamStartTasks.set(key, task);
   return await task;
 }
+
+
+const RESTREAM_CONTROLLER_VIEWPORT = { width: 640, height: 360 };
+const RESTREAM_MEDIA_OBSERVER = `(() => {
+ if(window.__spmtControllerMedia)return;
+ const state=window.__spmtControllerMedia={tracks:[],peers:[]};
+ const media=navigator.mediaDevices;
+ if(media?.getUserMedia){
+  const original=media.getUserMedia.bind(media);
+  media.getUserMedia=async function(constraints){
+   const stream=await original(constraints);
+   for(const track of stream.getTracks()){state.tracks.push(track);if(state.tracks.length>32)state.tracks.shift();}
+   return stream;
+  };
+ }
+ const Original=window.RTCPeerConnection;
+ if(Original)window.RTCPeerConnection=class extends Original {
+  constructor(...args){super(...args);state.peers=state.peers.filter(p=>p.connectionState!=='closed').slice(-15);state.peers.push(this)}
+ };
+})()`;
+
+async function optimizeRestreamController(session) {
+ if(session.mode!=='restream')return {applied:false};
+ let policy;try{policy=JSON.parse(fs.readFileSync(path.join(session.profileDir,'spmt-local-preview-policy.json'),'utf8'))}catch{}
+ if(!policy?.enabled)return {applied:false};
+ const cdp=await ensurePage(session);
+ const snapshot=await inspectSession(session);
+ if(restreamState(snapshot)!=='live')return {applied:false,state:restreamState(snapshot)};
+ const result=await cdp.call('Runtime.evaluate',{
+  expression:`(() => {
+   const all=()=>[...document.querySelectorAll('button,[role="button"]')].filter(el=>!el.disabled&&el.getBoundingClientRect().width>0);
+   const label=el=>(el.getAttribute('aria-label')||el.getAttribute('title')||el.textContent||'').trim().toLowerCase();
+   const clickOne=pattern=>{const matches=all().filter(el=>pattern.test(label(el)));if(matches.length===1){matches[0].click();return true}return false};
+   const cameraDisabled=clickOne(/^(turn off camera|stop camera|disable camera)(?:\\s*\\([^)]*\\))?$/);
+   const microphoneMuted=clickOne(/^(mute|mute microphone|turn off microphone)(?:\\s*\\([^)]*\\))?$/);
+   const state=window.__spmtControllerMedia;
+   let fakeTracksStopped=0;
+   for(const t of state?.tracks||[])if(t.readyState==='live'&&/fake|dummy/i.test(t.label||'')){t.stop();fakeTracksStopped++}
+   const inputs=(state?.tracks||[]).slice(-16).map(t=>({kind:t.kind,live:t.readyState==='live',fake:/fake|dummy/i.test(t.label||'')}));
+   const senders=(state?.peers||[]).filter(p=>p.connectionState!=='closed').flatMap(p=>p.getSenders()).filter(s=>s.track).slice(0,16).map(s=>{const t=s.track,z=t.getSettings();return {kind:t.kind,live:t.readyState==='live',fake:/fake|dummy/i.test(t.label||''),width:z.width||null,height:z.height||null,frameRate:z.frameRate||null}});
+   return {cameraDisabled,microphoneMuted,fakeTracksStopped,observerActive:Boolean(state),inputs,senders};
+  })()`,returnByValue:true
+ },8000);
+ session.controllerViewport=RESTREAM_CONTROLLER_VIEWPORT;
+ await cdp.call('Emulation.setDeviceMetricsOverride',{...RESTREAM_CONTROLLER_VIEWPORT,deviceScaleFactor:1,mobile:false});
+ // Saved preview policy is specific to this profile; server Browser Source URL is untouched.
+ let previewDisabled=false;
+ try {
+  const policy=JSON.parse(fs.readFileSync(path.join(session.profileDir,'spmt-local-preview-policy.json'),'utf8'));
+  if(policy.enabled){
+   const targets=await fetchJson('http://127.0.0.1:'+session.port+'/json/list');
+   for(const target of targets){
+    let url;try{url=new URL(target.url)}catch{continue}
+    if(url.hostname!=='spmt.live'||url.pathname!=='/tenant/mtman1987/lounge')continue;
+    if(url.searchParams.get('localControllerPreview')==='off'){previewDisabled=true;continue}
+    url.searchParams.set('localControllerPreview','off');url.searchParams.delete('previewRestoreMs');
+    const frame=new CdpClient(target.webSocketDebuggerUrl);
+    try{await frame.call('Runtime.evaluate',{expression:'location.replace('+JSON.stringify(url.href)+')'});previewDisabled=true}finally{frame.close()}
+   }
+  }
+ } catch {}
+ return {applied:true,viewport:RESTREAM_CONTROLLER_VIEWPORT,previewDisabled,media:result?.result?.value||null};
+}
+
+const controllerMaintenance=setInterval(async()=>{
+ for(const session of sessions.values()){
+  if(session.mode!=='restream'||session.process.exitCode!==null||session.controllerMaintenanceBusy)continue;
+  session.controllerMaintenanceBusy=true;
+  try{session.controllerOptimization=await optimizeRestreamController(session)}catch{}
+  finally{session.controllerMaintenanceBusy=false}
+ }
+},30000);
+controllerMaintenance.unref?.();
 
 async function captureFrame(session) {
   session.lastActivityAt = Date.now();
@@ -977,6 +1056,7 @@ const server = app.listen(PORT, '::', () => {
 
 async function shutdown() {
   clearInterval(sweeper);
+  clearInterval(controllerMaintenance);
   await Promise.all([...sessions.values()].map((session) => stopSession(session)));
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 1500).unref?.();

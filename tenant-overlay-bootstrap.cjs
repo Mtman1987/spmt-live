@@ -621,7 +621,7 @@ function applyMtmanLounge24x7Layout(input) {
     id: 'community-lounge-starfield-24x7', title: '24/7 Starfield', kind: 'video', visible: true,
     locked: true, interactive: false, x: 0, y: 0, width: SCENE_WIDTH, height: SCENE_HEIGHT,
     opacity: 1, zIndex: -100, fit: 'cover', autoplay: true, muted: true, loop: true,
-    url: '/assets/overlay-bay/starfield-pingpong.mp4?v=6fps-v1', role: 'broadcast-background',
+    url: '/assets/overlay-bay/starfield-pingpong.mp4?v=24fps-v2', role: 'broadcast-background',
   };
   const frame = {
     id: 'community-lounge-frame-24x7', title: '24/7 Neon Panel Frame', kind: 'frame', visible: true,
@@ -888,9 +888,9 @@ function readTenantRecord(user, create = true) {
 
         record.outputs.lounge.widgets = record.outputs.lounge.widgets.map((widget) => {
           if (widget.id === 'community-lounge-starfield-24x7' && widget.kind === 'video'
-            && widget.url === '/assets/overlay-bay/starfield-pingpong.mp4') {
+            && ['/assets/overlay-bay/starfield-pingpong.mp4', '/assets/overlay-bay/starfield-pingpong.mp4?v=6fps-v1'].includes(widget.url)) {
             corrected = true;
-            return { ...widget, url: '/assets/overlay-bay/starfield-pingpong.mp4?v=6fps-v1' };
+            return { ...widget, url: '/assets/overlay-bay/starfield-pingpong.mp4?v=24fps-v2' };
           }
 
           if (widget.id === 'community-lounge-live-spotlight') {

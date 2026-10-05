@@ -1,12 +1,10 @@
 FROM node:20-slim AS build
-RUN apt-get update && apt-get install -y python3 make g++ ffmpeg && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-# Decorative animation needs fewer frames than the live program. Generate once
-# at build time; the runtime serves the file without transcoding.
-RUN ffmpeg -hide_banner -loglevel error -y -i public/assets/overlay-bay/starfield-pingpong.mp4 -an -vf fps=6 -c:v libx264 -preset veryfast -crf 24 -pix_fmt yuv420p -movflags +faststart /tmp/starfield-6fps.mp4 && mv /tmp/starfield-6fps.mp4 public/assets/overlay-bay/starfield-pingpong.mp4
+# Serve the original smooth starfield; only Restream's Browser Source plays it.
 RUN npm run build
 RUN node scripts/docs-bundle.mjs
 

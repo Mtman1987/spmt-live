@@ -5918,6 +5918,10 @@ companionWss.on('connection', (socket: WebSocket) => {
     db.prepare(`
       UPDATE companion_devices SET status = 'online', last_seen_at = ?, updated_at = ? WHERE id = ?
     `).run(seenAt, seenAt, device.id);
+    if (message?.type === 'companion.ready') {
+      require('./stream-host-state.cjs').hostLeases().reportDevice(device.id, message.actions);
+      return;
+    }
     if (message?.type !== 'companion.result' || !message?.id) return;
     const command = db.prepare(`
       SELECT id FROM companion_commands WHERE id = ? AND device_id = ? AND user_id = ?

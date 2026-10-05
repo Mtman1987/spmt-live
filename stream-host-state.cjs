@@ -6,10 +6,17 @@ class HostLeases {
   constructor(db, now = Date.now) {
     this.db = db; this.now = now;
     db.exec('CREATE TABLE IF NOT EXISTS stream_host_leases (user_id TEXT PRIMARY KEY, kind TEXT NOT NULL, device_id TEXT NOT NULL, expires_at INTEGER NOT NULL)');
+    db.exec('CREATE TABLE IF NOT EXISTS stream_host_devices (device_id TEXT PRIMARY KEY, supports_local INTEGER NOT NULL)');
   }
   active(userId) {
     const row = this.db.prepare('SELECT * FROM stream_host_leases WHERE user_id = ?').get(userId);
     return row && row.expires_at > this.now() ? row : null;
+  }
+  deviceSupportsLocal(deviceId) {
+    return this.db.prepare('SELECT supports_local FROM stream_host_devices WHERE device_id = ?').get(deviceId)?.supports_local === 1;
+  }
+  reportDevice(deviceId, actions) {
+    this.db.prepare('INSERT OR REPLACE INTO stream_host_devices VALUES (?, ?)').run(deviceId, Array.isArray(actions) && actions.includes('restream.host.open') ? 1 : 0);
   }
   reserve(userId, kind, deviceId = '') {
     return this.db.transaction(() => {

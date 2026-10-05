@@ -33,7 +33,7 @@ function deviceProof(req, res, next) {
   const token = String(req.headers['x-spmt-device-token'] || '');
   const tenant = readTenant(req.streamUserId, deviceId);
   const hash = crypto.createHash('sha256').update(token).digest('hex');
-  if (!token || !tenant.device || tenant.device.token_hash !== hash || !JSON.parse(tenant.device.capabilities || '[]').includes('restream.host')) {
+  if (!token || !tenant.device || tenant.device.token_hash !== hash || !JSON.parse(tenant.device.capabilities || '[]').includes('restream.host') || !hostLeases().deviceSupportsLocal(deviceId)) {
     return json(res, 403, { error: 'Connect the updated Companion to this SPMT account first.' });
   }
   if (!eligible(tenant.user?.username)) return json(res, 403, { error: 'Local hosting is currently available to the pilot accounts.' });
@@ -60,7 +60,7 @@ function installRoutes(app, express) {
         username: user.username, localPilot: eligible(user.username), restreamPlan: 'free',
         browserSourceUrl: ORIGIN + '/tenant/' + encodeURIComponent(user.username) + '/public',
         activeHost: lease?.kind || null, hostExpiresAt: lease?.expires_at || null,
-        companionDevices: devices.map(d => ({ id: d.id, name: d.name, online: d.status === 'online', supportsRestreamHost: JSON.parse(d.capabilities || '[]').includes('restream.host') })),
+        companionDevices: devices.map(d => ({ id: d.id, name: d.name, online: d.status === 'online', supportsRestreamHost: hostLeases().deviceSupportsLocal(d.id) && JSON.parse(d.capabilities || '[]').includes('restream.host') })),
         ps5ConsoleOnlyReady: false,
       });
     } catch { return json(res, 503, { error: 'Setup status unavailable. Try again.' }); }

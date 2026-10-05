@@ -35,3 +35,9 @@ test('a pending cloud start excludes a local claim until its reservation clears'
   leases.release('pilot', 'cloud');
   assert.equal(leases.reserve('pilot', 'local', 'pc1'), true);
 });
+test('an older Companion does not appear ready just because a capability was granted', () => {
+  const { leases } = fixture();
+  leases.reportDevice('old', undefined); leases.reportDevice('new', ['restream.host.open']);
+  assert.equal(leases.deviceSupportsLocal('old'), false); assert.equal(leases.deviceSupportsLocal('new'), true);
+  leases.reportDevice('new', ['companion.status']); assert.equal(leases.deviceSupportsLocal('new'), false);
+});

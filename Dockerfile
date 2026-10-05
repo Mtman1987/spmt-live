@@ -39,7 +39,8 @@ COPY commlink-auth-recovery-bootstrap.cjs ./commlink-auth-recovery-bootstrap.cjs
 COPY commlink-chat-navigation-bootstrap.cjs ./commlink-chat-navigation-bootstrap.cjs
 COPY commlink-diagnostic-bootstrap.cjs ./commlink-diagnostic-bootstrap.cjs
 COPY cloud-xbox-bootstrap.cjs ./cloud-xbox-bootstrap.cjs
-COPY stream-setup-bootstrap.cjs stream-host-state.cjs ./
+COPY stream-setup-bootstrap.cjs ./stream-setup-bootstrap.cjs
+COPY stream-host-state.cjs ./stream-host-state.cjs
 COPY tenant-overlay-events-bootstrap.cjs ./tenant-overlay-events-bootstrap.cjs
 COPY twitch-extension-bootstrap.cjs ./twitch-extension-bootstrap.cjs
 COPY tenant-overlay-bootstrap.cjs ./tenant-overlay-bootstrap.cjs

@@ -21,5 +21,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Parse Fly configuration without production credentials
+        run: python3 -c "import pathlib,tomllib; tomllib.loads(pathlib.Path('fly.toml').read_text())"
       - name: Install and validate
         run: npm ci && npm test

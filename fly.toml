@@ -57,3 +57,14 @@ primary_region = "lax"
   cpus = 2
   memory = "4gb"
   processes = ["xbox"]
+
+# Monitor the private browser worker without exposing it through Fly Proxy.
+[checks.xbox_ready]
+  type = "http"
+  port = 3003
+  method = "GET"
+  path = "/health"
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "30s"
+  processes = ["xbox"]

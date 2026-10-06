@@ -21,5 +21,8 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Validate Fly process and health-check configuration
+        run: flyctl config validate --config fly.toml
       - name: Install and validate
         run: npm ci && npm test

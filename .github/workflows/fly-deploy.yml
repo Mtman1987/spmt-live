@@ -13,6 +13,8 @@ on:
         options:
           - app
           - xbox
+          - dash
+          - app,dash
           - all
 
 permissions:
@@ -133,6 +135,9 @@ jobs:
           args=(deploy . --remote-only --config fly.toml --build-arg BUILD_SHA=${GITHUB_SHA} --build-arg GITHUB_SHA=${GITHUB_SHA} --build-arg GH_SHA=${GITHUB_SHA} --yes)
           if [ "$scope" != "all" ]; then
             args+=(--process-groups "$scope")
+          fi
+          if [ "$scope" = "dash" ] || [ "$scope" = "app,dash" ]; then
+            args+=(--ha=false)
           fi
           echo "Deploy scope: $scope"
           flyctl "${args[@]}"

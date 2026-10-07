@@ -1,3 +1,4 @@
+// Keep this pilot to one account and one persistent browser host.
 'use strict';
 process.env.CLOUD_XBOX_ALLOWED_USER_ID = require('./stream-worker-scope.cjs').DASH_USER_ID;
 process.env.CLOUD_XBOX_STOP_WHEN_IDLE = 'true';

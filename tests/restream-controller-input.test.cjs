@@ -77,10 +77,13 @@ test('remote keyboard navigation and explicit paste reach the focused preview', 
   assert.equal(paste.defaultPrevented, true);
 });
 
-test('running preview removes the loading overlay and fallback typing stays masked', async t => {
+test('loading stays visible until the first preview frame and fallback typing stays masked', async t => {
   const c = await controller();
   t.after(() => c.dom.window.close());
   const empty = c.dom.window.document.getElementById('empty');
+  assert.equal(empty.hidden, false);
+  assert.match(empty.textContent, /Warming|Loading/);
+  c.dom.window.document.getElementById('frame').dispatchEvent(new c.dom.window.Event('load'));
   assert.equal(empty.hidden, true);
   assert.equal(c.dom.window.getComputedStyle(empty).display, 'none');
   const input = c.dom.window.document.getElementById('text');

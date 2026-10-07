@@ -20,7 +20,8 @@
     .screen{position:relative;background:#000;aspect-ratio:16/9;max-height:calc(100vh - 210px);margin:auto;width:min(100%,1280px);overflow:hidden;border:1px solid rgba(255,255,255,.13);border-radius:10px}
     #frame{display:block;width:100%;height:100%;object-fit:contain;background:#000;touch-action:none;user-select:none;-webkit-user-drag:none}
     .screen:focus-visible{outline:2px solid #176bff;outline-offset:2px}
-    #empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:30px;color:#9fb0c9;pointer-events:none}
+    #empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center;padding:30px;color:#9fb0c9;background:radial-gradient(circle at 50% 40%,#20334f,#05070e 70%);pointer-events:none}
+    #empty::before{content:'SPACEMOUNTAINLIVE';font:800 clamp(20px,4vw,42px) system-ui,sans-serif;color:#e8edf7;letter-spacing:.06em}
     #empty[hidden]{display:none}
     .typing{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto;gap:7px;width:min(100%,1280px);margin:auto}
     .typing input{min-width:0;border:1px solid rgba(255,255,255,.18);border-radius:9px;padding:9px 10px;background:#0e1526;color:#fff}
@@ -39,7 +40,7 @@
 <main>
   <div class="screen" id="screen" tabindex="0" aria-label="Remote browser. Click a field, then type.">
     <img id="frame" alt="Remote Restream Studio browser">
-    <div id="empty">Starting the persistent Restream Studio browser…</div>
+    <div id="empty">Loading your studio…</div>
   </div>
   <div class="typing">
     <input id="text" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" aria-label="Private remote typing" placeholder="Phone keyboard: type privately here, then Send">
@@ -83,7 +84,8 @@
       viewport=data?.viewport||viewport;
       if(running){
         setStatus('Restream host running · '+(data.title||'Studio')+' · '+(data.idleTimeoutDisabled?'persistent':'active'));
-        empty.hidden=true;
+        empty.hidden=Boolean(frameUrl);
+        if(!frameUrl)empty.textContent='Warming your studio… Waiting for the first video frame.';
       }else{
         setStatus(data?.running?'Cloud browser is currently being used by '+(data.mode||'another source'):'Restream host stopped');
         empty.hidden=false;
@@ -108,9 +110,11 @@
   }
   async function start(){
     setStatus('Starting persistent Restream Studio browser…');
+    empty.hidden=false;empty.textContent='Loading your studio… Waking your dedicated host.';
     try{
       const data=await request('/api/cloud-xbox/session',{method:'POST',body:JSON.stringify({mode:'restream'})});
-      running=Boolean(data?.running);viewport=data?.viewport||viewport;empty.hidden=true;
+      running=Boolean(data?.running);viewport=data?.viewport||viewport;
+      empty.hidden=Boolean(frameUrl);if(!frameUrl)empty.textContent='Warming your studio… Waiting for the first video frame.';
       setStatus('Restream host running · close this controller whenever you are done setting up');
       refreshFrame();
     }catch(error){setStatus(error.message,true);empty.hidden=false;empty.textContent=error.message}

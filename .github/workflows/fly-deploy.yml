@@ -109,7 +109,7 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       - name: Validate production contracts
-        run: npm ci && npm test
+        run: npm ci && node --test tests/stream-worker-scope.test.cjs tests/stream-host-state.test.cjs && npm test
       - name: Restore committed source after mutation-based contract tests
         run: git reset --hard "$GITHUB_SHA"
       - name: Deploy to Fly.io
@@ -125,8 +125,13 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             scope="${{ inputs.deploy_scope }}"
           fi
+          # The pilot cutover updates only the web router and its new host.
+          # Keep the currently broadcasting Xbox/Restream host untouched.
+          if [ "${{ github.event_name }}" = "push" ] && git diff --name-only "${{ github.event.before }}" "$GITHUB_SHA" | grep -q '^dash-worker.cjs$'; then
+            scope="app,dash"
+          fi
           args=(deploy . --remote-only --config fly.toml --build-arg BUILD_SHA=${GITHUB_SHA} --build-arg GITHUB_SHA=${GITHUB_SHA} --build-arg GH_SHA=${GITHUB_SHA} --yes)
-          if [ "$scope" = "app" ] || [ "$scope" = "xbox" ]; then
+          if [ "$scope" != "all" ]; then
             args+=(--process-groups "$scope")
           fi
           echo "Deploy scope: $scope"

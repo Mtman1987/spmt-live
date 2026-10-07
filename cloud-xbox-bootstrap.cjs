@@ -80,7 +80,7 @@ async function workerRequest(userId, method, workerPath, body = null, timeoutMs 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(`${WORKER_URL}${workerPath}`, {
+    return await fetch(`${require('./stream-worker-scope.cjs').workerUrlForUser(userId)}${workerPath}`, {
       method,
       signal: controller.signal,
       headers: {
@@ -202,6 +202,8 @@ async function runAutomaticStreamRecoveryCheck() {
       return;
     }
 
+    if (require('./stream-host-state.cjs').hostLeases().active(userId)?.kind === 'local') return;
+
     const response = await workerRequest(userId, 'POST', '/v1/restream/start', {}, 120_000);
     const body = await response.json().catch(() => null);
     if (!response.ok || body?.ok === false) {
@@ -251,6 +253,16 @@ function installRoutes(app, express) {
   app.__spmtCloudXboxRoutesInstalled = true;
   startAutomaticStreamRecoveryWatch();
   const jsonBody = express.json({ limit: '64kb' });
+
+  app.use(['/api/cloud-xbox/session', '/api/cloud-xbox/navigate', '/api/cloud-xbox/reload'], authenticateCloudXbox, (req, res, next) => {
+    if (req.method !== 'POST') return next();
+    const leases = require('./stream-host-state.cjs').hostLeases();
+    if (!leases.reserve(req.cloudXboxUser.id, 'cloud')) {
+      return safeJson(res, 409, { error: 'A host is already active or switching. Stop the local Restream host before opening a cloud host.' });
+    }
+    res.once('finish', () => leases.release(req.cloudXboxUser.id, 'cloud'));
+    next();
+  });
 
   app.get('/api/cloud-xbox/status', authenticateCloudXbox, async (req, res) => {
     try {

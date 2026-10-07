@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set up streaming · SpaceMountain</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,Segoe UI,sans-serif;background:#080d19;color:#e8eef9}*{box-sizing:border-box}body{margin:0}main{max-width:850px;margin:auto;padding:32px 20px 60px}a{color:#a8ccff}h1{font-size:32px;margin-bottom:8px}p{line-height:1.6;color:#b8c6dd}section{background:#111c30;border:1px solid #293c5a;border-radius:16px;padding:22px;margin:18px 0}h2{font-size:20px;margin:0 0 10px}.row{display:flex;gap:10px;flex-wrap:wrap}button,.button{font:inherit;text-decoration:none;background:#246ae8;color:white;border:0;border-radius:9px;padding:11px 15px;cursor:pointer;display:inline-block}button:disabled{opacity:.5;cursor:default}.secondary{background:#293b58}input[type=text]{width:100%;padding:12px;background:#070e1c;color:white;border:1px solid #3c5478;border-radius:8px;margin:10px 0}label{display:block;margin:10px 0}small{color:#a0b0c9}#status{padding:12px;border-radius:8px;background:#1b2e4e;min-height:44px}[hidden]{display:none!important}.note{border-left:3px solid #83b5ff;padding-left:12px}
+</style>
+</head>
+<body><main>
+<a href="/">← SPMT dashboard</a>
+<h1>Set up your stream</h1>
+<p id="intro">Sign in to SPMT to connect your account and prepare your stream.</p>
+<div id="status" role="status" aria-live="polite">Checking your account…</div>
+<section><h2>1. Choose where Studio runs</h2>
+<p>Restream handles the stream layout. Your Studio host stays running for the broadcast.</p>
+<div class="row"><button id="local">Use my Companion</button><a class="button secondary" id="cloud" href="/restream-studio-control.html" target="_blank" rel="noopener">Use a cloud host</a></div>
+<p id="devices">Checking Companion…</p>
+<div class="row"><a class="button secondary" href="/downloads/companion/windows">Download Companion</a><button class="secondary" id="pair">Connect installed Companion</button><button class="secondary" id="refresh">Check again</button></div>
+<p class="note">Switch hosts between broadcasts. End the broadcast and stop the old host first. Closing a cloud controller does not stop its host.</p>
+</section>
+<section><h2>2. Create or sign in to your free Restream account</h2>
+<p>Open Restream in the host you chose. Create your free account there, complete any verification, then connect your Twitch channel. Choose the same Twitch account you use with SPMT.</p>
+<p>With Companion, use <strong>Use my Companion</strong> above. With a cloud host, use its private controller. Your Restream login must be completed in that host, so signing in in a different browser won't connect it.</p>
+<label><input type="checkbox" data-step="account"> I created or signed in to my free Restream account in my chosen host.</label>
+<label><input type="checkbox" data-step="destination"> I connected the correct Twitch destination in Restream.</label>
+<small>These checks record your progress; they do not verify Restream authorization.</small>
+</section>
+<section><h2>3. Add your SPMT overlay</h2>
+<p>Enter Studio. Choose <strong>Widgets → Add</strong>, name it SpaceMountain, and paste your link below. Add the widget to your landscape scene. Keep your SPMT layout together in this one widget for the free plan.</p>
+<input type="text" id="source" readonly aria-label="Your SPMT Browser Source URL"><button id="copy">Copy my overlay link</button>
+<label><input type="checkbox" data-step="overlay"> I added the SpaceMountain widget to my scene.</label>
+</section>
+<section><h2>4. Connect gameplay and test</h2>
+<label>Gameplay setup <select id="gameplay"><option value="ps5">PS5 only</option><option value="remote">PS5 with Remote Play on a computer</option><option value="pc">PC / other source</option></select></label>
+<p id="gameplay-help">PS5-only broadcasting needs a console relay before gameplay can appear in Studio. That input is not connected yet. You can prepare your Restream account and overlay now, but the PS5 gameplay test is not ready.</p>
+<p>Once your gameplay input is available, check picture and audio in Studio, then choose <strong>Go Live</strong>. Check the result on your Twitch channel.</p>
+<label><input type="checkbox" data-step="tested"> I checked the live picture, gameplay, overlay, and audio on Twitch.</label>
+<p>Keep Companion running while it hosts Studio. Its Studio window can be hidden to the tray. Use <strong>Stop local Restream host</strong> from the tray after ending the broadcast.</p>
+</section>
+<small>Free Restream: up to two destinations, one Browser Source per landscape scene. <a href="https://support.restream.io/en/articles/15438390-add-a-browser-source-in-studio" target="_blank" rel="noopener">Restream Browser Source help</a></small>
+</main><script>
+(() => {
+ const $=id=>document.getElementById(id);let state=null, progressKey='';
+ const headers=()=>{const t=localStorage.getItem('spmt_token');return {'content-type':'application/json',...(t?{Authorization:'Bearer '+t}:{})}};
+ async function request(url,body){const r=await fetch(url,{method:body?'POST':'GET',credentials:'include',cache:'no-store',headers:headers(),...(body?{body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d}
+ const message=t=>{$('status').textContent=t};
+ function save(){if(!progressKey)return;const p={};document.querySelectorAll('[data-step]').forEach(x=>p[x.dataset.step]=x.checked);localStorage.setItem(progressKey,JSON.stringify(p))}
+ async function refresh(){
+  try{state=await request('/api/stream-setup/status');progressKey='spmt:stream-setup:'+state.username;
+   $('intro').textContent='Set up streaming for '+state.username+'.';$('source').value=state.browserSourceUrl;
+   const device=state.companionDevices.find(d=>d.online&&d.supportsRestreamHost);$('local').disabled=!state.localPilot||!device;
+   $('cloud').hidden=state.activeHost==='local';
+   $('devices').textContent=!state.localPilot?'Local hosting is being tested with the pilot accounts.':device?'Updated Companion is connected and available.':'Install the updated Companion, then connect it to this SPMT account.';
+   let saved={};try{saved=JSON.parse(localStorage.getItem(progressKey)||'{}')}catch{}document.querySelectorAll('[data-step]').forEach(x=>x.checked=saved[x.dataset.step]===true);
+   message(state.activeHost==='local'?'Your Companion holds the Studio host reservation. Cloud start is blocked while it hosts.':'Account checked. Choose a host to continue.');
+  }catch(e){$('local').disabled=true;message(e.message)}
+ }
+ $('refresh').onclick=refresh;
+ $('pair').onclick=async()=>{try{const d=await request('/api/companion/bootstrap',{});sessionStorage.setItem('spmt:companion-bootstrap',JSON.stringify({launchUrl:d.launchUrl,expiresAt:Date.now()+d.expiresIn*1000}));location.href=d.launchUrl;message('Complete the Companion link, then choose Check again.')}catch(e){message(e.message)}};
+ $('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('source').value);message('Your overlay link was copied.')}catch{$('source').select();message('Select and copy your overlay link.')}};
+ $('local').onclick=async()=>{
+  const d=state?.companionDevices.find(d=>d.online&&d.supportsRestreamHost);if(!d)return;
+  $('local').disabled=true;
+  try{const r=await request('/api/companion/commands',{deviceId:d.id,action:'restream.host.open',payload:{},requiresConfirmation:true});message('Accept Open local Restream host in Companion.');
+   let polls=0;const timer=setInterval(async()=>{try{const s=await request('/api/companion/commands/'+r.command.id);if(['completed','failed','expired'].includes(s.command.status)){clearInterval(timer);await refresh();message(s.command.status==='completed'?'Local Studio opened. Create or sign in to Restream there.':s.command.error||'The local host did not open.')}}catch{clearInterval(timer)}if(++polls>=120)clearInterval(timer)},5000);
+  }catch(e){message(e.message);$('local').disabled=false}
+ };
+ $('gameplay').onchange=()=>{$('gameplay-help').textContent=$('gameplay').value==='ps5'?'PS5-only broadcasting needs a console relay before gameplay can appear in Studio. That input is not connected yet. You can prepare your Restream account and overlay now, but the PS5 gameplay test is not ready.':$('gameplay').value==='remote'?'Open Sony PS Remote Play on your computer and connect to your PS5. In Studio, share that window with audio. Your computer handles the Remote Play capture and upload.':'Add your camera, screen, or other supported gameplay input in Studio and check its audio.'};
+ document.querySelectorAll('[data-step]').forEach(x=>x.onchange=save);refresh();
+})();
+</script></body></html>

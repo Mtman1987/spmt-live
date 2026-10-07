@@ -44,6 +44,7 @@ function ensureWorkspaceShellBootstrap() {
     '/shared/ecosystem-header.js',
     '/shared/workspace-controller.js',
     '/shared/companion-installer-ui.js',
+    '/shared/stream-setup-nav.js',
     '/shared/overlay-bay-shell-nav.js',
     '/shared/account-recovery-ui.js',
   ]);
@@ -104,6 +105,7 @@ function installProcessBootstraps() {
   require('./account-recovery-bootstrap.cjs').installAccountRecoveryBootstrap();
   require('./admin-recovery-bootstrap.cjs').installAdminRecoveryBootstrap();
   require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
+  require('./stream-setup-bootstrap.cjs').installStreamSetupBootstrap();
   require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
   require('./easter-egg-entitlement-bootstrap.cjs').installEasterEggEntitlementBootstrap();
   require('./tenant-overlay-events-bootstrap.cjs').installTenantOverlayEventsBootstrap();

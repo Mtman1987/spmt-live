@@ -6,6 +6,7 @@ primary_region = "lax"
 [processes]
   app = "node start.cjs"
   xbox = "node xbox-worker-guard.cjs"
+  dash = "node dash-worker.cjs"
 
 [env]
   CODEX_WORKER_URL = "https://mtman-machine-rotator.fly.dev"
@@ -13,6 +14,7 @@ primary_region = "lax"
   CLOUD_XBOX_WORKER_URL = "http://xbox.process.spmt-live.internal:3003"
   CLOUD_XBOX_WORKER_PORT = "3003"
   CLOUD_XBOX_MAX_SESSIONS = "1"
+  DASH_STUDIO_WORKER_URL = "https://spmt-live.fly.dev:4447"
   CLOUD_XBOX_PROFILE_ROOT = "/var/lib/spmt-xbox/profiles"
 
 [http_service]
@@ -68,3 +70,40 @@ primary_region = "lax"
   timeout = "5s"
   grace_period = "30s"
   processes = ["xbox"]
+
+# Dedicated pilot host; authenticated /v1 calls are also account-scoped.
+# The process exits only with zero sessions. Proxy autostop would suspend a
+# live broadcast when its controller closes, so let the application decide.
+[[services]]
+  processes = ["dash"]
+  protocol = "tcp"
+  internal_port = 3003
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 0
+  [[services.ports]]
+    port = 4447
+    handlers = ["tls", "http"]
+  [[services.http_checks]]
+    path = "/health"
+    method = "GET"
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "60s"
+
+[[mounts]]
+  source = "dash_browser"
+  destination = "/var/lib/spmt-dash"
+  initial_size = "1GB"
+  processes = ["dash"]
+
+[[vm]]
+  processes = ["dash"]
+  cpu_kind = "shared"
+  cpus = 2
+  memory = "2gb"
+
+[[restart]]
+  processes = ["dash"]
+  policy = "on-failure"
+  retries = 3

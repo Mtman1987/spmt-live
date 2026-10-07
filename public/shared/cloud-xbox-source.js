@@ -97,7 +97,7 @@
     function setEmpty(message, subtext = '') {
       const empty = root()?.querySelector('[data-cloud-xbox-empty]');
       if (!empty) return;
-      empty.innerHTML = `<div><strong>${escapeHtml(message)}</strong><span>${escapeHtml(subtext)}</span></div>`;
+      empty.innerHTML = `<div><span>SPACEMOUNTAINLIVE</span><strong>${escapeHtml(message)}</strong><span>${escapeHtml(subtext)}</span></div>`;
       empty.style.display = 'grid';
     }
 
@@ -153,6 +153,7 @@
 
     async function start(mode) {
       updateStatusText('starting cloud browser…');
+      setEmpty('Loading your studio…', 'Waking your host and warming the browser.');
       try {
         const data = await jsonFetch('/api/cloud-xbox/session', {
           method: 'POST',
@@ -162,7 +163,7 @@
         controller.mode = data?.mode || mode;
         controller.viewport = data?.viewport || controller.viewport;
         controller.media = data?.media || controller.media;
-        hideEmpty();
+        setEmpty('Warming your studio…', 'Waiting for the first video frame.');
         await refreshStatus();
         refreshFrame();
       } catch (error) {

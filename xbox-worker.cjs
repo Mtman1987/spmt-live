@@ -25,6 +25,7 @@ const sessions = new Map();
 const lastDiagnostics = new Map();
 const MAX_DIAGNOSTIC_TAIL = 6000;
 const restreamStartTasks = new Map();
+let lastControlAt = Date.now();
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -52,6 +53,10 @@ function requireWorkerAuth(req, res, next) {
   }
   const userId = String(req.get('x-spmt-user-id') || '').trim();
   if (!userId) return res.status(400).json({ error: 'Missing SPMT user id' });
+  if (process.env.CLOUD_XBOX_ALLOWED_USER_ID && userId !== process.env.CLOUD_XBOX_ALLOWED_USER_ID) {
+    return res.status(403).json({ error: 'This Studio host belongs to a different account' });
+  }
+  lastControlAt = Date.now();
   req.cloudXboxUserId = userId;
   next();
 }
@@ -1048,6 +1053,15 @@ app.delete('/v1/session', async (req, res) => {
 
 const sweeper = setInterval(() => {
   const now = Date.now();
+  const activeSessions = [...sessions.values()].filter(item => item.process.exitCode === null).length;
+  if (require('./stream-worker-scope.cjs').mayStopIdleWorker({
+    enabled: process.env.CLOUD_XBOX_STOP_WHEN_IDLE === 'true', activeSessions,
+    pendingStarts: restreamStartTasks.size, lastControlAt, now, idleMs: IDLE_MS,
+  })) {
+    console.log('[StudioWorker] No session or controller remains; stopping until the next request');
+    shutdown().catch(() => process.exit(0));
+    return;
+  }
   for (const session of sessions.values()) {
     // A live Restream Studio tab is the broadcast host. It must outlive the
     // Overlay Bay/controller tab and therefore never participates in idle reap.

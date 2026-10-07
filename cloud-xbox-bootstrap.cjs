@@ -80,7 +80,7 @@ async function workerRequest(userId, method, workerPath, body = null, timeoutMs 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(`${WORKER_URL}${workerPath}`, {
+    return await fetch(`${require('./stream-worker-scope.cjs').workerUrlForUser(userId)}${workerPath}`, {
       method,
       signal: controller.signal,
       headers: {

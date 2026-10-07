@@ -40,7 +40,7 @@ function deviceProof(req, res, next) {
   req.streamDeviceId = deviceId; req.streamUsername = tenant.user.username; next();
 }
 async function cloudStatus(userId) {
-  const endpoint = String(process.env.CLOUD_XBOX_WORKER_URL || 'http://xbox.process.spmt-live.internal:3003').replace(/\/+$/, '');
+  const endpoint = require('./stream-worker-scope.cjs').workerUrlForUser(userId);
   const secret = process.env.CLOUD_XBOX_WORKER_SECRET || process.env.JWT_SECRET;
   const response = await fetch(endpoint + '/v1/status', { headers: { 'x-spmt-worker-secret': secret, 'x-spmt-user-id': userId }, signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error('Cloud host status could not be verified. Try again before switching hosts.');

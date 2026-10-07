@@ -46,6 +46,8 @@ COPY twitch-extension-bootstrap.cjs ./twitch-extension-bootstrap.cjs
 COPY tenant-overlay-bootstrap.cjs ./tenant-overlay-bootstrap.cjs
 COPY xbox-worker.cjs ./xbox-worker.cjs
 COPY xbox-worker-guard.cjs ./xbox-worker-guard.cjs
+COPY stream-worker-scope.cjs ./stream-worker-scope.cjs
+COPY dash-worker.cjs ./dash-worker.cjs
 COPY athena-command-bootstrap.cjs ./athena-command-bootstrap.cjs
 COPY easter-egg-entitlement-bootstrap.cjs ./easter-egg-entitlement-bootstrap.cjs
 COPY easter-egg-state.cjs ./easter-egg-state.cjs

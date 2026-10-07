@@ -23,6 +23,7 @@ const shellScripts = [
   '/shared/workspace-controller.js',
   '/shared/companion-installer-ui.js',
   '/shared/overlay-bay-shell-nav.js',
+  '/shared/easter-egg-recovery-outbox.js',
   '/shared/black-hole-easter-egg.js',
 ];
 if (!publicIndex.includes('</body>')) throw new Error('SPMT shell bootstrap could not find </body>');
@@ -33,6 +34,17 @@ for (const script of shellScripts) {
   shellChanged = true;
 }
 if (shellChanged) await writeFile(publicIndexPath, publicIndex, 'utf8');
+
+// The Lost Signal page is a standalone surface, so load the same outbox there
+// as well. This keeps Signal and Black Hole completions recoverable through the
+// same SPMT-origin browser storage without changing either game's core logic.
+const signalIndexPath = fileURLToPath(new URL('../public/signal/index.html', import.meta.url));
+let signalIndex = await readFile(signalIndexPath, 'utf8');
+if (!signalIndex.includes('/shared/easter-egg-recovery-outbox.js')) {
+  if (!signalIndex.includes('</body>')) throw new Error('Lost Signal bootstrap could not find </body>');
+  signalIndex = signalIndex.replace('</body>', '  <script src="/shared/easter-egg-recovery-outbox.js" defer></script>\n</body>');
+  await writeFile(signalIndexPath, signalIndex, 'utf8');
+}
 
 const commlinkIndexPath = fileURLToPath(new URL('../public/commlink/index.html', import.meta.url));
 let commlinkIndex = await readFile(commlinkIndexPath, 'utf8');

@@ -37,6 +37,7 @@
     { app: 'StreamWeaver', title: 'TTS Player (route)', url: `${STREAMWEAVER}/tts/player?tenant={tenant}`, full: true },
     { app: 'Chat Tag', title: 'Chat Tag Overlay', url: `${CHAT_TAG}/overlay/user_{twitchId}`, full: true, prompt: 'twitchId' },
     { app: 'Chat Tag', title: 'Quackverse Overlay', url: `${CHAT_TAG}/quackverse-overlay?tenant={tenant}&roomId=default`, full: true },
+    { app: 'Hear Me Out', title: 'Twitch Song Requests', sourceLink: true, full: true },
     { app: 'Hear Me Out', title: 'Room Overlay', url: `${HEAR_ME_OUT}/overlay/{roomId}`, full: true, prompt: 'roomId' },
   ];
 
@@ -104,6 +105,20 @@
   }
 
   function resolveUrl(entry) {
+    if (entry.sourceLink) {
+      const raw = String(prompt('Paste the OBS source link from !sr source in your Twitch chat', '') || '').trim();
+      try {
+        const parsed = new URL(raw);
+        if (parsed.origin !== HEAR_ME_OUT || !/^\/overlay\/twitch-[a-z0-9_-]{1,100}$/.test(parsed.pathname)
+          || !parsed.searchParams.get('sourceKey')) {
+          setStatus?.('Use the complete Twitch source link from !sr source, including its source key.', 'error');
+          return '';
+        }
+        parsed.searchParams.set('clean', '1');
+        parsed.searchParams.set('media', 'music');
+        return parsed.toString();
+      } catch { return ''; }
+    }
     let url = String(entry.url || '');
     if (url.includes('{tenant}')) {
       const tenant = currentTenant() || String(prompt('SPMT tenant / username', '') || '').trim().toLowerCase();

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connect PS5 gameplay · SpaceMountain</title>
+<style>:root{color-scheme:dark;font-family:system-ui;background:#080d19;color:#e8eef9}*{box-sizing:border-box}main{max-width:850px;margin:auto;padding:24px 18px}section{background:#111c30;border:1px solid #293c5a;padding:20px;border-radius:14px;margin:18px 0}p,li{line-height:1.6}a{color:#a8ccff}button,.button{font:inherit;background:#246ae8;color:#fff;border:0;border-radius:8px;padding:11px 14px;cursor:pointer;text-decoration:none;display:inline-block}button:disabled{opacity:.5}input{font:inherit;width:100%;padding:11px;background:#070e1c;color:#fff;border:1px solid #3c5478;border-radius:8px;margin:10px 0}.row{display:flex;gap:10px;flex-wrap:wrap}#status{padding:14px;background:#1b2e4e;border-radius:9px}iframe{width:100%;aspect-ratio:16/9;border:0;background:#000}small{color:#a0b0c9}[hidden]{display:none!important}</style></head>
+<body><main><a href="/stream-setup.html">← Stream setup</a><h1>Connect your PS5 gameplay</h1>
+<p>Save your overlays to <strong>Public Output</strong> in the overlay builder first. This adds PS5 picture and sound to that same saved scene.</p><p id="saved-scene"></p>
+<div id="status" role="status" aria-live="polite">Checking your account and receiver…</div>
+<section><h2>1. Connect your console’s network</h2>
+<p>Open this page while connected to the same home network as your PS5. On a phone, use home Wi-Fi.</p>
+<label for="ip">Home network public IPv4 (optional)</label><input id="ip" placeholder="Leave blank to detect this connection" inputmode="decimal" autocomplete="off">
+<small>If your browser uses IPv6 or is on another network, enter the PS5 home network’s public IPv4.</small>
+<p><button id="connect" disabled>Add PS5 to my overlay scene</button></p></section>
+<section><h2>2. Set PS5 DNS and broadcast</h2>
+<p>On PS5, open <strong>Settings → Network → Settings → Set Up Internet Connection</strong>. Select your network, open <strong>Advanced Settings</strong>, and set <strong>DNS Settings → Manual</strong>.</p>
+<p>Primary DNS: <strong id="dns">Waiting for receiver…</strong><br>Secondary DNS: <strong>0.0.0.0</strong></p>
+<p>Save, then use PS5’s <strong>Create → Broadcast → Twitch</strong> with thecaptaindash’s Twitch account. The receiver sends gameplay to your scene.</p>
+<small>After testing, restore DNS to Automatic if you want to broadcast directly from the console again. If the network changes, reconnect it using step 1.</small></section>
+<section><h2>3. Check picture and sound</h2><p id="arrival">Waiting for gameplay.</p>
+<button id="preview-button" disabled>Open gameplay preview with sound</button>
+<iframe id="preview" title="PS5 gameplay preview" allow="autoplay; fullscreen" hidden></iframe>
+<small>The preview uses bandwidth and plays sound locally. Close this page after checking it.</small></section>
+<section><h2>4. Use your single scene URL in Restream</h2>
+<input id="source" readonly aria-label="Restream widget URL"><div class="row"><button id="copy">Copy widget URL</button><a class="button" href="/restream-studio-control.html" target="_blank" rel="noopener">Open my Restream host</a><a class="button" id="scene" href="/tenant/thecaptaindash/public" target="_blank" rel="noopener">Check my full scene</a></div>
+<p>In your hosted Restream browser, sign in, connect your Twitch destination, and open Studio. Choose <strong>Widgets → Add</strong>, paste this URL, and maximize the widget in your landscape scene. Check gameplay, overlays, and audio, then click <strong>Go Live</strong>.</p>
+<p>You can close the controller after going live. Your dedicated Studio host stays open in the background. End the broadcast in Restream when you are finished; <strong>Stop host</strong> closes the hosted browser.</p></section>
+</main><script>
+(() => {
+ const $=id=>document.getElementById(id);let state=null,busy=false;
+ const headers=()=>{const t=localStorage.getItem('spmt_token');return {'content-type':'application/json',...(t?{Authorization:'Bearer '+t}:{})}};
+ async function request(route,body){const response=await fetch('/api/ps5-console/'+route,{method:body?'POST':'GET',credentials:'include',cache:'no-store',headers:headers(),...(body?{body:JSON.stringify(body)}:{})});const data=await response.json();if(!response.ok)throw Error(data.error||'PS5 receiver unavailable.');return data}
+ function paint(data){
+  state=data;$('saved-scene').textContent=data.overlayCount?'Your public scene has '+data.overlayCount+' saved overlays.':'Your public scene has no saved overlays yet. Save your builder layout before adding PS5.';$('dns').textContent=data.dnsIpv4||'Receiver not configured';$('source').value=data.browserSourceUrl||'https://spmt.live/tenant/thecaptaindash/public';$('connect').disabled=!data.dnsReady;$('preview-button').disabled=!data.registered;
+  $('arrival').textContent=data.picture&&data.audio?'PS5 picture and audio are arriving. Check them in Studio.':data.running?'Gameplay is arriving. Received tracks: '+(data.tracks||[]).join(', '):data.lastConnectionAt?'Console connected; waiting for a playable broadcast.':data.lastIngestDnsAt?'PS5 DNS routing is connected; waiting for the broadcast.':'Waiting for PS5 gameplay.';
+  $('status').textContent=data.registered?'Your PS5 network is connected. '+$('arrival').textContent:'Receiver is available. Add PS5 to your scene to connect this home network.';
+ }
+ async function refresh(){if(busy)return;busy=true;try{paint(await request('status'))}catch(error){$('status').textContent=error.message;$('connect').disabled=true}finally{busy=false}}
+ $('connect').onclick=async()=>{if(busy)return;busy=true;$('connect').disabled=true;try{paint(await request('connect',{homeIpv4:$('ip').value.trim()}));$('status').textContent='PS5 gameplay was added to your existing overlay scene. Set the console DNS below and start its broadcast.'}catch(error){$('status').textContent=error.message;$('connect').disabled=false}finally{busy=false}};
+ $('preview-button').onclick=()=>{if(!$('preview').hidden){$('preview').removeAttribute('src');$('preview').hidden=true;$('preview-button').textContent='Open gameplay preview with sound';return}if(!state?.playerUrl)return;$('preview').src=state.playerUrl;$('preview').hidden=false;$('preview-button').textContent='Close gameplay preview'};
+ $('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('source').value);$('status').textContent='Your single widget URL was copied.'}catch{$('source').select();$('status').textContent='Select and copy your widget URL.'}};
+ refresh();const timer=setInterval(refresh,5000);addEventListener('beforeunload',()=>clearInterval(timer));
+})();
+</script></body></html>

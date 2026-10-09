@@ -4,6 +4,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+RUN python3 scripts/install-console-media.py
 # Serve the original smooth starfield; only Restream's Browser Source plays it.
 RUN npm run build
 RUN node scripts/docs-bundle.mjs
@@ -48,6 +49,10 @@ COPY xbox-worker.cjs ./xbox-worker.cjs
 COPY xbox-worker-guard.cjs ./xbox-worker-guard.cjs
 COPY stream-worker-scope.cjs ./stream-worker-scope.cjs
 COPY dash-worker.cjs ./dash-worker.cjs
+COPY console-worker.cjs ./console-worker.cjs
+COPY console-bootstrap.cjs ./console-bootstrap.cjs
+COPY --from=build /usr/local/bin/mediamtx /usr/local/bin/mediamtx
+COPY --from=build /usr/local/share/mediamtx-LICENSE /usr/local/share/mediamtx-LICENSE
 COPY athena-command-bootstrap.cjs ./athena-command-bootstrap.cjs
 COPY easter-egg-entitlement-bootstrap.cjs ./easter-egg-entitlement-bootstrap.cjs
 COPY easter-egg-state.cjs ./easter-egg-state.cjs

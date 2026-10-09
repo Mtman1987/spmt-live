@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PS5 gameplay</title>
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}video{width:100%;height:100%;object-fit:contain}#state{position:absolute;inset:0;display:grid;place-content:center;background:#080d19;color:#eef4ff;font:22px system-ui;text-align:center;padding:20px}#state[hidden]{display:none}button{font:inherit;padding:10px 16px;background:#176bff;color:white;border:0;border-radius:8px}</style>
+</head><body><video id="video" autoplay playsinline></video><div id="state">Waiting for PS5 gameplay…</div>
+<script src="./hls.min.js"></script><script>
+(() => {
+ const video=document.getElementById('video'),state=document.getElementById('state');
+ let hls=null,retry=null,lastTime=0,advancedAt=Date.now(),started=false,stopped=false;
+ const source=new URL('./media/index.m3u8',location.href).href;
+ function notice(text){state.textContent=text;state.hidden=false}
+ function play(){
+  video.play().catch(()=>{
+   state.replaceChildren(document.createTextNode('Enable gameplay sound '));
+   const button=document.createElement('button');button.textContent='Play with sound';button.onclick=()=>{video.play().then(()=>{state.hidden=true}).catch(()=>notice('Sound could not start. Check Studio audio.'))};
+   state.append(button);state.hidden=false;
+  });
+ }
+ function restart(){
+  if(stopped)return;
+  clearTimeout(retry);hls?.destroy();hls=null;video.removeAttribute('src');video.load();
+  retry=setTimeout(start,2000);
+ }
+ function start(){
+  if(stopped)return;
+  advancedAt=Date.now();lastTime=0;
+  if(window.Hls?.isSupported()){
+   hls=new Hls({enableWorker:true,lowLatencyMode:false,maxBufferLength:12,backBufferLength:0});
+   hls.on(Hls.Events.MANIFEST_PARSED,play);
+   hls.on(Hls.Events.ERROR,(_,event)=>{if(event.fatal){notice('Waiting for PS5 gameplay…');restart()}});
+   hls.loadSource(source);hls.attachMedia(video);
+  }else if(video.canPlayType('application/vnd.apple.mpegurl')){
+   video.src=source;play();
+  }else notice('This browser cannot play the gameplay feed.');
+ }
+ video.addEventListener('playing',()=>{started=true;state.hidden=true;advancedAt=Date.now()});
+ video.addEventListener('error',restart);
+ video.addEventListener('ended',restart);
+ window.addEventListener('message',event=>{
+  if(event.source!==parent||event.origin!=='https://spmt.live'||event.data?.type!=='spmt.obspmt.audio')return;
+  const level=Number(event.data.volume);if(Number.isFinite(level))video.volume=Math.max(0,Math.min(1,level));
+  video.muted=event.data.muted===true;play();
+ });
+ const timer=setInterval(()=>{
+  if(video.currentTime!==lastTime){lastTime=video.currentTime;advancedAt=Date.now();return}
+  if(!video.paused&&Date.now()-advancedAt>20000){notice('Reconnecting PS5 gameplay…');restart();advancedAt=Date.now()}
+ },2000);
+ window.addEventListener('beforeunload',()=>{stopped=true;clearInterval(timer);clearTimeout(retry);hls?.destroy()});
+ start();
+})();
+</script></body></html>

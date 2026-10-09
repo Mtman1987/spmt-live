@@ -33,7 +33,7 @@
 </section>
 <section><h2>4. Connect gameplay and test</h2>
 <label>Gameplay setup <select id="gameplay"><option value="ps5">PS5 only</option><option value="remote">PS5 with Remote Play on a computer</option><option value="pc">PC / other source</option></select></label>
-<p id="gameplay-help">PS5-only broadcasting needs a console relay before gameplay can appear in Studio. That input is not connected yet. You can prepare your Restream account and overlay now, but the PS5 gameplay test is not ready.</p>
+<p id="gameplay-help">Connect your console broadcast to the PS5 receiver, then use this same overlay URL in your Restream widget.</p><a class="button secondary" href="/ps5-setup.html">Connect PS5 gameplay</a>
 <p>Once your gameplay input is available, check picture and audio in Studio, then choose <strong>Go Live</strong>. Check the result on your Twitch channel.</p>
 <label><input type="checkbox" data-step="tested"> I checked the live picture, gameplay, overlay, and audio on Twitch.</label>
 <p>Keep Companion running while it hosts Studio. Its Studio window can be hidden to the tray. Use <strong>Stop local Restream host</strong> from the tray after ending the broadcast.</p>
@@ -66,7 +66,7 @@
    let polls=0;const timer=setInterval(async()=>{try{const s=await request('/api/companion/commands/'+r.command.id);if(['completed','failed','expired'].includes(s.command.status)){clearInterval(timer);await refresh();message(s.command.status==='completed'?'Local Studio opened. Create or sign in to Restream there.':s.command.error||'The local host did not open.')}}catch{clearInterval(timer)}if(++polls>=120)clearInterval(timer)},5000);
   }catch(e){message(e.message);$('local').disabled=false}
  };
- $('gameplay').onchange=()=>{$('gameplay-help').textContent=$('gameplay').value==='ps5'?'PS5-only broadcasting needs a console relay before gameplay can appear in Studio. That input is not connected yet. You can prepare your Restream account and overlay now, but the PS5 gameplay test is not ready.':$('gameplay').value==='remote'?'Open Sony PS Remote Play on your computer and connect to your PS5. In Studio, share that window with audio. Your computer handles the Remote Play capture and upload.':'Add your camera, screen, or other supported gameplay input in Studio and check its audio.'};
+ $('gameplay').onchange=()=>{$('gameplay-help').textContent=$('gameplay').value==='ps5'?'Use Connect PS5 gameplay to add picture and audio to your existing overlay scene. Check both in Studio before going live.':$('gameplay').value==='remote'?'Open Sony PS Remote Play on your computer and connect to your PS5. In Studio, share that window with audio. Your computer handles the Remote Play capture and upload.':'Add your camera, screen, or other supported gameplay input in Studio and check its audio.'};
  document.querySelectorAll('[data-step]').forEach(x=>x.onchange=save);refresh();
 })();
 </script></body></html>

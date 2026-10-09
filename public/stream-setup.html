@@ -33,7 +33,18 @@
 </section>
 <section><h2>4. Connect gameplay and test</h2>
 <label>Gameplay setup <select id="gameplay"><option value="ps5">PS5 only</option><option value="remote">PS5 with Remote Play on a computer</option><option value="pc">PC / other source</option></select></label>
-<p id="gameplay-help">PS5-only broadcasting needs a console relay before gameplay can appear in Studio. That input is not connected yet. You can prepare your Restream account and overlay now, but the PS5 gameplay test is not ready.</p>
+<p id="gameplay-help">Broadcast your PS5 to YouTube, then add its live link below. Your saved SPMT scene and gameplay use the same free Restream widget. This route adds broadcast delay and needs a picture/audio check in Restream before going live.</p>
+<div id="console-setup">
+<ol><li>On PS5: <strong>Settings → Users and Accounts → Linked Services → YouTube</strong>. Link his own YouTube account and enable live streaming. First activation can take up to 24 hours.</li>
+<li>Open a game. Press <strong>Create → Broadcast → YouTube</strong> and start a test broadcast. Choose Unlisted if available; Private broadcasts cannot play in the cloud widget.</li>
+<li>On a phone, open YouTube Studio and copy the current broadcast's share link. Use a broadcast link, not a channel link. Allow embedding in YouTube Studio.</li>
+<li>Save the link below. This adds <strong>PS5 Gameplay</strong> to your public Overlay Bay scene, beneath your existing overlays. Position it there if needed.</li>
+<li>In your cloud Restream Studio, add your SPMT link from step 3 as the single widget and maximize it. Check moving gameplay, game audio, and overlays. Keep YouTube disabled as a Restream destination to avoid feeding the output back into its input.</li></ol>
+<label for="console-url">Current PS5 YouTube broadcast link</label><input type="text" id="console-url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off">
+<div class="row"><button id="console-save">Save gameplay input</button><button id="console-remove" class="secondary">Disconnect gameplay input</button><a id="console-preview" class="button secondary" target="_blank" rel="noopener">Preview gameplay</a></div>
+<p id="console-status" role="status">No console input checked yet.</p>
+<p class="note">The input link is used in your public stream scene; unlisted is not private. Start a new broadcast, then update its link here. Your console encodes gameplay; Restream renders the final scene. A real PS5-to-Restream picture and audio test is required before calling setup complete.</p>
+</div>
 <p>Once your gameplay input is available, check picture and audio in Studio, then choose <strong>Go Live</strong>. Check the result on your Twitch channel.</p>
 <label><input type="checkbox" data-step="tested"> I checked the live picture, gameplay, overlay, and audio on Twitch.</label>
 <p>Keep Companion running while it hosts Studio. Its Studio window can be hidden to the tray. Use <strong>Stop local Restream host</strong> from the tray after ending the broadcast.</p>
@@ -43,7 +54,7 @@
 (() => {
  const $=id=>document.getElementById(id);let state=null, progressKey='';
  const headers=()=>{const t=localStorage.getItem('spmt_token');return {'content-type':'application/json',...(t?{Authorization:'Bearer '+t}:{})}};
- async function request(url,body){const r=await fetch(url,{method:body?'POST':'GET',credentials:'include',cache:'no-store',headers:headers(),...(body?{body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d}
+ async function request(url,body,method){const r=await fetch(url,{method:method||(body?'POST':'GET'),credentials:'include',cache:'no-store',headers:headers(),...(body?{body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d}
  const message=t=>{$('status').textContent=t};
  function save(){if(!progressKey)return;const p={};document.querySelectorAll('[data-step]').forEach(x=>p[x.dataset.step]=x.checked);localStorage.setItem(progressKey,JSON.stringify(p))}
  async function refresh(){
@@ -53,10 +64,17 @@
    $('cloud').hidden=state.activeHost==='local';
    $('devices').textContent=!state.localPilot?'Local hosting is being tested with the pilot accounts.':device?'Updated Companion is connected and available.':'Install the updated Companion, then connect it to this SPMT account.';
    let saved={};try{saved=JSON.parse(localStorage.getItem(progressKey)||'{}')}catch{}document.querySelectorAll('[data-step]').forEach(x=>x.checked=saved[x.dataset.step]===true);
+   $('console-preview').href='/console-gameplay.html?tenant='+encodeURIComponent(state.username);
+   const input=await request('/api/stream-setup/console');
+   $('console-url').value=input.videoId?'https://www.youtube.com/watch?v='+input.videoId:'';
+   $('console-status').textContent=input.configured?'Input saved. Check actual picture and sound in the Restream widget.':'Start your PS5 broadcast, then save its YouTube link.';
    message(state.activeHost==='local'?'Your Companion holds the Studio host reservation. Cloud start is blocked while it hosts.':'Account checked. Choose a host to continue.');
   }catch(e){$('local').disabled=true;message(e.message)}
  }
  $('refresh').onclick=refresh;
+ $('console-save').onclick=async()=>{ $('console-save').disabled=true;try{await request('/api/stream-setup/console',{url:$('console-url').value},'PUT');$('console-status').textContent='Gameplay input saved to your public Overlay Bay scene. Check its picture and sound in Restream before Go Live.';}catch(e){$('console-status').textContent=e.message;}finally{$('console-save').disabled=false;} };
+ $('console-remove').onclick=async()=>{try{await request('/api/stream-setup/console',undefined,'DELETE');$('console-url').value='';$('console-status').textContent='Gameplay input disconnected. Other overlays remain saved.';}catch(e){$('console-status').textContent=e.message;}};
+
  $('pair').onclick=async()=>{try{const d=await request('/api/companion/bootstrap',{});sessionStorage.setItem('spmt:companion-bootstrap',JSON.stringify({launchUrl:d.launchUrl,expiresAt:Date.now()+d.expiresIn*1000}));location.href=d.launchUrl;message('Complete the Companion link, then choose Check again.')}catch(e){message(e.message)}};
  $('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('source').value);message('Your overlay link was copied.')}catch{$('source').select();message('Select and copy your overlay link.')}};
  $('local').onclick=async()=>{
@@ -66,7 +84,7 @@
    let polls=0;const timer=setInterval(async()=>{try{const s=await request('/api/companion/commands/'+r.command.id);if(['completed','failed','expired'].includes(s.command.status)){clearInterval(timer);await refresh();message(s.command.status==='completed'?'Local Studio opened. Create or sign in to Restream there.':s.command.error||'The local host did not open.')}}catch{clearInterval(timer)}if(++polls>=120)clearInterval(timer)},5000);
   }catch(e){message(e.message);$('local').disabled=false}
  };
- $('gameplay').onchange=()=>{$('gameplay-help').textContent=$('gameplay').value==='ps5'?'PS5-only broadcasting needs a console relay before gameplay can appear in Studio. That input is not connected yet. You can prepare your Restream account and overlay now, but the PS5 gameplay test is not ready.':$('gameplay').value==='remote'?'Open Sony PS Remote Play on your computer and connect to your PS5. In Studio, share that window with audio. Your computer handles the Remote Play capture and upload.':'Add your camera, screen, or other supported gameplay input in Studio and check its audio.'};
+ $('gameplay').onchange=()=>{$('console-setup').hidden=$('gameplay').value!=='ps5';$('gameplay-help').textContent=$('gameplay').value==='ps5'?'Broadcast your PS5 to YouTube, then add its live link below. Your saved SPMT scene and gameplay use the same free Restream widget. This route adds broadcast delay and needs a picture/audio check in Restream before going live.':$('gameplay').value==='remote'?'Open Sony PS Remote Play on your computer and connect to your PS5. In Studio, share that window with audio. Your computer handles the Remote Play capture and upload.':'Add your camera, screen, or other supported gameplay input in Studio and check its audio.'};
  document.querySelectorAll('[data-step]').forEach(x=>x.onchange=save);refresh();
 })();
 </script></body></html>

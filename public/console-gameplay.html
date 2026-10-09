@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PS5 gameplay · SpaceMountain</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030814;color:#eef7ff;font-family:system-ui,sans-serif}
+#player,#player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#waiting{position:absolute;inset:0;display:grid;place-content:center;text-align:center;padding:24px;background:radial-gradient(ellipse at top,#163356,#030814 65%);z-index:2;pointer-events:none}
+#waiting[hidden],button[hidden]{display:none}h1{font-size:clamp(20px,4vw,42px);margin:12px}p{max-width:600px;line-height:1.5;color:#bdd2e9}small{letter-spacing:.2em;color:#75d7ff}
+button{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:3;border:1px solid #73cfff;background:#133e68;color:white;border-radius:12px;padding:12px;font:700 15px system-ui}
+</style></head><body>
+<div id="player"></div><div id="waiting" role="status"><small>SPACEMOUNTAINLIVE</small><h1 id="headline">Preparing your gameplay…</h1><p id="detail">Waiting for the PS5 broadcast.</p></div>
+<button id="sound" hidden>Enable gameplay sound</button>
+<script src="/shared/console-gameplay.js"></script></body></html>

@@ -171,9 +171,17 @@
         sceneEl.style.transform = `scale(${scale})`;
       }
 
+      function isIdleHidingMedia(widget) {
+        try {
+          const url = new URL(widget.url || '', location.href);
+          return widget.kind === 'embed' && url.origin === 'https://hearmeout-main.fly.dev'
+            && url.pathname.startsWith('/overlay/twitch-') && url.searchParams.get('hideIdle') === '1';
+        } catch { return false; }
+      }
+
       function widgetStyle(widget) {
         const z = Number.isFinite(Number(widget.zIndex)) ? Number(widget.zIndex) : 0;
-        return `left:${widget.x}%;top:${widget.y}%;width:${widget.width}px;height:${widget.height}px;opacity:${widget.opacity};z-index:${z}`;
+        return `left:${widget.x}%;top:${widget.y}%;width:${widget.width}px;height:${widget.height}px;opacity:${isIdleHidingMedia(widget) ? 0 : widget.opacity};z-index:${z}`;
       }
 
       function sourceMarkup(widget) {
@@ -928,6 +936,28 @@
           if (data.type === 'spmt.overlay.alert' || data.type === 'spacemountain.alert') fireAlert(data);
         }
       });
+
+      // Hide the whole browser surface until the song reports real playback.
+      const songPlaybackSeen = new WeakMap();
+      window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://hearmeout-main.fly.dev' || event.data?.type !== 'hmo.overlay.playback') return;
+        for (const frame of sceneEl.querySelectorAll('iframe')) {
+          if (frame.contentWindow !== event.source || !isIdleHidingMedia({ kind: 'embed', url: frame.src })) continue;
+          const element = frame.closest('[data-tenant-widget]');
+          if (!element) continue;
+          songPlaybackSeen.set(frame, Date.now());
+          element.style.opacity = event.data.playing === true ? '1' : '0';
+        }
+      });
+      setInterval(() => {
+        for (const frame of sceneEl.querySelectorAll('iframe')) {
+          if (!isIdleHidingMedia({ kind: 'embed', url: frame.src })) continue;
+          if (Date.now() - (songPlaybackSeen.get(frame) || 0) > 4000) {
+            const element = frame.closest('[data-tenant-widget]');
+            if (element) element.style.opacity = '0';
+          }
+        }
+      }, 1000);
 
       window.addEventListener('resize', resizeScene);
       window.addEventListener('beforeunload', clearXboxFrame);

@@ -61,7 +61,7 @@ function installRoutes(app, express) {
         browserSourceUrl: ORIGIN + '/tenant/' + encodeURIComponent(user.username) + '/public',
         activeHost: lease?.kind || null, hostExpiresAt: lease?.expires_at || null,
         companionDevices: devices.map(d => ({ id: d.id, name: d.name, online: d.status === 'online', supportsRestreamHost: hostLeases().deviceSupportsLocal(d.id) && JSON.parse(d.capabilities || '[]').includes('restream.host') })),
-        ps5ConsoleOnlyReady: false,
+        ps5ConsoleOnlyReady: false, ps5SetupUrl: '/ps5-setup.html',
       });
     } catch { return json(res, 503, { error: 'Setup status unavailable. Try again.' }); }
   });

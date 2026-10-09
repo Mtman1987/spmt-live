@@ -7,6 +7,7 @@ primary_region = "lax"
   app = "node start.cjs"
   xbox = "node xbox-worker-guard.cjs"
   dash = "node dash-worker.cjs"
+  console = "node console-worker.cjs"
 
 [env]
   CODEX_WORKER_URL = "https://mtman-machine-rotator.fly.dev"
@@ -16,6 +17,9 @@ primary_region = "lax"
   CLOUD_XBOX_MAX_SESSIONS = "1"
   DASH_STUDIO_WORKER_URL = "https://spmt-live.fly.dev:4447"
   CLOUD_XBOX_PROFILE_ROOT = "/var/lib/spmt-xbox/profiles"
+  CONSOLE_WORKER_URL = "http://console.process.spmt-live.internal:3004"
+  CONSOLE_PUBLIC_IPV4 = "137.66.19.212"
+  CONSOLE_PUBLIC_ORIGIN = "https://spmt-live.fly.dev:4448"
 
 [http_service]
   internal_port = 3000
@@ -107,3 +111,67 @@ primary_region = "lax"
   processes = ["dash"]
   policy = "on-failure"
   retries = 3
+
+# Native PS5 DNS/RTMP receiver. UDP DNS must stay running even before a
+# console publishes. The browser host remains its existing isolated process.
+[[services]]
+  processes = ["console"]
+  protocol = "tcp"
+  internal_port = 3004
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  [[services.ports]]
+    port = 4448
+    handlers = ["tls", "http"]
+  [[services.http_checks]]
+    path = "/health"
+    method = "GET"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "30s"
+
+[[services]]
+  processes = ["console"]
+  protocol = "tcp"
+  internal_port = 1935
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  [[services.ports]]
+    port = 1935
+    handlers = ["proxy_proto"]
+
+[[services]]
+  processes = ["console"]
+  protocol = "tcp"
+  internal_port = 53
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  [[services.ports]]
+    port = 53
+    handlers = ["proxy_proto"]
+
+[[services]]
+  processes = ["console"]
+  protocol = "udp"
+  internal_port = 53
+  [[services.ports]]
+    port = 53
+
+[[mounts]]
+  source = "console_state"
+  destination = "/var/lib/spmt-console"
+  initial_size = "1GB"
+  processes = ["console"]
+
+[[vm]]
+  processes = ["console"]
+  cpu_kind = "shared"
+  cpus = 2
+  memory = "512mb"
+
+[[restart]]
+  processes = ["console"]
+  policy = "always"

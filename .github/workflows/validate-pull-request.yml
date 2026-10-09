@@ -23,5 +23,10 @@ jobs:
           cache: npm
       - name: Parse Fly configuration without production credentials
         run: python3 -c "import pathlib,tomllib; tomllib.loads(pathlib.Path('fly.toml').read_text())"
+      - name: Prepare native console media test
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          MEDIAMTX_INSTALL_PREFIX=/tmp/spmt-console-media python3 scripts/install-console-media.py
       - name: Install and validate
-        run: npm ci && npm test
+        run: npm ci && CONSOLE_TEST_MEDIAMTX=/tmp/spmt-console-media/bin/mediamtx npm run test:ps5-console && npm test

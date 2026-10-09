@@ -1394,7 +1394,46 @@ function installTenantOverlayBootstrap() {
   patchExpress();
 }
 
+
+
+function consoleSceneInfo(userId) {
+  const { DASH_USER_ID } = require('./stream-worker-scope.cjs');
+  if (String(userId) !== DASH_USER_ID) throw new Error('PS5 pilot account required');
+  const user = { id: userId, username: 'thecaptaindash' };
+  const record = readTenantRecord(user, true);
+  return { overlayCount: record.outputs.public.widgets.filter(w => w.id !== 'spmt-ps5-gameplay').length };
+}
+
+function addConsoleGameplay(userId, playerUrl) {
+  const { DASH_USER_ID } = require('./stream-worker-scope.cjs');
+  if (String(userId) !== DASH_USER_ID) throw new Error('PS5 pilot account required');
+  if (!/^https:\/\/spmt-live\.fly\.dev:4448\/ps5\/[a-f0-9]{64}\/player\.html$/.test(playerUrl)) throw new Error('Invalid PS5 player URL');
+  const row = lookupUserById(userId);
+  if (!row || tenantSlug(row.username) !== 'thecaptaindash') throw new Error('PS5 pilot account not found');
+  const user = { id: userId, username: 'thecaptaindash' };
+  const record = readTenantRecord(user, true);
+  const layout = record.outputs.public;
+  const id = 'spmt-ps5-gameplay';
+  const existing = layout.widgets.find(widget => widget.id === id);
+  const overlays = layout.widgets.filter(widget => widget.id !== id);
+  const background = widget => widget.role === 'background' || /background/i.test(widget.id || '');
+  const overlayFloor = Math.min(0, ...overlays.filter(widget => !background(widget)).map(widget => Number(widget.zIndex) || 0));
+  const zIndex = Math.max(-100000, overlayFloor - 1);
+  const gameplay = normalizeWidget({
+    id, title: 'PS5 Gameplay', kind: 'embed', x: 0, y: 0, width: SCENE_WIDTH, height: SCENE_HEIGHT,
+    zIndex, visible: true, opacity: 1, interactive: false, controlAudioViaOBSpmt: true,
+    audioVolume: 100, audioMuted: false, sourceApp: 'PS5', role: 'gameplay',
+    ...(existing || {}), url: playerUrl,
+  });
+  // Preserve every saved overlay and its placement; repeat connection is
+  // idempotent and keeps any user adjustments to the gameplay layer.
+  const saved = updateOutput(user, 'public', { ...layout, widgets: [gameplay, ...overlays] });
+  return { layout: saved.layout, urls: urlsForTenant(user.username) };
+}
+
 module.exports = {
+  addConsoleGameplay,
+  consoleSceneInfo,
   installTenantOverlayBootstrap,
   _test: {
     SCENE_WIDTH,

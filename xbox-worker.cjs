@@ -388,6 +388,15 @@ async function startSession(userId, requestedMode) {
   const port = await freePort();
   const profileDir = path.join(PROFILE_ROOT, key);
   fs.mkdirSync(profileDir, { recursive: true, mode: 0o700 });
+  if (process.env.SPMT_DISABLE_SAVED_PASSWORDS === 'true') {
+    const directory = path.join(profileDir, 'Default');
+    fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const prefsFile = path.join(directory, 'Preferences');
+    let prefs = {}; try { prefs = JSON.parse(fs.readFileSync(prefsFile, 'utf8')); } catch {}
+    prefs.credentials_enable_service = false;
+    prefs.profile = { ...(prefs.profile || {}), password_manager_enabled: false, password_manager_leak_detection: false };
+    fs.writeFileSync(prefsFile, JSON.stringify(prefs), { mode: 0o600 });
+  }
   const url = CLOUD_XBOX_MODES[mode];
   // Restream gets the same proven headed-Chromium-on-Xvfb model used by the
   // HearMeOut Lounge/Spotlight workers. Xbox modes keep the lightweight

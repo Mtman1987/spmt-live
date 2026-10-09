@@ -106,6 +106,7 @@ function installProcessBootstraps() {
   require('./admin-recovery-bootstrap.cjs').installAdminRecoveryBootstrap();
   require('./cloud-xbox-bootstrap.cjs').installCloudXboxBootstrap();
   require('./stream-setup-bootstrap.cjs').installStreamSetupBootstrap();
+  require('./console-bootstrap.cjs').installConsoleBootstrap();
   require('./athena-command-bootstrap.cjs').installAthenaCommandBootstrap();
   require('./easter-egg-entitlement-bootstrap.cjs').installEasterEggEntitlementBootstrap();
   require('./tenant-overlay-events-bootstrap.cjs').installTenantOverlayEventsBootstrap();

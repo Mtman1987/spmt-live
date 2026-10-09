@@ -51,6 +51,7 @@ async function cloudStatus(userId) {
 function installRoutes(app, express) {
   if (app.__spmtStreamSetup) return;
   app.__spmtStreamSetup = true;
+  require('./console-input.cjs').installConsoleRoutes(app, express, auth, sameOrigin, readTenant);
   app.get('/api/stream-setup/status', auth, (req, res) => {
     try {
       const { user, devices } = readTenant(req.streamUserId);
@@ -61,7 +62,7 @@ function installRoutes(app, express) {
         browserSourceUrl: ORIGIN + '/tenant/' + encodeURIComponent(user.username) + '/public',
         activeHost: lease?.kind || null, hostExpiresAt: lease?.expires_at || null,
         companionDevices: devices.map(d => ({ id: d.id, name: d.name, online: d.status === 'online', supportsRestreamHost: hostLeases().deviceSupportsLocal(d.id) && JSON.parse(d.capabilities || '[]').includes('restream.host') })),
-        ps5ConsoleOnlyReady: false,
+        ps5ConsoleOnlyReady: false, ps5ConsoleInputAvailable: true, consoleRoute: 'youtube-browser-source', consoleAcceptanceRequired: true,
       });
     } catch { return json(res, 503, { error: 'Setup status unavailable. Try again.' }); }
   });

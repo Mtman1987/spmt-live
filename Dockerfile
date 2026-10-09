@@ -40,6 +40,7 @@ COPY commlink-chat-navigation-bootstrap.cjs ./commlink-chat-navigation-bootstrap
 COPY commlink-diagnostic-bootstrap.cjs ./commlink-diagnostic-bootstrap.cjs
 COPY cloud-xbox-bootstrap.cjs ./cloud-xbox-bootstrap.cjs
 COPY stream-setup-bootstrap.cjs ./stream-setup-bootstrap.cjs
+COPY console-input.cjs ./console-input.cjs
 COPY stream-host-state.cjs ./stream-host-state.cjs
 COPY tenant-overlay-events-bootstrap.cjs ./tenant-overlay-events-bootstrap.cjs
 COPY twitch-extension-bootstrap.cjs ./twitch-extension-bootstrap.cjs

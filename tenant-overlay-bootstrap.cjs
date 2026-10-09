@@ -1394,8 +1394,32 @@ function installTenantOverlayBootstrap() {
   patchExpress();
 }
 
+// A single public Browser Source carries the console picture plus the saved overlays.
+// Source changes are scoped to the authenticated user's public scene.
+function setConsoleGameplaySource(user, enabled) {
+  const record = readTenantRecord(user, true);
+  const layout = record.outputs.public;
+  const id = 'spmt-console-gameplay';
+  const existing = (layout.widgets || []).find(w => w.id === id);
+  const main = existing || (layout.widgets || []).find(w =>
+    w.visible !== false && ['xbox', 'screen', 'camera'].includes(w.kind));
+  const hasFrame = (layout.widgets || []).some(w => w.kind === 'frame' && w.visible !== false);
+  const placement = main
+    ? { x: main.x, y: main.y, width: main.width, height: main.height }
+    : hasFrame ? { x: 2.5, y: 4.5, width: 667.2, height: 361.8 }
+      : { x: 0, y: 0, width: SCENE_WIDTH, height: SCENE_HEIGHT };
+  const others = (layout.widgets || []).filter(w => w.id !== id);
+  const frame = others.find(w => w.kind === 'frame' && w.visible !== false);
+  const zIndex = existing?.zIndex ?? (main ? (Number(main.zIndex) || 0) + 0.5 : frame ? (Number(frame.zIndex) || 0) - 0.5 : 1);
+  const source = { id, kind: 'embed', title: 'PS5 Gameplay', ...placement,
+    url: CANONICAL_ORIGIN + '/console-gameplay.html?tenant=' + encodeURIComponent(user.username),
+    visible: true, opacity: 1, zIndex, locked: false };
+  return updateOutput(user, 'public', { ...layout, widgets: enabled ? [...others, source] : others });
+}
+
 module.exports = {
   installTenantOverlayBootstrap,
+  setConsoleGameplaySource,
   _test: {
     SCENE_WIDTH,
     SCENE_HEIGHT,

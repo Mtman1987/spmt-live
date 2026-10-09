@@ -329,7 +329,9 @@ function createReceiver(options = {}) {
     await new Promise((resolve, reject) => { service.once('error', reject); service.listen(port, host, resolve); });
   }
   async function start() {
-    await listen(server, cfg.port, '0.0.0.0');
+    // Fly private service DNS resolves to IPv6; the dual-stack API listener
+    // also accepts IPv4 health checks and the local media-auth callback.
+    await listen(server, cfg.port, '::');
     const file = path.join(cfg.root, 'mediamtx.json');
     fs.writeFileSync(file, JSON.stringify(config()), { mode: 0o600 });
     // Media server diagnostics contain native stream paths. Never pipe them to

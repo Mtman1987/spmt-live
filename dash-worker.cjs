@@ -8,4 +8,6 @@ process.env.CLOUD_XBOX_MAX_SESSIONS = '1';
 process.env.SPMT_DISABLE_SAVED_PASSWORDS = 'true';
 // Keep only Studio controls here; Restream renders the saved browser source.
 process.env.SPMT_RESTREAM_CONTROLLER_PREVIEW_OFF = 'true';
+process.env.SPMT_RESTREAM_CONTROLLER_WIDTH = '120';
+process.env.SPMT_RESTREAM_CONTROLLER_HEIGHT = '50';
 require('./xbox-worker-guard.cjs');

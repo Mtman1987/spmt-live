@@ -785,7 +785,10 @@ async function controlledRestreamStart(userId) {
 }
 
 
-const RESTREAM_CONTROLLER_VIEWPORT = { width: 640, height: 360 };
+const RESTREAM_CONTROLLER_VIEWPORT = {
+ width: Math.max(120, Number(process.env.SPMT_RESTREAM_CONTROLLER_WIDTH) || 640),
+ height: Math.max(50, Number(process.env.SPMT_RESTREAM_CONTROLLER_HEIGHT) || 360),
+};
 const RESTREAM_MEDIA_OBSERVER = `(() => {
  if(window.__spmtControllerMedia)return;
  const state=window.__spmtControllerMedia={tracks:[],peers:[],audioContexts:[]};

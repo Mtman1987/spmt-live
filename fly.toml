@@ -105,7 +105,7 @@ primary_region = "lax"
   processes = ["dash"]
   cpu_kind = "shared"
   cpus = 2
-  memory = "2gb"
+  memory = "4gb"
 
 [[restart]]
   processes = ["dash"]

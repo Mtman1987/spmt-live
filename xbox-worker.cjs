@@ -811,6 +811,7 @@ const RESTREAM_MEDIA_OBSERVER = `(() => {
 async function optimizeRestreamController(session) {
  if(session.mode!=='restream')return {applied:false};
  let policy;try{policy=JSON.parse(fs.readFileSync(path.join(session.profileDir,'spmt-local-preview-policy.json'),'utf8'))}catch{}
+ if(!policy&&process.env.SPMT_RESTREAM_CONTROLLER_PREVIEW_OFF==='true')policy={enabled:true,idleMediaCleanupEnabled:true};
  if(!policy?.enabled)return {applied:false};
  const cdp=await ensurePage(session);
  const snapshot=await inspectSession(session);
@@ -840,12 +841,11 @@ async function optimizeRestreamController(session) {
  // Saved preview policy is specific to this profile; server Browser Source URL is untouched.
  let previewDisabled=false;
  try {
-  const policy=JSON.parse(fs.readFileSync(path.join(session.profileDir,'spmt-local-preview-policy.json'),'utf8'));
   if(policy.enabled){
    const targets=await fetchJson('http://127.0.0.1:'+session.port+'/json/list');
    for(const target of targets){
     let url;try{url=new URL(target.url)}catch{continue}
-    if(url.hostname!=='spmt.live'||url.pathname!=='/tenant/mtman1987/lounge')continue;
+    if(target.type!=='iframe'||url.hostname!=='spmt.live'||!/^\/tenant\/[^/]+\/(?:public|lounge)$/.test(url.pathname))continue;
     if(url.searchParams.get('localControllerPreview')==='off'){previewDisabled=true;continue}
     url.searchParams.set('localControllerPreview','off');url.searchParams.delete('previewRestoreMs');
     const frame=new CdpClient(target.webSocketDebuggerUrl);

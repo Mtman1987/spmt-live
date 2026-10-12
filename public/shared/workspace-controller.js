@@ -18,6 +18,7 @@
   const Z_WORKSPACE = 2147481100;
   const Z_TRAY = 2147481200;
   const Z_CONTROLLER = 2147482990;
+  const Z_FLOATING = 2147483100;
 
   let state = { x: null, y: null, width: null, height: null, opacity: 100, passThrough: false };
   try {
@@ -45,6 +46,9 @@
       aside[data-workspace-footer="true"],#spmt-workspace-tray{z-index:${Z_TRAY}!important}
       #spmt-workspace-tray:not(:has(.spmt-tray-panel)){display:none!important}
       body.spmt-runtime-mounted:not(:has(#spmt-workspace-tray .spmt-tray-panel)) .main{padding-bottom:24px!important}
+      /* Radix portals leave their trigger's stacking context. Keep menus and
+         popovers above the workspace and ecosystem chrome so clicks hit items. */
+      [data-radix-popper-content-wrapper]{z-index:${Z_FLOATING}!important}
       .spmt-workspace-managed-panel{z-index:${Z_WORKSPACE}!important}
       #spmt-workspace-tray.spmt-workspace-managed-panel{z-index:${Z_TRAY}!important}
       #spmt-workspace-controller{position:fixed;top:calc(var(--spmt-ecosystem-header-height,40px) + 6px);right:8px;z-index:${Z_CONTROLLER};display:none;align-items:center;gap:5px;padding:5px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(3,5,12,.9);box-shadow:0 10px 28px rgba(0,0,0,.38);backdrop-filter:blur(14px);font:800 9px/1 Inter,ui-sans-serif,system-ui,sans-serif;color:#e7ebf3}

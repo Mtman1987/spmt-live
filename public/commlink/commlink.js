@@ -1818,23 +1818,28 @@ function setupEmojiMenu() {
   }));
 }
 
+let voiceInputRecognition = null;
 function startVoiceInput() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (voiceInputRecognition) { voiceInputRecognition.stop(); return; }
+  const SpeechRecognition = window.SpmtMicrophone?.getSpeechRecognitionConstructor();
   if (!SpeechRecognition) return toast('Voice typing is not supported by this browser.');
   const recognition = new SpeechRecognition();
   recognition.interimResults = false;
   recognition.continuous = false;
   recognition.lang = document.documentElement.lang || 'en-US';
-  $('#voice-input').classList.add('listening');
+  recognition.onstart = () => { $('#voice-input').classList.add('listening'); toast('Microphone ready. Speak, then tap the microphone again to finish.'); };
   recognition.onresult = (event) => {
     const transcript = event.results?.[0]?.[0]?.transcript?.trim();
     if (transcript) $('#compose-input').value = `${$('#compose-input').value}${$('#compose-input').value ? ' ' : ''}${transcript}`;
   };
-  recognition.onerror = () => toast('Voice typing could not hear a complete message.');
-  recognition.onend = () => $('#voice-input').classList.remove('listening');
-  recognition.start();
+  recognition.onerror = (event) => toast(event.message || 'Microphone permission or recognition failed. Please try again.');
+  recognition.onprocessing = () => toast('Transcribing microphone clip…');
+  recognition.onend = () => { voiceInputRecognition = null; $('#voice-input').classList.remove('listening'); };
+  voiceInputRecognition = recognition;
+  try { recognition.start(); } catch (error) { voiceInputRecognition = null; toast(error.message); }
 }
 
+window.addEventListener('pagehide', () => { voiceInputRecognition?.abort(); voiceInputRecognition = null; });
 function wireEvents() {
   $$('.filter-tabs button').forEach((button) => button.addEventListener('click', () => {
     state.activeFilter = button.dataset.filter;

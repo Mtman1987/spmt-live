@@ -4363,6 +4363,26 @@ async function handleCommlinkDispatch(req: any, res: any, userId: string, source
   }
 }
 
+// Short microphone clips only; no stream listener and no paid STT fallback.
+app.post('/api/commlink/transcribe', authenticate, async (req: any, res) => {
+  const base64Audio = String(req.body?.base64Audio || '').trim();
+  if (!base64Audio || base64Audio.length > 700000 || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64Audio)) {
+    return res.status(400).json({ error: 'A valid short microphone clip is required.' });
+  }
+  try {
+    const upstream = await fetch('https://streamweaver-new.fly.dev/api/speech/transcribe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64Audio, freeOnly: true }),
+      signal: AbortSignal.timeout(25000),
+    });
+    const payload = await upstream.json().catch(() => ({ error: 'Transcription returned an invalid response.' }));
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.status(upstream.status).json(payload);
+  } catch {
+    return res.status(502).json({ error: 'Free microphone transcription is temporarily unavailable. Type your message or try again shortly.' });
+  }
+});
+
 app.post('/api/commlink/dispatch', authenticate, (req: any, res) => (
   handleCommlinkDispatch(req, res, req.user.id, 'cosmo-commlink')
 ));

@@ -38,6 +38,7 @@
     { app: 'Chat Tag', title: 'Chat Tag Overlay', url: `${CHAT_TAG}/overlay/user_{twitchId}`, full: true, prompt: 'twitchId' },
     { app: 'Chat Tag', title: 'Quackverse Overlay', url: `${CHAT_TAG}/quackverse-overlay?tenant={tenant}&roomId=default`, full: true },
     { app: 'Hear Me Out', title: 'Twitch Song Requests', sourceLink: true, full: true },
+    { app: 'Hear Me Out', title: 'HearMeOut Voices', voiceSource: true },
     { app: 'Hear Me Out', title: 'Room Overlay', url: `${HEAR_ME_OUT}/overlay/{roomId}`, full: true, prompt: 'roomId' },
   ];
 
@@ -139,9 +140,41 @@
     return url;
   }
 
+
+  let voicePicker = null;
+  function chooseVoiceRoom() {
+    const popup = window.open(HEAR_ME_OUT + '/voice-stream/setup', 'spmt-hmo-voices', 'width=620,height=720');
+    if (!popup) { setStatus?.('Allow this popup to choose a HearMeOut room.', 'error'); return; }
+    voicePicker = { popup, overlay: state.overlay };
+    setStatus?.('Choose or create a password-protected room in HearMeOut.', 'ok');
+  }
+  window.addEventListener('message', event => {
+    if (event.origin !== HEAR_ME_OUT || !voicePicker || event.source !== voicePicker.popup || event.data?.type !== 'spmt.hmo.voice-source') return;
+    if (state.overlay !== voicePicker.overlay) { setStatus?.('The selected overlay changed. Open HearMeOut Voices again.', 'error'); return; }
+    let url;
+    try {
+      url = new URL(event.data.sourceUrl);
+      if (url.origin !== HEAR_ME_OUT || !/^\/overlay\/voices\/[A-Za-z0-9_-]{1,96}$/.test(url.pathname) || !url.searchParams.get('sourceKey')) return;
+    } catch { return; }
+    state.overlay.widgets ??= [];
+    const previous = state.overlay.widgets.find(w => w.id === 'hmo-stream-voices');
+    const widget = {
+      ...(previous || {}), id: 'hmo-stream-voices', title: 'HearMeOut Voices · ' + String(event.data.roomName || 'room').slice(0, 80),
+      kind: 'embed', url: url.toString(), sourceApp: 'Hear Me Out', roomId: event.data.roomId,
+      roomUrl: event.data.roomUrl, visible: true, locked: false, interactive: false,
+      x: 0, y: 0, width: 24, height: 24, opacity: 1, zIndex: previous?.zIndex || nextZ(),
+      audioMuted: false, audioVolume: 1, controlAudioViaOBSpmt: true, legacyUrl: true,
+    };
+    if (previous) Object.assign(previous, widget); else state.overlay.widgets.push(widget);
+    state.overlayDirty = true;
+    try { renderOverlays(); } catch {}
+    setStatus?.('HearMeOut voices connected. Save this overlay to apply it to the stream.', 'ok');
+  });
+
   function addEntry(index) {
     const entry = catalog[index];
     if (!entry || !state?.overlay) return;
+    if (entry.voiceSource) { chooseVoiceRoom(); return; }
     const url = resolveUrl(entry);
     if (!url) {
       try { setStatus?.(`${entry.title} was not added because its required ID was not supplied.`, 'error'); } catch {}

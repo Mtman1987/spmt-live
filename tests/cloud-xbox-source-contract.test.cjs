@@ -118,6 +118,8 @@ test('Fly splits app and Xbox into separate machines with live sizing', () => {
   assert.match(fly, /\[http_service\][\s\S]*processes\s*=\s*\["app"\]/);
   assert.match(fly, /memory\s*=\s*"1gb"[\s\S]*processes\s*=\s*\["app"\]/);
   assert.match(fly, /cpus\s*=\s*2[\s\S]*memory\s*=\s*"4gb"[\s\S]*processes\s*=\s*\["xbox"\]/);
+  assert.match(fly, /\[\[restart\]\][\s\S]*processes\s*=\s*\["xbox"\][\s\S]*policy\s*=\s*"on-failure"[\s\S]*retries\s*=\s*5/);
+  assert.match(fly, /\[\[services\]\][\s\S]*processes\s*=\s*\["xbox"\][\s\S]*protocol\s*=\s*"tcp"[\s\S]*internal_port\s*=\s*3003[\s\S]*auto_start_machines\s*=\s*true[\s\S]*min_machines_running\s*=\s*1/);
 });
 
 test('production boot loads the proxy and Overlay Bay frontend', () => {

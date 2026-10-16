@@ -64,6 +64,14 @@ primary_region = "lax"
   memory = "4gb"
   processes = ["xbox"]
 
+# The web app's StreamAutoStart watcher cannot reach a crashed Xbox process
+# through the private process network. Let Fly relaunch the worker first;
+# its persistent browser volume preserves the authenticated profile.
+[[restart]]
+  processes = ["xbox"]
+  policy = "on-failure"
+  retries = 5
+
 # Monitor the private browser worker without exposing it through Fly Proxy.
 [checks.xbox_ready]
   type = "http"
@@ -74,6 +82,16 @@ primary_region = "lax"
   timeout = "5s"
   grace_period = "30s"
   processes = ["xbox"]
+
+# Keep the private worker machine available to StreamAutoStart. No public
+# port is declared; authenticated /v1 traffic remains on Fly's private path.
+[[services]]
+  processes = ["xbox"]
+  protocol = "tcp"
+  internal_port = 3003
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
 
 # Dedicated pilot host; authenticated /v1 calls are also account-scoped.
 # The process exits only with zero sessions. Proxy autostop would suspend a

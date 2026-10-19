@@ -60,7 +60,7 @@ test('go-live endpoint is scoped, pins the owner server-side, and verifies Twitc
   assert.match(source, /if \(streamWatchBusy\)[\s\S]*state: 'in_progress'[\s\S]*streamWatchBusy = true/);
   assert.match(source, /finally \{\s*streamWatchBusy = false;/);
   assert.match(source, /if \(startResponse\.status === 409\)[\s\S]*state: 'login_required'/);
-  assert.match(source, /for \(let attempt = 0; attempt < 18; attempt \+= 1\)[\s\S]*const verified = await twitchLiveState\(\)[\s\S]*state: 'live'/);
+  assert.match(source, /const verifyDeadline = Date\.now\(\) \+ 90_000[\s\S]*while \(Date\.now\(\) < verifyDeadline\)[\s\S]*const verified = await twitchLiveState\(\)[\s\S]*state: 'live'/);
   assert.match(source, /state: 'not_live'/);
   assert.doesNotMatch(source, /return safeJson\(res, 200, startBody/);
 });

@@ -331,13 +331,17 @@ function installRoutes(app, express) {
         return safeJson(res, 200, { ok: false, state: 'start_failed' });
       }
 
-      for (let attempt = 0; attempt < 18; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 5_000));
+      const verifyDeadline = Date.now() + 90_000;
+      let verificationUnavailable = false;
+      while (Date.now() < verifyDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, Math.min(5_000, Math.max(0, verifyDeadline - Date.now()))));
         const verified = await twitchLiveState();
         if (!verified.ok) {
-          return safeJson(res, 200, { ok: false, state: 'verification_unavailable' });
+          verificationUnavailable = true;
+          continue;
         }
         if (verified.isLive) {
+          streamOfflineSince = 0;
           return safeJson(res, 200, {
             ok: true,
             state: 'live',
@@ -348,7 +352,10 @@ function installRoutes(app, express) {
         }
       }
 
-      return safeJson(res, 200, { ok: false, state: 'not_live' });
+      return safeJson(res, 200, {
+        ok: false,
+        state: verificationUnavailable ? 'verification_unavailable' : 'not_live',
+      });
     } catch (error) {
       console.warn('[StreamGoLive] Start or verification failed:', error?.message || 'unknown error');
       return safeJson(res, 503, { ok: false, state: 'service_unavailable' });

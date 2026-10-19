@@ -48,6 +48,28 @@ function authUser(req) {
   return null;
 }
 
+function hasStreamweaverRestreamControl(req) {
+  const secret = String(process.env.JWT_SECRET || '').trim();
+  const bearer = String(req?.headers?.authorization || '').match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || '';
+  if (!secret || !bearer) return false;
+  try {
+    const payload = jwt.verify(bearer, secret, { algorithms: ['HS256'] });
+    const scopes = Array.isArray(payload?.scopes) ? payload.scopes.map(String) : [];
+    return payload?.client_id === 'streamweaver'
+      && payload?.token_use === 'client_credentials'
+      && scopes.includes('restream:control');
+  } catch {
+    return false;
+  }
+}
+
+function authenticateStreamweaverRestreamControl(req, res, next) {
+  if (!hasStreamweaverRestreamControl(req)) {
+    return safeJson(res, 403, { error: 'StreamWeaver Restream control is not authorized' });
+  }
+  next();
+}
+
 function normalizeCloudBrowserMode(value) {
   if (value === 'remote-play') return 'remote-play';
   if (value === 'restream') return 'restream';
@@ -264,6 +286,84 @@ function installRoutes(app, express) {
     next();
   });
 
+  // A single tightly scoped service action for the owner-only Twitch !golive command.
+  // It never accepts a user ID or browser action from the request; the target
+  // is resolved server-side to the canonical SPMT owner and the existing worker.
+  app.post('/api/internal/stream/golive', authenticateStreamweaverRestreamControl, async (_req, res) => {
+    if (streamWatchBusy) {
+      return safeJson(res, 200, { ok: false, state: 'in_progress' });
+    }
+    streamWatchBusy = true;
+    try {
+      const userId = ownerUserId();
+      if (!userId) {
+        return safeJson(res, 503, { ok: false, state: 'service_unavailable' });
+      }
+
+      const before = await twitchLiveState();
+      if (!before.ok) {
+        return safeJson(res, 200, { ok: false, state: 'verification_unavailable' });
+      }
+      if (before.isLive) {
+        streamOfflineSince = 0;
+        return safeJson(res, 200, {
+          ok: true,
+          state: 'already_live',
+          verifiedAt: before.checkedAt,
+          startedAt: before.startedAt || null,
+          streamId: before.streamId || null,
+        });
+      }
+
+      if (require('./stream-host-state.cjs').hostLeases().active(userId)?.kind === 'local') {
+        return safeJson(res, 200, { ok: false, state: 'local_host_active' });
+      }
+
+      streamLastAttemptAt = Date.now();
+      const startResponse = await workerRequest(userId, 'POST', '/v1/restream/start', {}, 120_000);
+      const startBody = await startResponse.json().catch(() => null);
+      // 409 is emitted specifically for Restream's LOGIN_REQUIRED condition.
+      // Do not forward the browser snapshot, page text, or raw failure details.
+      if (startResponse.status === 409) {
+        return safeJson(res, 200, { ok: false, state: 'login_required' });
+      }
+      if (!startResponse.ok || startBody?.ok === false) {
+        return safeJson(res, 200, { ok: false, state: 'start_failed' });
+      }
+
+      const verifyDeadline = Date.now() + 90_000;
+      let verificationUnavailable = false;
+      while (Date.now() < verifyDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, Math.min(5_000, Math.max(0, verifyDeadline - Date.now()))));
+        const verified = await twitchLiveState();
+        if (!verified.ok) {
+          verificationUnavailable = true;
+          continue;
+        }
+        if (verified.isLive) {
+          streamOfflineSince = 0;
+          return safeJson(res, 200, {
+            ok: true,
+            state: 'live',
+            verifiedAt: verified.checkedAt,
+            startedAt: verified.startedAt || null,
+            streamId: verified.streamId || null,
+          });
+        }
+      }
+
+      return safeJson(res, 200, {
+        ok: false,
+        state: verificationUnavailable ? 'verification_unavailable' : 'not_live',
+      });
+    } catch (error) {
+      console.warn('[StreamGoLive] Start or verification failed:', error?.message || 'unknown error');
+      return safeJson(res, 503, { ok: false, state: 'service_unavailable' });
+    } finally {
+      streamWatchBusy = false;
+    }
+  });
+
   app.get('/api/cloud-xbox/status', authenticateCloudXbox, async (req, res) => {
     try {
       await relayJson(res, await workerRequest(req.cloudXboxUser.id, 'GET', '/v1/status', null, 8000));
@@ -366,6 +466,7 @@ async function shutdownCloudXboxBrowsers() {
 module.exports = {
   authUser,
   twitchLiveState,
+  hasStreamweaverRestreamControl,
   installCloudXboxBootstrap,
   shutdownCloudXboxBrowsers,
 };

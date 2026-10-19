@@ -50,7 +50,7 @@ function authUser(req) {
 
 function hasStreamweaverRestreamControl(req) {
   const secret = String(process.env.JWT_SECRET || '').trim();
-  const bearer = String(req?.headers?.authorization || '').match(/^Bearer\\s+(.+)$/i)?.[1]?.trim() || '';
+  const bearer = String(req?.headers?.authorization || '').match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || '';
   if (!secret || !bearer) return false;
   try {
     const payload = jwt.verify(bearer, secret, { algorithms: ['HS256'] });
@@ -302,7 +302,7 @@ function installRoutes(app, express) {
 
       const before = await twitchLiveState();
       if (!before.ok) {
-        return safeJson(res, 503, { ok: false, state: 'verification_unavailable' });
+        return safeJson(res, 200, { ok: false, state: 'verification_unavailable' });
       }
       if (before.isLive) {
         streamOfflineSince = 0;
@@ -335,7 +335,7 @@ function installRoutes(app, express) {
         await new Promise((resolve) => setTimeout(resolve, 5_000));
         const verified = await twitchLiveState();
         if (!verified.ok) {
-          return safeJson(res, 503, { ok: false, state: 'verification_unavailable' });
+          return safeJson(res, 200, { ok: false, state: 'verification_unavailable' });
         }
         if (verified.isLive) {
           return safeJson(res, 200, {

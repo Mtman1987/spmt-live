@@ -57,6 +57,8 @@ test('go-live endpoint is scoped, pins the owner server-side, and verifies Twitc
   assert.match(source, /app\.post\('\/api\/internal\/stream\/golive', authenticateStreamweaverRestreamControl/);
   assert.match(source, /function ownerUserId\(\)[\s\S]*SELECT id FROM users WHERE lower\(username\) = \? LIMIT 1[\s\S]*\.get\('mtman1987'\)/);
   assert.match(source, /workerRequest\(userId, 'POST', '\/v1\/restream\/start'/);
+  assert.match(source, /if \(streamWatchBusy\)[\s\S]*state: 'in_progress'[\s\S]*streamWatchBusy = true/);
+  assert.match(source, /finally \{\s*streamWatchBusy = false;/);
   assert.match(source, /if \(startResponse\.status === 409\)[\s\S]*state: 'login_required'/);
   assert.match(source, /for \(let attempt = 0; attempt < 18; attempt \+= 1\)[\s\S]*const verified = await twitchLiveState\(\)[\s\S]*state: 'live'/);
   assert.match(source, /state: 'not_live'/);

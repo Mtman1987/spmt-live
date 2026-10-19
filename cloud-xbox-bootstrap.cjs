@@ -290,6 +290,10 @@ function installRoutes(app, express) {
   // It never accepts a user ID or browser action from the request; the target
   // is resolved server-side to the canonical SPMT owner and the existing worker.
   app.post('/api/internal/stream/golive', authenticateStreamweaverRestreamControl, async (_req, res) => {
+    if (streamWatchBusy) {
+      return safeJson(res, 200, { ok: false, state: 'in_progress' });
+    }
+    streamWatchBusy = true;
     try {
       const userId = ownerUserId();
       if (!userId) {
@@ -301,6 +305,7 @@ function installRoutes(app, express) {
         return safeJson(res, 503, { ok: false, state: 'verification_unavailable' });
       }
       if (before.isLive) {
+        streamOfflineSince = 0;
         return safeJson(res, 200, {
           ok: true,
           state: 'already_live',
@@ -314,6 +319,7 @@ function installRoutes(app, express) {
         return safeJson(res, 200, { ok: false, state: 'local_host_active' });
       }
 
+      streamLastAttemptAt = Date.now();
       const startResponse = await workerRequest(userId, 'POST', '/v1/restream/start', {}, 120_000);
       const startBody = await startResponse.json().catch(() => null);
       // 409 is emitted specifically for Restream's LOGIN_REQUIRED condition.
@@ -346,6 +352,8 @@ function installRoutes(app, express) {
     } catch (error) {
       console.warn('[StreamGoLive] Start or verification failed:', error?.message || 'unknown error');
       return safeJson(res, 503, { ok: false, state: 'service_unavailable' });
+    } finally {
+      streamWatchBusy = false;
     }
   });
 

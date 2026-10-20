@@ -163,7 +163,7 @@
       kind: 'embed', url: url.toString(), sourceApp: 'Hear Me Out', roomId: event.data.roomId,
       roomUrl: event.data.roomUrl, visible: true, locked: false, interactive: false,
       x: 0, y: 0, width: 24, height: 24, opacity: 1, zIndex: previous?.zIndex || nextZ(),
-      audioMuted: false, audioVolume: 1, controlAudioViaOBSpmt: true, legacyUrl: true,
+      audioMuted: false, audioVolume: 100, controlAudioViaOBSpmt: true, legacyUrl: true,
     };
     if (previous) Object.assign(previous, widget); else state.overlay.widgets.push(widget);
     state.overlayDirty = true;

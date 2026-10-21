@@ -48,8 +48,14 @@ list.addEventListener('click',async e=>{
  try{
   const r=await fetch('/api/owner-approvals/'+encodeURIComponent(button.dataset.id)+'/decision',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json','x-spmt-owner-approval-action':'1'},body:JSON.stringify({decision})});
   const data=await r.json();if(!r.ok)throw new Error(data.error||'Decision failed');
-  message.textContent=decision==='approve'?'Approved. Rotator can retrieve the short-lived grant securely.':'Rejected. No grant was issued.';
   await load();
+  if(decision==='approve' && data.handoff==='delivered'){
+    message.innerHTML='Approved. The short-lived grant was handed to Rotator securely. <a href="https://mtman-machine-rotator.fly.dev/logs/errors.txt?approvalRequestId='+encodeURIComponent(button.dataset.id)+'">Retrieve the approved 24-hour logs</a>.';
+  }else if(decision==='approve'){
+    message.textContent='Approval recorded, but the secure handoff is still pending. No token was shown; check the SPMT-to-Rotator callback configuration.';
+  }else{
+    message.textContent='Rejected. No grant was issued.';
+  }
  }catch(e){message.textContent=e.message||'Decision failed.';buttons.forEach(b=>b.disabled=false);}
 });
 document.getElementById('refresh').addEventListener('click',load);

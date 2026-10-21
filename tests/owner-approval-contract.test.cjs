@@ -9,8 +9,8 @@ const page = fs.readFileSync(path.join(__dirname, '..', 'public', 'owner-approva
 
 test('owner approval requests are restricted to the first read-only log scope', () => {
   assert.match(server, /body\.scope !== 'logs:read:last24h'/);
-  assert.match(server, /scope TEXT NOT NULL CHECK\(scope = 'logs:read:last24h'\)/);
-  assert.match(server, /status TEXT NOT NULL CHECK\(status IN \('pending','approved','rejected','consumed','expired'\)\)/);
+  assert.match(schema, /scope TEXT NOT NULL CHECK\(scope = 'logs:read:last24h'\)/);
+  assert.match(schema, /status TEXT NOT NULL CHECK\(status IN \('pending','approved','rejected','consumed','expired'\)\)/);
 });
 
 test('internal request and grant delivery require a configured service secret', () => {

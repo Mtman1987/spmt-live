@@ -2918,8 +2918,24 @@ app.post('/api/owner-approvals/:id/decision', authenticate, requirePlatformAdmin
   const changed = db.prepare("UPDATE owner_approval_requests SET status = ?, decided_at = ?, decided_by = ?, grant_token = ? WHERE id = ? AND status = 'pending'")
     .run(nextStatus, decidedAt, String(req.currentUser?.id || req.user.id), grantToken, id);
   if (!changed.changes) return res.status(409).json({ error: 'Request was already decided' });
+  let handoff = decision === 'reject' ? 'not_required' : 'pending';
+  if (decision === 'approve' && grantToken) {
+    const callbackSecret = String(process.env.SPMT_OWNER_APPROVAL_CALLBACK_SECRET || '').trim();
+    const rotatorBase = String(process.env.ROTATOR_PUBLIC_BASE_URL || 'https://mtman-machine-rotator.fly.dev').replace(/\/$/, '');
+    if (callbackSecret.length >= 32) {
+      try {
+        const callback = await fetch(rotatorBase + '/actions/owner-approvals/grant', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-spmt-owner-approval-callback-secret': callbackSecret },
+          body: JSON.stringify({ requestId: id, grant: grantToken, scope: 'logs:read:last24h' }),
+          signal: AbortSignal.timeout(10000),
+        });
+        handoff = callback.ok ? 'delivered' : 'pending';
+      } catch { handoff = 'pending'; }
+    }
+  }
   res.set('Cache-Control', 'private, no-store');
-  res.json({ ok: true, request: { id, status: nextStatus, decidedAt } });
+  res.json({ ok: true, handoff, request: { id, status: nextStatus, decidedAt } });
 });
 
 app.get('/api/me', authenticate, (req: any, res) => {

@@ -2931,6 +2931,10 @@ app.post('/api/owner-approvals/:id/decision', authenticate, requirePlatformAdmin
           signal: AbortSignal.timeout(10000),
         });
         handoff = callback.ok ? 'delivered' : 'pending';
+        if (callback.ok) {
+          db.prepare('UPDATE owner_approval_requests SET grant_token = NULL, grant_delivered_at = ? WHERE id = ?')
+            .run(new Date().toISOString(), id);
+        }
       } catch { handoff = 'pending'; }
     }
   }

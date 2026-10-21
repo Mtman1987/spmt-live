@@ -94,7 +94,7 @@ test('SpaceMountain user OAuth no longer receives xp:write and refresh strips ol
 
 
 test('MountainView service identity is restricted to Rotator last-24h log reads', () => {
-  assert.match(source, /OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT[\\s\\S]*mountainview: \\['logs:read:last24h'\\]/);
-  assert.match(source, /app\\.get\\('\\/api\\/oauth\\/serviceinfo',[\\s\\S]*tokenUse !== 'client_credentials'/);
-  assert.match(source, /scopes\\.some\\(\\(value\\) => !allowedScopes\\.includes\\(value\\)\\)/);
+  assert.match(source, /OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT[\s\S]*mountainview: \['logs:read:last24h'\]/);
+  assert.match(source, /app\.get\('\/api\/oauth\/serviceinfo',[\s\S]*tokenUse !== 'client_credentials'/);
+  assert.match(source, /scopes\.some\(\(value\) => !allowedScopes\.includes\(value\)\)/);
 });

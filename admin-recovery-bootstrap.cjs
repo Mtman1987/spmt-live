@@ -66,6 +66,64 @@ function hasInternalRecoveryAccess(req) {
   return hasServiceRecoveryAccess(req) || hasLegacyRecoveryAccess(req);
 }
 
+function hasOwnerBreakglassAccess(req) {
+  const expected = String(process.env.SPMT_OWNER_RECOVERY_KEY || '').trim();
+  const supplied = String(req.headers['x-spmt-owner-key'] || '').trim();
+  // Require a separately provisioned, high-entropy key. Never fall back to a
+  // service token or legacy system key for this independent owner path.
+  if (expected.length < 32 || !supplied) return false;
+  return constantTimeEqual(expected, supplied);
+}
+
+function issueOwnerBreakglassRecoveryCode(req, res) {
+  res.set('Cache-Control', 'no-store');
+  if (!hasOwnerBreakglassAccess(req)) {
+    return res.status(401).json({ error: 'Owner recovery credential required' });
+  }
+
+  let db;
+  try {
+    db = getRecoveryDb();
+  } catch (error) {
+    console.warn('[OwnerRecovery] Database unavailable', {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return res.status(503).json({ error: 'SPMT recovery database unavailable' });
+  }
+
+  // The break-glass key can recover only the configured project owner's own
+  // account. It cannot be used to reset arbitrary users or mint a global token.
+  const ownerUsername = String(process.env.SPMT_OWNER_USERNAME || 'mtman1987').trim();
+  const owners = db.prepare(`
+    SELECT id, username, display_name
+    FROM users
+    WHERE lower(username) = lower(?)
+    ORDER BY datetime(created_at) ASC
+  `).all(ownerUsername);
+
+  if (owners.length === 0) {
+    return res.status(404).json({ error: 'Configured owner account was not found' });
+  }
+  if (owners.length !== 1) {
+    return res.status(409).json({ error: 'Owner identity is ambiguous; manual database review is required' });
+  }
+
+  const owner = owners[0];
+  const recoveryCode = generateRecoveryCode();
+  const issuedAt = saveRecoveryCode(db, owner.id, recoveryCode);
+  console.warn('[OwnerRecovery] Break-glass recovery code issued for configured owner account');
+
+  return res.json({
+    ok: true,
+    username: String(owner.username || ''),
+    account: `${String(owner.username || '')}@spmt.live`,
+    displayName: String(owner.display_name || owner.username || ''),
+    recoveryCode,
+    issuedAt,
+    instructions: 'Open https://spmt.live, choose Recover, enter this account and code, then choose a new password.',
+  });
+}
+
 function normalizeDiscordId(value) {
   const id = String(value || '').trim().replace(/[<@!>]/g, '');
   return /^\d{15,24}$/.test(id) ? id : '';
@@ -155,6 +213,7 @@ function installRoutes(app, expressFactory) {
   app.__spmtAdminRecoveryRuntimeInstalled = true;
   const json = expressFactory.json({ limit: '16kb' });
   app.post('/api/internal/auth/admin-recovery-code', json, issueOwnerRecoveryCode);
+  app.post('/api/internal/auth/owner-recovery-code', json, issueOwnerBreakglassRecoveryCode);
 }
 
 function patchExpress() {
@@ -184,4 +243,6 @@ module.exports = {
   normalizeDiscordId,
   hasInternalRecoveryAccess,
   hasServiceRecoveryAccess,
+  hasOwnerBreakglassAccess,
+  issueOwnerBreakglassRecoveryCode,
 };

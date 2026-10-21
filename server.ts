@@ -67,7 +67,7 @@ const OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT: Record<string, string[]> = {
   mountainview: ['logs:read:last24h'],
   'spacemountain-live': ['xp:write'],
   streamweaver: ['entitlements:read', 'events:write', 'account-recovery:write', 'chat-tag:blacklist:read', 'jobs:read', 'jobs:write', 'restream:control'],
-  'discord-stream-hub': ['discord:control', 'athena:write'],
+  'discord-stream-hub': ['discord:control', 'athena:write', 'identity:write', 'events:write', 'xp:write'],
 };
 
 const COMPANION_ACTION_CAPABILITIES: Record<string, string> = {

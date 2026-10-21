@@ -1,14 +1,17 @@
 const fs = require('node:fs');
+const { execFileSync } = require('node:child_process');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const source = fs.readFileSync('server.ts', 'utf8');
+// Read committed source so pretest patch scripts cannot hide a missing production scope.
+const committedSource = execFileSync('git', ['show', 'HEAD:server.ts'], { encoding: 'utf8' });
 
 test('Discord Stream Hub has its approved canonical service OAuth scopes', () => {
-  const blockStart = source.indexOf('const OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT');
-  const blockEnd = source.indexOf('\n};', blockStart);
+  const blockStart = committedSource.indexOf('const OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT');
+  const blockEnd = committedSource.indexOf('\n};', blockStart);
   assert.ok(blockStart >= 0 && blockEnd > blockStart, 'client-credentials scope allow-list should exist');
-  const serviceScopes = source.slice(blockStart, blockEnd);
+  const serviceScopes = committedSource.slice(blockStart, blockEnd);
   const entry = serviceScopes.match(/'discord-stream-hub': \[([^\]]+)\]/);
   assert.ok(entry, 'discord-stream-hub client-credentials scope entry should exist');
   for (const scope of ['discord:control', 'athena:write', 'identity:write', 'events:write', 'xp:write']) {

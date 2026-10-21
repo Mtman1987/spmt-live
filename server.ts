@@ -2886,7 +2886,7 @@ app.get('/api/owner-approvals', authenticate, requirePlatformAdmin, (req: any, r
   res.set('Cache-Control', 'private, no-store');
   res.json({ requests: rows.map(ownerApprovalPublic) });
 });
-app.post('/api/owner-approvals/:id/decision', authenticate, requirePlatformAdmin, (req: any, res) => {
+app.post('/api/owner-approvals/:id/decision', authenticate, requirePlatformAdmin, async (req: any, res) => {
   if (!ownerApprovalSameOrigin(req) || req.get('x-spmt-owner-approval-action') !== '1') {
     return res.status(403).json({ error: 'Same-origin owner approval action required' });
   }

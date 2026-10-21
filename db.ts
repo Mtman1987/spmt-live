@@ -107,6 +107,28 @@ function seedOauthClient(clientId: string, configuredSecret: string | undefined,
 }
 
 export function initDb() {
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS owner_approval_requests (
+      id TEXT PRIMARY KEY,
+      requester TEXT NOT NULL,
+      problem TEXT NOT NULL,
+      proposed_fix TEXT NOT NULL,
+      blocker TEXT NOT NULL,
+      target TEXT NOT NULL,
+      scope TEXT NOT NULL CHECK(scope = 'logs:read:last24h'),
+      status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected','consumed','expired')),
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      decided_at TEXT,
+      decided_by TEXT,
+      grant_token TEXT,
+      grant_delivered_at TEXT,
+      consumed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_owner_approval_status_created
+      ON owner_approval_requests(status, created_at DESC);
+  `);
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,

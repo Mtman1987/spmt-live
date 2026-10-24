@@ -4859,13 +4859,14 @@ app.post('/api/platform/xp/spend', authenticatePlatformKey('xp:write'), (req: an
       return res.status(400).json({ error: 'userId, positive bounded amount, and idempotencyKey are required' });
     }
     const existing = db.prepare('SELECT id FROM xp_ledger WHERE source_app = ? AND idempotency_key = ?').get(sourceApp, idempotencyKey);
-    if (existing) return res.json({ spent: false, duplicate: true, ...getSpmtXpWallet(userId) });
+    if (existing) { console.info('CURRENCY_SWEEP_V1', JSON.stringify({ schema: 'spmt.currency-source.v1', sourceId: 'spmt.xp.ledger.spend', currency: 'XP', operation: 'spend', delta: 0, duplicate: true, occurredAt: new Date().toISOString(), tenantId: sourceApp })); return res.json({ spent: false, duplicate: true, ...getSpmtXpWallet(userId) }); }
     const wallet = getSpmtXpWallet(userId);
     if (wallet.spendableXp < amount) return res.status(409).json({ error: 'Insufficient spendable XP', ...wallet });
     const metadata = { ...(req.body?.metadata || {}), lifetimeEligible: false, walletAction: 'spend' };
     assertPublicAppState(metadata, 'metadata');
     db.prepare('INSERT INTO xp_ledger (id, user_id, source_app, event_type, idempotency_key, delta, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
       .run(uuidv4(), userId, sourceApp, eventType, idempotencyKey, -amount, JSON.stringify(metadata), new Date().toISOString());
+    console.info('CURRENCY_SWEEP_V1', JSON.stringify({ schema: 'spmt.currency-source.v1', sourceId: 'spmt.xp.ledger.spend', currency: 'XP', operation: 'spend', delta: -amount, duplicate: false, occurredAt: new Date().toISOString(), tenantId: sourceApp }));
     res.status(201).json({ spent: true, duplicate: false, amount, ...getSpmtXpWallet(userId) });
   } catch (error: any) {
     res.status(error.statusCode || 400).json({ error: error.message || 'XP could not be spent' });
@@ -4896,7 +4897,7 @@ app.post('/api/platform/xp/gamble-settle', authenticatePlatformKey('xp:write'), 
     const existing = db.prepare(
       'SELECT id FROM xp_ledger WHERE source_app = ? AND idempotency_key IN (?, ?, ?) LIMIT 1',
     ).get(sourceApp, debitKey, refillKey, growthKey);
-    if (existing) return res.json({ settled: false, duplicate: true, ...getSpmtXpWallet(userId) });
+    if (existing) { console.info('CURRENCY_SWEEP_V1', JSON.stringify({ schema: 'spmt.currency-source.v1', sourceId: 'spmt.xp.ledger.gamble', currency: 'XP', operation: 'adjust', delta: 0, duplicate: true, occurredAt: new Date().toISOString(), tenantId: sourceApp })); return res.json({ settled: false, duplicate: true, ...getSpmtXpWallet(userId) }); }
 
     const before = getSpmtXpWallet(userId);
     if (before.spendableXp < wager) return res.status(409).json({ error: 'Insufficient spendable XP', ...before });
@@ -4926,6 +4927,9 @@ app.post('/api/platform/xp/gamble-settle', authenticatePlatformKey('xp:write'), 
       }
     })();
 
+    console.info('CURRENCY_SWEEP_V1', JSON.stringify({ schema: 'spmt.currency-source.v1', sourceId: 'spmt.xp.ledger.gamble', currency: 'XP', operation: 'spend', delta: -wager, duplicate: false, occurredAt: now, tenantId: sourceApp }));
+    if (settlement.refill > 0) console.info('CURRENCY_SWEEP_V1', JSON.stringify({ schema: 'spmt.currency-source.v1', sourceId: 'spmt.xp.ledger.gamble', currency: 'XP', operation: 'award', delta: settlement.refill, duplicate: false, occurredAt: now, tenantId: sourceApp }));
+    if (settlement.matchedGrowth > 0) console.info('CURRENCY_SWEEP_V1', JSON.stringify({ schema: 'spmt.currency-source.v1', sourceId: 'spmt.xp.ledger.gamble', currency: 'XP', operation: 'award', delta: settlement.matchedGrowth, duplicate: false, occurredAt: now, tenantId: sourceApp }));
     return res.status(201).json({ settled: true, duplicate: false, ...settlement, payout, before, ...getSpmtXpWallet(userId) });
   } catch (error: any) {
     return res.status(error.statusCode || 400).json({ error: error.message || 'Gambling XP could not be settled' });
@@ -4950,7 +4954,7 @@ app.post('/api/platform/xp/transfer', authenticatePlatformKey('xp:write'), (req:
     const debitKey = `${idempotencyKey}:debit`;
     const creditKey = `${idempotencyKey}:credit`;
     const existing = db.prepare('SELECT id FROM xp_ledger WHERE source_app = ? AND idempotency_key IN (?, ?) LIMIT 1').get(sourceApp, debitKey, creditKey);
-    if (existing) return res.json({ transferred: false, duplicate: true, from: getSpmtXpWallet(fromUserId), to: getSpmtXpWallet(toUserId) });
+    if (existing) { console.info('CURRENCY_SWEEP_V1', JSON.stringify({ schema: 'spmt.currency-source.v1', sourceId: 'spmt.xp.ledger.transfer', currency: 'XP', operation: 'transfer', delta: 0, duplicate: true, occurredAt: new Date().toISOString(), tenantId: sourceApp })); return res.json({ transferred: false, duplicate: true, from: getSpmtXpWallet(fromUserId), to: getSpmtXpWallet(toUserId) }); }
     if (getSpmtXpWallet(fromUserId).spendableXp < amount) return res.status(409).json({ error: 'Insufficient spendable XP', from: getSpmtXpWallet(fromUserId) });
     const now = new Date().toISOString();
     const metadata = { ...(req.body?.metadata || {}), lifetimeEligible: false, walletAction: 'transfer' };
@@ -4961,6 +4965,8 @@ app.post('/api/platform/xp/transfer', authenticatePlatformKey('xp:write'), (req:
       db.prepare('INSERT INTO xp_ledger (id, user_id, source_app, event_type, idempotency_key, delta, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
         .run(uuidv4(), toUserId, sourceApp, eventType, creditKey, amount, JSON.stringify({ ...metadata, direction: 'credit', otherUserId: fromUserId }), now);
     })();
+    console.info('CURRENCY_SWEEP_V1', JSON.stringify({ schema: 'spmt.currency-source.v1', sourceId: 'spmt.xp.ledger.transfer', currency: 'XP', operation: 'transfer', delta: -amount, duplicate: false, occurredAt: now, tenantId: sourceApp }));
+    console.info('CURRENCY_SWEEP_V1', JSON.stringify({ schema: 'spmt.currency-source.v1', sourceId: 'spmt.xp.ledger.transfer', currency: 'XP', operation: 'transfer', delta: amount, duplicate: false, occurredAt: now, tenantId: sourceApp }));
     res.status(201).json({ transferred: true, duplicate: false, amount, from: getSpmtXpWallet(fromUserId), to: getSpmtXpWallet(toUserId) });
   } catch (error: any) {
     res.status(error.statusCode || 400).json({ error: error.message || 'XP could not be transferred' });
@@ -4999,12 +5005,13 @@ app.post('/api/platform/xp', authenticatePlatformKey('xp:write'), (req: any, res
     const metadata = req.body?.metadata ?? {};
     assertPublicAppState(metadata, 'metadata');
     const existing = db.prepare('SELECT id, user_id, source_app, event_type, delta, metadata_json, created_at FROM xp_ledger WHERE source_app = ? AND idempotency_key = ?').get(sourceApp, idempotencyKey) as any;
-    if (existing) return res.json({ awarded: false, duplicate: true, entry: { ...existing, metadata: JSON.parse(existing.metadata_json) } });
+    if (existing) { console.info('CURRENCY_SWEEP_V1', JSON.stringify({ schema: 'spmt.currency-source.v1', sourceId: 'spmt.xp.ledger.award', currency: 'XP', operation: 'award', delta: 0, duplicate: true, occurredAt: new Date().toISOString(), tenantId: sourceApp })); return res.json({ awarded: false, duplicate: true, entry: { ...existing, metadata: JSON.parse(existing.metadata_json) } }); }
     if (!getUserById(userId)) return res.status(404).json({ error: 'User not found' });
     const id = uuidv4();
     const createdAt = new Date().toISOString();
     db.prepare('INSERT INTO xp_ledger (id, user_id, source_app, event_type, idempotency_key, delta, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
       .run(id, userId, sourceApp, eventType, idempotencyKey, delta, JSON.stringify(metadata), createdAt);
+    console.info('CURRENCY_SWEEP_V1', JSON.stringify({ schema: 'spmt.currency-source.v1', sourceId: 'spmt.xp.ledger.award', currency: 'XP', operation: delta < 0 ? 'adjust' : 'award', delta, duplicate: false, occurredAt: createdAt, tenantId: sourceApp }));
     res.status(201).json({ awarded: true, duplicate: false, entry: { id, userId, sourceApp, eventType, delta, metadata, createdAt } });
   } catch (error: any) {
     res.status(error.statusCode || 400).json({ error: error.message || 'XP could not be awarded' });
@@ -5038,6 +5045,7 @@ app.post('/api/platform/xp/migrate-balance', authenticatePlatformKey('xp:write')
       migratedAt,
       metadata: { schemaVersion: 1, migration: 'legacy-source-balance', ...metadata },
     });
+    console.info('CURRENCY_SWEEP_V1', JSON.stringify({ schema: 'spmt.currency-source.v1', sourceId: 'spmt.xp.ledger.migration', currency: 'XP', operation: 'migration', delta: result.migrated ? Number(result.adjustment || 0) : 0, duplicate: !result.migrated, occurredAt: migratedAt, tenantId: sourceApp }));
     res.status(result.migrated ? 201 : 200).json(result);
   } catch (error: any) {
     res.status(error.statusCode || 400).json({

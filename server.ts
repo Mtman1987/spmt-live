@@ -3149,7 +3149,11 @@ app.get('/api/oauth/authorize', (req: any, res) => {
 
   // If not logged in, redirect to login page with return params
   if (!user) {
-    const returnUrl = `/api/oauth/authorize?client_id=${encodeURIComponent(client_id as string)}&redirect_uri=${encodeURIComponent(redirect_uri as string)}${state ? `&state=${encodeURIComponent(state as string)}` : ''}`;
+    const returnParams = new URLSearchParams({ client_id: String(client_id), redirect_uri: String(redirect_uri) });
+    if (state) returnParams.set('state', String(state));
+    if (code_challenge) returnParams.set('code_challenge', String(code_challenge));
+    if (code_challenge_method) returnParams.set('code_challenge_method', String(code_challenge_method));
+    const returnUrl = `/api/oauth/authorize?${returnParams.toString()}`;
     return res.redirect(`/?return=${encodeURIComponent(returnUrl)}`);
   }
 

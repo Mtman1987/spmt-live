@@ -3135,7 +3135,7 @@ app.get('/api/user/lookup', (req, res) => {
 // ─── OAuth2: Authorize (simplified) ───
 // Other apps redirect here: GET /api/oauth/authorize?client_id=X&redirect_uri=Y&state=Z
 app.get('/api/oauth/authorize', (req: any, res) => {
-  const { client_id, redirect_uri, state } = req.query;
+  const { client_id, redirect_uri, state, code_challenge, code_challenge_method } = req.query;
   if (!client_id || !redirect_uri) return res.status(400).json({ error: 'client_id and redirect_uri required' });
 
   // Check if user is authenticated
@@ -3149,7 +3149,11 @@ app.get('/api/oauth/authorize', (req: any, res) => {
 
   // If not logged in, redirect to login page with return params
   if (!user) {
-    const returnUrl = `/api/oauth/authorize?client_id=${encodeURIComponent(client_id as string)}&redirect_uri=${encodeURIComponent(redirect_uri as string)}${state ? `&state=${encodeURIComponent(state as string)}` : ''}`;
+    const returnParams = new URLSearchParams({ client_id: String(client_id), redirect_uri: String(redirect_uri) });
+    if (state) returnParams.set('state', String(state));
+    if (code_challenge) returnParams.set('code_challenge', String(code_challenge));
+    if (code_challenge_method) returnParams.set('code_challenge_method', String(code_challenge_method));
+    const returnUrl = `/api/oauth/authorize?${returnParams.toString()}`;
     return res.redirect(`/?return=${encodeURIComponent(returnUrl)}`);
   }
 
@@ -3157,11 +3161,16 @@ app.get('/api/oauth/authorize', (req: any, res) => {
   const client = db.prepare('SELECT * FROM oauth_clients WHERE client_id = ?').get(client_id) as any;
   if (!client) return res.status(404).json({ error: 'Unknown client' });
   if (!client.redirect_uris.split(',').includes(redirect_uri)) return res.status(400).json({ error: 'Invalid redirect_uri' });
+  const pkceChallenge = String(code_challenge || '');
+  const pkceMethod = String(code_challenge_method || '');
+  if ((pkceChallenge || pkceMethod) && (!/^[A-Za-z0-9_-]{43}$/.test(pkceChallenge) || pkceMethod !== 'S256')) {
+    return res.status(400).json({ error: 'Invalid PKCE S256 challenge' });
+  }
 
   // Generate authorization code
   const code = uuidv4();
-  db.prepare('INSERT INTO oauth_codes (code, user_id, client_id, redirect_uri, expires_at) VALUES (?, ?, ?, ?, ?)')
-    .run(code, user.id, client_id, redirect_uri, new Date(Date.now() + 5 * 60 * 1000).toISOString());
+  db.prepare('INSERT INTO oauth_codes (code, user_id, client_id, redirect_uri, expires_at, code_challenge, code_challenge_method) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(code, user.id, client_id, redirect_uri, new Date(Date.now() + 5 * 60 * 1000).toISOString(), pkceChallenge || null, pkceMethod || null);
 
   const bridgeToken = jwt.sign({ id: user.id, username: user.username, email: user.email, client_id, bridge: true }, JWT_SECRET, { expiresIn: '7d' });
   const codeOnlyClients = new Set(['mountainview', 'spacemountain-live', 'discord-stream-hub', 'hearmeout', 'streamweaver']);
@@ -3261,13 +3270,13 @@ app.post('/api/embed/exchange', (req, res) => {
 
 // ─── OAuth2: Token exchange ───
 app.post('/api/oauth/token', (req, res) => {
-  const { code, client_id, client_secret, redirect_uri, refresh_token, grant_type, scope } = req.body;
-  if (!client_id || !client_secret) return res.status(400).json({ error: 'Missing client credentials' });
-
-  const client = db.prepare('SELECT * FROM oauth_clients WHERE client_id = ? AND client_secret = ?').get(client_id, client_secret) as any;
+  const { code, client_id, client_secret, redirect_uri, refresh_token, grant_type, scope, code_verifier } = req.body;
+  if (!client_id) return res.status(400).json({ error: 'Missing client identifier' });
+  const client = db.prepare('SELECT * FROM oauth_clients WHERE client_id = ?').get(client_id) as any;
   if (!client) return res.status(401).json({ error: 'Invalid client credentials' });
 
   if (grant_type === 'client_credentials') {
+    if (!client_secret || client.client_secret !== client_secret) return res.status(401).json({ error: 'Invalid client credentials' });
     const allowedScopes = OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT[String(client_id)] || [];
     const requestedScopes = String(scope || '').split(/\s+/).map((value) => value.trim()).filter(Boolean);
     const scopes = requestedScopes.length ? Array.from(new Set(requestedScopes)) : allowedScopes;
@@ -3283,6 +3292,7 @@ app.post('/api/oauth/token', (req, res) => {
   }
 
   if (grant_type === 'refresh_token' || refresh_token) {
+    if (!client_secret || client.client_secret !== client_secret) return res.status(401).json({ error: 'Invalid client credentials' });
     const rotation = rotateOauthRefreshToken(db, String(refresh_token || ''), String(client_id), JWT_SECRET, OAUTH_REFRESH_TOKEN_SECONDS);
     if (!rotation) return res.status(400).json({ error: 'Invalid or expired refresh token' });
     const stored = rotation.stored;
@@ -3309,6 +3319,14 @@ app.post('/api/oauth/token', (req, res) => {
   const authCode = db.prepare('SELECT * FROM oauth_codes WHERE code = ? AND client_id = ? AND redirect_uri = ?').get(code, client_id, redirect_uri) as any;
   if (!authCode) return res.status(400).json({ error: 'Invalid code' });
   if (new Date(authCode.expires_at) < new Date()) return res.status(400).json({ error: 'Code expired' });
+  if (authCode.code_challenge) {
+    const verifier = String(code_verifier || '');
+    if (String(client_id) !== 'spacemountain-live' || !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)) return res.status(400).json({ error: 'Invalid PKCE verifier' });
+    const actualChallenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+    if (authCode.code_challenge_method !== 'S256' || actualChallenge !== authCode.code_challenge) return res.status(401).json({ error: 'PKCE verification failed' });
+  } else if (!client_secret || client.client_secret !== client_secret) {
+    return res.status(401).json({ error: 'Invalid client credentials' });
+  }
 
   // Delete used code
   db.prepare('DELETE FROM oauth_codes WHERE code = ?').run(code);

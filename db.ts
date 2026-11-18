@@ -668,7 +668,7 @@ export function initDb() {
     'spacemountain-live',
     process.env.SPACEMOUNTAIN_CLIENT_SECRET,
     'SpaceMountain.live',
-    'https://spacemountain.live/auth/callback,https://spacemountain-live.fly.dev/auth/callback,http://spacemountain-live.fly.dev/auth/callback'
+    'https://spacemountain.live/auth/callback,https://spacemountain-live.fly.dev/auth/callback,http://spacemountain-live.fly.dev/auth/callback,https://apollo-node-1.hostless.app/auth/callback'
   );
   seedOauthClient(
     'discord-stream-hub',

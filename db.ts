@@ -627,6 +627,8 @@ export function initDb() {
 
   // Compatibility migrations run after canonical tables exist so a fresh database
   // and an older production database converge on the same schema.
+  try { db.exec('ALTER TABLE oauth_codes ADD COLUMN code_challenge TEXT'); } catch {}
+  try { db.exec('ALTER TABLE oauth_codes ADD COLUMN code_challenge_method TEXT'); } catch {}
   try { db.exec('ALTER TABLE users ADD COLUMN discord_username TEXT'); } catch {}
   try { db.exec('ALTER TABLE users ADD COLUMN discord_id TEXT'); } catch {}
   try { db.exec('ALTER TABLE users ADD COLUMN twitch_username TEXT'); } catch {}

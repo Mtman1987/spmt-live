@@ -39,7 +39,11 @@ const OAUTH_CLIENT_SECRET_NAMES = [
   'HEARMEOUT_CLIENT_SECRET',
   'MOUNTAINVIEW_CLIENT_SECRET',
 ] as const;
-const CORS_ORIGINS = (process.env.CORS_ORIGINS || [
+// Keep first-party browser origins available even when an operator supplies
+// additional CORS_ORIGINS. Apollo's Hostless node uses the SPMT session cookie
+// through credentialed browser fetch; omitting its exact origin makes the
+// browser reject the response before Apollo can exchange the donor assertion.
+const CORS_ORIGINS = [...new Set([
   'https://spacemountain.live',
   'https://spacemountain-live.fly.dev',
   'https://discord-stream-hub-new.fly.dev',
@@ -47,7 +51,10 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || [
   'https://chat-tag-new.fly.dev',
   'https://hearmeout-main.fly.dev',
   'https://mtman-machine-rotator.fly.dev',
-].join(',')).split(',');
+  'https://apollo-node-1.hostless.app',
+  'https://apollo-node-2.hostless.app',
+  ...(process.env.CORS_ORIGINS || '').split(','),
+].map((origin) => origin.trim()).filter(Boolean))];
 
 const EMBED_SCOPES_BY_CLIENT: Record<string, string[]> = {
   streamweaver: [

@@ -180,7 +180,7 @@ test('all first-party apps complete SPMT authorization code flow on the canonica
     assert.ok(code, `${client.id} callback must contain an authorization code`);
 
     if (codeVerifier) {
-      const rejected = await fetch(`${baseUrl}/api/oauth/token`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ grant_type: 'authorization_code', code, client_id: client.id, code_verifier: `${codeVerifier.slice(0, -1)}x`, redirect_uri: client.redirectUri }) });
+      const rejected = await fetch(`${baseUrl}/api/oauth/token`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ grant_type: 'authorization_code', code, client_id: client.id, code_verifier: `${codeVerifier}x`, redirect_uri: client.redirectUri }) });
       assert.equal(rejected.status, 401, 'PKCE must reject a mismatched verifier without consuming the code');
     }
 

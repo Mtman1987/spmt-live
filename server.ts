@@ -3159,8 +3159,8 @@ app.get('/api/oauth/authorize', (req: any, res) => {
   if (!client.redirect_uris.split(',').includes(redirect_uri)) return res.status(400).json({ error: 'Invalid redirect_uri' });
   const pkceChallenge = String(code_challenge || '');
   const pkceMethod = String(code_challenge_method || '');
-  if (String(client_id) === 'spacemountain-live' && (!/^[A-Za-z0-9_-]{43}$/.test(pkceChallenge) || pkceMethod !== 'S256')) {
-    return res.status(400).json({ error: 'PKCE S256 is required for SpaceMountain sign-in' });
+  if ((pkceChallenge || pkceMethod) && (!/^[A-Za-z0-9_-]{43}$/.test(pkceChallenge) || pkceMethod !== 'S256')) {
+    return res.status(400).json({ error: 'Invalid PKCE S256 challenge' });
   }
 
   // Generate authorization code

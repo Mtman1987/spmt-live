@@ -6,6 +6,7 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 
 const CLIENTS = [
@@ -156,10 +157,13 @@ test('all first-party apps complete SPMT authorization code flow on the canonica
 
   for (const [index, client] of CLIENTS.entries()) {
     const state = `state-${index}-${Date.now()}`;
+    const codeVerifier = client.id === 'spacemountain-live' ? crypto.randomBytes(32).toString('base64url') : null;
+    const codeChallenge = codeVerifier ? crypto.createHash('sha256').update(codeVerifier).digest('base64url') : null;
     const authorizeUrl = new URL(`${baseUrl}/api/oauth/authorize`);
     authorizeUrl.searchParams.set('client_id', client.id);
     authorizeUrl.searchParams.set('redirect_uri', client.redirectUri);
     authorizeUrl.searchParams.set('state', state);
+    if (codeChallenge) { authorizeUrl.searchParams.set('code_challenge', codeChallenge); authorizeUrl.searchParams.set('code_challenge_method', 'S256'); }
 
     const authorizeResponse = await fetch(authorizeUrl, {
       redirect: 'manual',
@@ -182,7 +186,7 @@ test('all first-party apps complete SPMT authorization code flow on the canonica
         grant_type: 'authorization_code',
         code,
         client_id: client.id,
-        client_secret: client.secret,
+        ...(codeVerifier ? { code_verifier: codeVerifier } : { client_secret: client.secret }),
         redirect_uri: client.redirectUri,
       }),
     });
@@ -216,7 +220,7 @@ test('all first-party apps complete SPMT authorization code flow on the canonica
         grant_type: 'authorization_code',
         code,
         client_id: client.id,
-        client_secret: client.secret,
+        ...(codeVerifier ? { code_verifier: codeVerifier } : { client_secret: client.secret }),
         redirect_uri: client.redirectUri,
       }),
     });

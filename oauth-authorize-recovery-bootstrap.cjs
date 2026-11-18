@@ -83,7 +83,9 @@ function oauthCodeTableSql() {
       user_id TEXT NOT NULL,
       client_id TEXT NOT NULL,
       redirect_uri TEXT NOT NULL,
-      expires_at TEXT NOT NULL
+      expires_at TEXT NOT NULL,
+      code_challenge TEXT,
+      code_challenge_method TEXT
     )
   `;
 }
@@ -128,6 +130,10 @@ function ensureOauthCodeSchema(db) {
     console.warn('[OAuthRuntime] Rebuilt transient oauth_codes table without legacy foreign-key coupling');
   }
 
+  const oauthColumns = new Set(db.prepare('PRAGMA table_info(oauth_codes)').all().map((column) => String(column.name || '')));
+  if (!oauthColumns.has('code_challenge')) db.exec('ALTER TABLE oauth_codes ADD COLUMN code_challenge TEXT');
+  if (!oauthColumns.has('code_challenge_method')) db.exec('ALTER TABLE oauth_codes ADD COLUMN code_challenge_method TEXT');
+
   oauthSchemaReady.add(db);
 }
 
@@ -135,8 +141,14 @@ function loginReturnUrl(req) {
   const clientId = firstQueryValue(req.query?.client_id);
   const redirectUri = firstQueryValue(req.query?.redirect_uri);
   const state = firstQueryValue(req.query?.state);
+  const codeChallenge = firstQueryValue(req.query?.code_challenge);
+  const codeChallengeMethod = firstQueryValue(req.query?.code_challenge_method);
   if (!clientId || !redirectUri) return '/';
-  const authorizePath = `/api/oauth/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
+  const params = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri });
+  if (state) params.set('state', state);
+  if (codeChallenge) params.set('code_challenge', codeChallenge);
+  if (codeChallengeMethod) params.set('code_challenge_method', codeChallengeMethod);
+  const authorizePath = `/api/oauth/authorize?${params.toString()}`;
   return `/?return=${encodeURIComponent(authorizePath)}`;
 }
 
@@ -194,9 +206,9 @@ function insertAuthorizationCode(db, values) {
   for (let attempt = 1; attempt <= 4; attempt += 1) {
     try {
       db.prepare(`
-        INSERT INTO oauth_codes (code, user_id, client_id, redirect_uri, expires_at)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(values.code, values.userId, values.clientId, values.redirectUri, values.expiresAt);
+        INSERT INTO oauth_codes (code, user_id, client_id, redirect_uri, expires_at, code_challenge, code_challenge_method)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(values.code, values.userId, values.clientId, values.redirectUri, values.expiresAt, values.codeChallenge || null, values.codeChallengeMethod || null);
       return attempt;
     } catch (error) {
       lastError = error;
@@ -223,6 +235,8 @@ function authorizeOauthClient(req, res) {
   const clientId = firstQueryValue(req.query?.client_id);
   const redirectUri = firstQueryValue(req.query?.redirect_uri);
   const state = firstQueryValue(req.query?.state);
+  const codeChallenge = firstQueryValue(req.query?.code_challenge);
+  const codeChallengeMethod = firstQueryValue(req.query?.code_challenge_method);
   res.set('Cache-Control', 'no-store');
 
   if (!clientId || !redirectUri) {
@@ -270,6 +284,10 @@ function authorizeOauthClient(req, res) {
   const client = db.prepare('SELECT client_id, redirect_uris FROM oauth_clients WHERE client_id = ?').get(clientId);
   if (!client) return res.status(404).json({ error: 'Unknown client' });
 
+  if ((codeChallenge || codeChallengeMethod) && (!/^[A-Za-z0-9_-]{43}$/.test(codeChallenge) || codeChallengeMethod !== 'S256')) {
+    return res.status(400).json({ error: 'Invalid PKCE S256 challenge' });
+  }
+
   const allowedRedirects = String(client.redirect_uris || '')
     .split(',')
     .map((value) => value.trim())
@@ -294,6 +312,8 @@ function authorizeOauthClient(req, res) {
       clientId,
       redirectUri,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      codeChallenge,
+      codeChallengeMethod,
     });
   } catch (error) {
     const errorClass = sqliteErrorClass(error);

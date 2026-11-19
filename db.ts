@@ -83,6 +83,14 @@ export function getDatabaseReadiness() {
   }
 }
 
+// Public PKCE clients hold no secret. Authorization-code exchange for them requires
+// the S256 code_verifier that matches the challenge stored at authorize time.
+function seedPublicOauthClient(clientId: string, name: string, redirectUris: string) {
+  db.prepare(`INSERT INTO oauth_clients (client_id, client_secret, name, redirect_uris, created_at) VALUES (?, '', ?, ?, ?)
+    ON CONFLICT(client_id) DO UPDATE SET name = excluded.name, redirect_uris = excluded.redirect_uris`)
+    .run(clientId, name, redirectUris, new Date().toISOString());
+}
+
 function seedOauthClient(clientId: string, configuredSecret: string | undefined, name: string, redirectUris: string) {
   const existing = db.prepare('SELECT client_id FROM oauth_clients WHERE client_id = ?').get(clientId);
   // Production preserves the mutable secret already stored in the persistent database.
@@ -671,6 +679,11 @@ export function initDb() {
     process.env.SPACEMOUNTAIN_CLIENT_SECRET,
     'SpaceMountain.live',
     'https://spacemountain.live/auth/callback,https://spacemountain-live.fly.dev/auth/callback,http://spacemountain-live.fly.dev/auth/callback,https://apollo-node-1.hostless.app/auth/callback'
+  );
+  seedPublicOauthClient(
+    'apollo-node-1',
+    'Apollo (node-1)',
+    'https://apollo-node-1.hostless.app/v1/auth/spmt/callback'
   );
   seedOauthClient(
     'discord-stream-hub',

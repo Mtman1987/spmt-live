@@ -49,6 +49,9 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || [
   'https://mtman-machine-rotator.fly.dev',
 ].join(',')).split(',');
 
+// Public clients that authenticate by PKCE only (no client secret).
+const PKCE_PUBLIC_CLIENTS = new Set(['spacemountain-live', 'apollo-node-1']);
+
 const EMBED_SCOPES_BY_CLIENT: Record<string, string[]> = {
   streamweaver: [
     'identity:read',
@@ -61,6 +64,7 @@ const EMBED_SCOPES_BY_CLIENT: Record<string, string[]> = {
   hearmeout: ['identity:read', 'workspace:read', 'media:control', 'rooms:control'],
   'chat-tag': ['identity:read', 'game:control'],
   'spacemountain-live': ['identity:read'],
+  'apollo-node-1': ['identity:read'],
 };
 
 const OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT: Record<string, string[]> = {
@@ -2233,14 +2237,23 @@ app.post('/api/platform/events', authenticatePlatformKey('events:write'), (req: 
 
 app.get('/api/platform/events', authenticatePlatformKey('events:write'), (req: any, res) => {
   const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
-  const events = db.prepare(`
-    SELECT id, type, version, timestamp, source_app, actor_user_id, actor_username,
-      actor_display_name, visibility, payload, links, created_by, created_at
-    FROM platform_events
-    WHERE created_by = ? AND (? IS NULL OR source_app = ?)
-    ORDER BY datetime(created_at) DESC
-    LIMIT ?
-  `).all(req.platformKey.userId, req.platformKey.appId, req.platformKey.appId, limit) as any[];
+  const events = req.platformKey.service
+    ? db.prepare(`
+        SELECT id, type, version, timestamp, source_app, actor_user_id, actor_username,
+          actor_display_name, visibility, payload, links, created_by, created_at
+        FROM platform_events
+        WHERE created_by IS NULL AND source_app = ?
+        ORDER BY datetime(created_at) DESC
+        LIMIT ?
+      `).all(req.platformKey.appId, limit) as any[]
+    : db.prepare(`
+        SELECT id, type, version, timestamp, source_app, actor_user_id, actor_username,
+          actor_display_name, visibility, payload, links, created_by, created_at
+        FROM platform_events
+        WHERE created_by = ? AND (? IS NULL OR source_app = ?)
+        ORDER BY datetime(created_at) DESC
+        LIMIT ?
+      `).all(req.platformKey.userId, req.platformKey.appId, req.platformKey.appId, limit) as any[];
   res.json({
     events: events.map((event) => ({
       id: event.id,
@@ -3279,8 +3292,11 @@ app.post('/api/oauth/token', (req, res) => {
     if (!client_secret || client.client_secret !== client_secret) return res.status(401).json({ error: 'Invalid client credentials' });
     const allowedScopes = OAUTH_CLIENT_CREDENTIAL_SCOPES_BY_CLIENT[String(client_id)] || [];
     const requestedScopes = String(scope || '').split(/\s+/).map((value) => value.trim()).filter(Boolean);
-    const scopes = requestedScopes.length ? Array.from(new Set(requestedScopes)) : allowedScopes;
-    if (!scopes.length || scopes.some((value) => !allowedScopes.includes(value))) {
+    if (!requestedScopes.length) {
+      return res.status(400).json({ error: 'client_credentials requires an explicit scope' });
+    }
+    const scopes = Array.from(new Set(requestedScopes));
+    if (scopes.some((value) => !allowedScopes.includes(value))) {
       return res.status(403).json({ error: 'Requested client-credentials scope is not allowed for this app' });
     }
     return res.json({
@@ -3321,7 +3337,7 @@ app.post('/api/oauth/token', (req, res) => {
   if (new Date(authCode.expires_at) < new Date()) return res.status(400).json({ error: 'Code expired' });
   if (authCode.code_challenge) {
     const verifier = String(code_verifier || '');
-    if (String(client_id) !== 'spacemountain-live' || !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)) return res.status(400).json({ error: 'Invalid PKCE verifier' });
+    if (!PKCE_PUBLIC_CLIENTS.has(String(client_id)) || !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)) return res.status(400).json({ error: 'Invalid PKCE verifier' });
     const actualChallenge = crypto.createHash('sha256').update(verifier).digest('base64url');
     if (authCode.code_challenge_method !== 'S256' || actualChallenge !== authCode.code_challenge) return res.status(401).json({ error: 'PKCE verification failed' });
   } else if (!client_secret || client.client_secret !== client_secret) {

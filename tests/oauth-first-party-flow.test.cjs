@@ -46,7 +46,16 @@ const CLIENTS = [
     secret: 'test-mountainview-secret',
     redirectUri: 'https://mtman-machine-rotator.fly.dev/mountainview/auth/callback',
   },
+  {
+    // Public PKCE client: no secret, so PKCE is the only exchange credential.
+    id: 'apollo-node-1',
+    secretEnv: 'APOLLO_NODE_1_UNUSED_SECRET',
+    secret: 'unused-public-client-secret',
+    redirectUri: 'https://apollo-node-1.hostless.app/v1/auth/spmt/callback',
+    publicPkce: true,
+  },
 ];
+const PKCE_CLIENT_IDS = new Set(['spacemountain-live', 'apollo-node-1']);
 
 async function freePort() {
   return new Promise((resolve, reject) => {
@@ -157,7 +166,7 @@ test('all first-party apps complete SPMT authorization code flow on the canonica
 
   for (const [index, client] of CLIENTS.entries()) {
     const state = `state-${index}-${Date.now()}`;
-    const codeVerifier = client.id === 'spacemountain-live' ? crypto.randomBytes(32).toString('base64url') : null;
+    const codeVerifier = PKCE_CLIENT_IDS.has(client.id) ? crypto.randomBytes(32).toString('base64url') : null;
     const codeChallenge = codeVerifier ? crypto.createHash('sha256').update(codeVerifier).digest('base64url') : null;
     const authorizeUrl = new URL(`${baseUrl}/api/oauth/authorize`);
     authorizeUrl.searchParams.set('client_id', client.id);
@@ -207,6 +216,7 @@ test('all first-party apps complete SPMT authorization code flow on the canonica
     assert.equal(userinfoResponse.status, 200, `${client.id} userinfo failed: ${JSON.stringify(userinfo)}\n${output()}`);
     assert.equal(userinfo?.username, username, `${client.id} userinfo must preserve the canonical SPMT identity`);
 
+    if (!client.publicPkce) {
     const refreshes = await Promise.all(Array.from({ length: 5 }, async () => {
       const response = await fetch(`${baseUrl}/api/oauth/token`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
@@ -217,6 +227,7 @@ test('all first-party apps complete SPMT authorization code flow on the canonica
     }));
     assert.equal(new Set(refreshes.map(value => value.refresh_token)).size, 1);
     for (const refreshed of refreshes) assert.equal(refreshed.user.id, userinfo.id);
+    }
 
     const replayResponse = await fetch(`${baseUrl}/api/oauth/token`, {
       method: 'POST',

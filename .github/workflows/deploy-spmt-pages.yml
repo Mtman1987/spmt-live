@@ -1,5 +1,6 @@
 name: Deploy SPMT developer portal to GitHub Pages
 
+# Pages is provisioned by enable-pages-owner-token.yml using the owner-approved PAT.
 on:
   push:
     branches: [main]

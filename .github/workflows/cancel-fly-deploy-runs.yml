@@ -1,0 +1,43 @@
+name: Cancel retired Fly.io deployment runs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cancel-fly-deploy-runs.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id: 'fly-deploy.yml',
+              per_page: 100
+            });
+            const active = data.workflow_runs.filter(run =>
+              ['queued', 'in_progress'].includes(run.status)
+            );
+            for (const run of active) {
+              try {
+                await github.rest.actions.cancelWorkflowRun({ owner, repo, run_id: run.id });
+                core.notice('Cancelled retired Fly.io run ' + run.id + ' (' + run.status + ').');
+              } catch (error) {
+                if (error.status === 409) {
+                  core.notice('Fly.io run ' + run.id + ' completed before cancellation.');
+                  continue;
+                }
+                throw error;
+              }
+            }
+            core.notice('Retired Fly.io workflow has no active runs left.');

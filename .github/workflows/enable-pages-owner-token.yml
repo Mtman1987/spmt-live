@@ -1,0 +1,52 @@
+name: Enable GitHub Pages with existing owner token
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/enable-pages-owner-token.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  enable:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable Pages workflow publishing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_API: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" || { echo "Existing GITHUB_TOKEN secret is empty"; exit 1; }
+          endpoint="$GH_API/repos/$REPOSITORY/pages"
+          status="$(curl -sS -o /tmp/pages.json -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" "$endpoint")"
+          if [[ "$status" == "200" ]]; then
+            method="PATCH"
+            payload='{"build_type":"workflow"}'
+          elif [[ "$status" == "404" ]]; then
+            method="POST"
+            payload='{"build_type":"workflow"}'
+          else
+            echo "Pages lookup failed: HTTP $status"
+            jq '{message,documentation_url}' /tmp/pages.json || true
+            exit 1
+          fi
+          result="$(curl -sS -o /tmp/pages-result.json -w '%{http_code}' -X "$method" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "$endpoint" -d "$payload")"
+          if [[ "$result" != "200" && "$result" != "201" ]]; then
+            echo "Pages enablement failed: HTTP $result"
+            jq '{message,documentation_url,errors}' /tmp/pages-result.json || true
+            exit 1
+          fi
+          jq '{html_url,build_type,status,cname}' /tmp/pages-result.json
+          echo "GitHub Pages is configured for GitHub Actions publishing."

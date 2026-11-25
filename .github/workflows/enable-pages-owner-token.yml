@@ -1,4 +1,4 @@
-name: Enable GitHub Pages with existing owner token
+name: Enable GitHub Pages with owner-approved PAT
 
 on:
   push:
@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
 
 jobs:
   enable:
@@ -17,13 +16,13 @@ jobs:
     steps:
       - name: Enable Pages workflow publishing
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SPMT_GITHUB_ADMIN_TOKEN }}
           GH_API: ${{ github.api_url }}
           REPOSITORY: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$GH_TOKEN" || { echo "Existing GITHUB_TOKEN secret is empty"; exit 1; }
+          test -n "$GH_TOKEN" || { echo "SPMT_GITHUB_ADMIN_TOKEN is not configured"; exit 1; }
           endpoint="$GH_API/repos/$REPOSITORY/pages"
           status="$(curl -sS -o /tmp/pages.json -w '%{http_code}' \
             -H "Authorization: Bearer $GH_TOKEN" \
